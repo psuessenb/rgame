@@ -18,7 +18,7 @@ entry should be deleted rather than kept.
 then scale that buffer onto the window — Godot's `viewport` stretch mode, as
 against the `canvas_items` one.
 
-**What exists instead.** `RGame::Game.new(scale_mode:)` and
+**What exists instead.** `Game::Configuration`'s `scale_mode` and
 `RGame::Engine::Presentation` scale the *coordinates*: everything still
 rasterises at the window's real resolution, and the transform maps a logical
 size onto it. That covers most of what a game wants, `:integer` included, and it
@@ -27,14 +27,14 @@ needed no C at all.
 The difference shows up in one place. Coordinate scaling rasterises text and
 shapes at full resolution, which is what you want for anything that is not pixel
 art — but a *sprite* drawn at 2x is still sampled from its original texels, so
-the crispness depends on the filter and the factor rather than on having been
+the crispness depends on `texture_filter` and the factor rather than on having been
 rasterised at 320x240 in the first place. A render target gives the genuine
 low-resolution look, and hands the frame over as a texture, which is also what
 any post-processing effect would need.
 
 **Why not now.** It is the project's first call above OpenGL 1.1, and that is a
 threshold rather than a line of code. Every `gl*` call in `ext/rgame_core/` today
-is GL 1.1 — checked, all 24 of them — which is exactly what "no GL loader" has
+is GL 1.1 — checked, all 23 of them — which is exactly what "no GL loader" has
 bought so far. Windows' `opengl32.dll` exports only GL 1.1, so `glGenFramebuffers`
 and friends must be fetched through `SDL_GL_GetProcAddress`. A naive
 implementation compiles, links and runs perfectly on Linux and fails on Windows,
@@ -57,11 +57,14 @@ exists for.
   `glOrtho(0, w, h, 0, …)` top-left origin, so the final blit needs flipped
   texture coordinates. This one is famous for costing an afternoon.
 
-Two things are already in place and do not need designing:
+Three things are already in place and do not need designing:
 `rgame_texture_sheet_create` takes a raw GL texture name and does not care where
 it came from, so an FBO's colour attachment becomes an ordinary sheet the whole
-existing sprite path can draw; and the policy half — which scale, which
-offsets — is `Presentation`, which is pure and already specced.
+existing sprite path can draw; the policy half — which scale, which
+offsets — is `Presentation`, which is pure and already specced; and every
+colour is premultiplied. A frame drawn into a texture comes out premultiplied
+too, so the blend takes it as it takes an image. Under straight alpha, its
+translucent pixels would have been darkened by their alpha twice.
 
 **Trigger.** A game that wants a genuine low-resolution look and finds
 coordinate scaling not good enough, or the first want for a post-processing
@@ -596,10 +599,12 @@ tints, a night filter.
 the mode with each draw command, so the queue already sorts and batches by
 mode.
 
-**Why not now.** Nothing asks for it. Multiply is `glBlendFunc(GL_DST_COLOR,
-GL_ZERO)`, core GL 1.0, so it needs no loader: one more `rgame_blend` value,
-one case in the backend, and one symbol in the renderer and its shared
-contract.
+**Why not now.** Nothing asks for it. Every colour is premultiplied, so
+multiply is `glBlendFunc(GL_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA)`, and a
+transparent pixel leaves what is behind it as it was. It is core GL 1.0, so it
+needs no loader: one more `rgame_blend` value, and one symbol in the renderer
+and its shared contract. `gl_set_blend` switches only the destination factor
+today, so multiply adds a case for the source factor as well.
 
 **Trigger.** A game that draws a shadow or a tint and fakes it with a dark rect
 at part alpha.
@@ -864,3 +869,53 @@ Rejected on the way there:
 
 **Trigger.** A map that wants a component value no node class passes on, from a
 node class whose derived values stay right under the override.
+
+---
+
+## Loose ends from smooth art
+
+`texture_filter` samples every image a game loads with `:nearest` or `:linear`,
+and is fixed when the app is created. `docs/api/images.md` has it under
+"Filtering". Five things the smooth-art plan left:
+
+- **A filter per image.** A game cannot draw crisp pixel-art tiles and smooth
+  figures in one scene. Each sheet already records its filter, and
+  `rgame_texture_uv` insets by it. What is missing is a keyword on the image,
+  and an upload that reads it rather than the app's. A Tiled tileset choosing
+  its own filter is the same change, read from a property. **Trigger:** a game
+  whose art mixes both styles.
+- **Mipmaps.** Under `:linear`, art drawn at under half its size skips texels,
+  and shimmers as it moves. GL 1.1 takes each smaller level through
+  `glTexImage2D` and samples between them with `GL_LINEAR_MIPMAP_LINEAR`. So
+  `graphics/pixels.c` could build the levels on the CPU, with no loader, and
+  premultiplied texels already average correctly. The inset does not carry
+  over: on a smaller level one texel covers several of the sheet's, so a sprite
+  would sample its neighbours again. `texture_filter` would take a third value.
+  **Trigger:** a game that draws its art at under half its size.
+- **Switching the filter while the game runs.** It is fixed at startup, as
+  `media_root` is, since the asset cache would otherwise hold images made under
+  two. A switch would set two parameters on every live sheet. It would also
+  re-bake every `Recording`, which keeps the texture coordinates inset for the
+  filter it was baked under. `Core::TileMapRenderer` bakes a map's static tiles
+  on its first draw. **Trigger:** a "crisp or smooth" choice in a game's
+  options.
+- **A region drawn at its own size, exactly.** The half-texel inset that keeps a
+  tile off its neighbours also leaves it up to a texel less of the sheet than it
+  covers on screen. So under `:linear` a tile or subimage is resampled even at
+  its own size. A tile of alternating black and white columns reads 0, 207, 80,
+  143 across a row, where `:nearest` reads 0, 255, 0, 255. A whole image draws
+  exactly, and smooth art drawn at another scale is resampled anyway. Skipping
+  the inset at 1× on whole pixels needs the final scale, which a `Recording`
+  lacks when it bakes. Padding each region at load needs to know where the
+  regions are, and `subimage` and `tile` slice after the upload. **Trigger:** a
+  `:linear` game that draws a sheet's tiles or icons at their own size and finds
+  them soft.
+- **A smooth tileset.** Each tile samples only its own pixels, so two tiles of a
+  map meet in a step under `:linear`, as under `:nearest`. Extruding the
+  tileset's edges changes nothing, since the inset keeps each tile inside its
+  own pixels whatever lies beyond them. Drawing the map into a
+  [render target](#a-low-resolution-render-target-and-the-gl-loader-it-needs) at
+  its own size, then scaling that one texture, would blend across the seams.
+  `examples/smooth_art` draws no tile map or nine-slice panel for want of such
+  art. **Trigger:** a smooth tileset whose seams show, which is also the art
+  that example is missing.

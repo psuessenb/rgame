@@ -18,9 +18,9 @@ index, not the argument.
   or in `App.new`, samples every image the game loads linearly, so art drawn
   with anti-aliased edges stays smooth at a scale that is not a whole number.
   Images are premultiplied as they load, so an edge gets no dark fringe from
-  the transparent pixels around it, and a tile samples none of its neighbours
-  on the sheet. `:nearest` stays the default, and `App#texture_filter` reads
-  the setting back. See [docs/api/images.md](docs/api/images.md#filtering).
+  the transparent pixels around it. A tile samples none of its neighbours on
+  the sheet. `:nearest` stays the default, and `App#texture_filter` reads the
+  setting back. See [docs/api/images.md](docs/api/images.md#filtering).
 - **A smooth art example.** `examples/smooth_art` draws two anti-aliased
   figures under `texture_filter: :linear`, scaled, turned, and moving by
   fractions of a pixel. `RGAME_FILTER=nearest` runs it unfiltered, to compare.

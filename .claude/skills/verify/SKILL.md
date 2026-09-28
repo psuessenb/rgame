@@ -83,13 +83,19 @@ reproduces byte-identically on a re-run — so re-run a lone odd report before
 believing it, and take a baseline twice, because the capture you are comparing
 *against* can be the run that was wrong.
 
-Four more things a comparison needs, each of which has produced a false result:
+Five more things a comparison needs, each of which has produced a false result:
 
 - **A report cannot match across a change to draw order or to a node's origin.**
   It lists draws in call order and in each node's local coordinates, so either
   change alters it with nothing moved on screen. Y-sort hit both: the sort
   moved the order, and the sprite anchors moved the origins. Compare where each draw lands instead, by adding up the translates and
   scales around it.
+- **A report cannot see a change below the renderer's calls.** It lists what a
+  game asked for, not the pixels that came out, so its diff is empty for a
+  change to blending, filtering or an upload. Premultiplied alpha changed 41 of
+  215 driven frames and no report. Compare frames instead: prepend `frame_end` to
+  `RGame::Game` in a scratch file, save the back buffer with `RenderedFrame.grab`
+  at a few ticks of every driven run, and do that at `main` and at the head.
 
 - **A worktree of `main` has no `media/`.** It is git-ignored, so the test projects
   crash loading assets there. Symlink the checkout's `media/` into the worktree.

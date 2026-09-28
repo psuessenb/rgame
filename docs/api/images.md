@@ -78,8 +78,14 @@ the transparent pixels.
 `:linear`, each of its edges that lies inside the sheet moves half a pixel in,
 so the blend at that edge takes only the region's own edge pixel. An edge on
 the sheet's border stays where it is. Two tiles of a tile map therefore meet in
-a hard step, as under `:nearest`. For tiles that should blend into each other,
-export the tileset with each tile's edge pixels repeated outward.
+a hard step, as under `:nearest`.
+
+**Under `:linear`, a subimage or tile is resampled even at its own size.** The
+inset leaves it up to one pixel less of the sheet than it covers on screen, so
+its pixels blend with each other. A tile of alternating black and white
+columns, drawn at its own size, reads 0, 207, 80, 143 across a row, where
+`:nearest` reads 0, 255, 0, 255. A whole image has no edge inside its sheet, so
+it draws pixel for pixel at its own size.
 
 Text is always filtered linearly, whatever the setting.
 

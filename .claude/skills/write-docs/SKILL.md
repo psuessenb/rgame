@@ -28,8 +28,13 @@ say.
 right.** Stale pages are rarely the page that owns the class. They are other pages
 that mention it in passing, written when it worked differently. So:
 
-1. **Search all of `docs/api/`** for every class, method, option, signal and file
-   name the change adds, renames, removes or changes. Fix every hit, on every page.
+1. **Search everything the gem ships**, not only `docs/api/`, for every class,
+   method, option, signal and file name the change adds, renames, removes or
+   changes: `lib/`, `ext/`, `examples/` and `README.md` as well. A top-level
+   comment, an example's header and `examples/assets/README.md` state behaviour
+   as a page does. When `texture_filter` landed, a search of `docs/api/` alone
+   left six of them saying images are always sampled nearest-neighbour. Fix
+   every hit.
 2. **Update the owning page.** A new public method, keyword, signal or reader gets a
    row or a sentence. A removed one loses it.
 3. **Update the index entries.** A new page gets a row in the tables of
