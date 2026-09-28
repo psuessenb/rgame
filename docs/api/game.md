@@ -87,6 +87,10 @@ RGame::Game.new(root: Root.new, caption: 'Tiny', configuration:).start
 a misspelt member, naming it. `Game.new` takes no member as a keyword of its
 own, and raises `ArgumentError` on one.
 
+`Game` keeps no copy of its configuration. A setting that can change while the
+game runs has a reader that answers for the live state, as `scale_mode` and
+`fullscreen?` do.
+
 `seed` seeds `random_source`, so a run with nothing saved plays the same each
 time. The environment variable `RGAME_SEED` wins when it is set, and must hold an
 Integer: `Game.new` raises `ArgumentError` on anything else. With neither, `Game`
