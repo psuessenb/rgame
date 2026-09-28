@@ -1,7 +1,7 @@
 # Smooth art
 
-**Steps 1–4 are implemented.** Step 5 is rough, and gets re-planned before it
-starts.
+**Steps 1–4 are implemented.** Step 5 was re-planned after step 4 landed, and
+deletes this plan.
 
 ## Verdict
 
@@ -964,19 +964,86 @@ new), all passing, and `rake drive:allocations` passed for all 44 projects.
 
 ---
 
-### Step 5 — fold back and delete this plan *(rough)*
+### Step 5 — fold back and delete this plan
 
-- `possible-todos.md` gains three entries, each with its trigger: a filter per
-  image, mipmaps, and switching the filter while the game runs.
-- `possible-todos.md`'s render-target entry is updated: premultiplied alpha is in
-  place, and its sentence about "the filter and the factor" now names
-  `texture_filter`.
-- Its blend-modes entry is updated: under premultiplied alpha, multiply is
-  `glBlendFunc(GL_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA)`.
-- Run the pass over every step's landed notes that
-  [learn-from-mistakes](../../.claude/skills/learn-from-mistakes/SKILL.md)
-  describes.
+Re-planned after step 4 landed. The rough version listed three todos, two
+edits to `possible-todos.md` and the learn-from-mistakes pass. Reading the code
+and the docs against the plan added three things:
+
+- **`images.md` gives advice that does nothing.** "For tiles that should blend
+  into each other, export the tileset with each tile's edge pixels repeated
+  outward." `rgame_texture_uv` insets every edge inside the sheet, whatever
+  the pixels beyond it hold. So an extruded tileset draws exactly what a plain
+  one does.
+- **The inset softens a region drawn at its own size** *(measured)*. A tile
+  spans up to a texel less of its sheet than it covers on screen, so `:linear`
+  resamples it even at 1×. A scratch readback drew a 4×4 tile of alternating
+  black and white columns. Its first row read 0, 207, 80, 143 under `:linear`
+  and 0, 255, 0, 255 under `:nearest`. A whole image read exactly under both.
+  No spec drew a region at 1× under `:linear`, and no page says it.
+- **Open question 4 needs no todo.** #163 fixed `ChildRuby`'s deadline.
+
+What moves where:
+
+| From this plan | To |
+|---|---|
+| Decisions 7, 8 and 10: a filter per image, mipmaps, a switch while the game runs | a new section of `possible-todos.md`, "Loose ends from smooth art" |
+| Decision 11 and "does not deliver": a smooth tileset, whose tiles meet in a step | the same section |
+| The softened region above | `images.md`, and the same section |
+| Decision 9: `Game` keeps no copy of its configuration | a sentence in `game.md` |
+| Premultiplied alpha and `texture_filter` | `possible-todos.md`'s render-target and blend-modes entries |
+
+The render-target entry's "the filter and the factor" names `texture_filter`.
+Its list of what is already in place gains premultiplied colour, which a frame
+drawn into a texture needs before it can be blended onto the window. The
+blend-modes entry's multiply becomes
+`glBlendFunc(GL_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA)`. The old
+`GL_DST_COLOR, GL_ZERO` ignores alpha, so it would black out a sprite's
+transparent surround. And `gl_set_blend` now switches only the destination
+factor, so multiply adds a case for the source factor too.
+
+**The learn-from-mistakes pass.** The four pull requests carry 18 bullets under
+"What proved wrong". Three pass
+[the filter](../../.claude/skills/learn-from-mistakes/SKILL.md), and all three
+correct a claim that stands today:
+
+1. **write-docs' "Search all of `docs/api/`"** is where step 3's sweep stopped.
+   Six comments in shipped files kept the old behaviour (#162). CLAUDE.md
+   calls the top-level comments the reference, and write-docs' search never
+   reached them. It becomes a search of everything the gem ships.
+2. **verify's "a diff of nothing is real evidence"** is false for a change below
+   the renderer's calls. A report cannot see a pixel, so steps 2 and 3 both
+   compared frames instead (#160). verify gains a bullet in its list of what a
+   comparison needs.
+3. **CLAUDE.md's "two runs are byte-identical"** holds only when both runs draw
+   every tick (#159). verify already says so, and CLAUDE.md's table cell gets
+   the condition.
+
+Rejected, with the question that rejects each:
+
+- **Docs landing in the code's sub-step**, in steps 1 and 3. The coverage spec
+  is the guard, and it fired both times (question 1).
+- **Xvfb's fullscreen drawable**, seen once. #162 and open question 6 record it
+  (question 2).
+- **Premultiplying per vertex cost 30%.** The step's own measurement caught it,
+  as planned (question 2).
+- **Changelog entries naming unreleased keywords.** update-changelog already
+  says to describe the change since the last release (question 3).
+- **A vacuous acceptance test**, and **a rule no spec can see**, each seen once
+  (question 2).
+- **The other eight** are facts about one file, such as the probes reading the
+  logical size (question 2).
+
+Sub-steps:
+
+- **5a. The docs and the changelog.** `images.md` drops the extrusion advice
+  and says a region is resampled at its own size under `:linear`. `game.md`
+  says `Game` keeps no copy of its configuration. The changelog's "Smooth art"
+  entry stops crediting premultiplying with what the inset does.
+- **5b. The three corrections** from the pass: write-docs, verify and CLAUDE.md.
+- **5c. `possible-todos.md` takes the loose ends, and this plan goes.**
 
 **Verify.** `CHANGELOG.md` is checked against everything the plan shipped,
 following [update-changelog](../../.claude/skills/update-changelog/SKILL.md).
+`rake spec` passes, which checks `docs/api/`'s examples and links.
 `docs/plans/smooth-art.md` is deleted, and no link in `docs/` points at it.
