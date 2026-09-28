@@ -32,11 +32,11 @@ module RGame
     # tree trunks below, canopies above — which is the whole reason this does
     # not simply draw the map in one go.
     #
-    # It is also why nothing here asks a layer whether it is `above?`: which
-    # layers cover the actors is a question about where the actors are in the
-    # scene, and Tiled already answers "in what order do the layers go" by
-    # listing them. `RGame::Engine::TileMapLayer` mounts one node per
-    # layer and the tree does the rest.
+    # It is also why nothing here decides which layers cover the actors: that
+    # is a question about where the actors are in the scene, and Tiled already
+    # answers "in what order do the layers go" by listing them.
+    # `RGame::Engine::TileMapLayer` mounts one node per layer and the tree
+    # does the rest.
     #
     # ## What is baked and what is not
     #

@@ -301,9 +301,9 @@ allocates nothing.
 
 `y_sort` is off by default, and a node can turn it on or off at any time with
 `node.y_sort = true`. [`TileMapLayer.mount`](components.md#tileworld) turns it
-on for the actors' place, and for each object layer Tiled draws *Top Down*. UI
-does not use it, because its order is structural: a list opens over the buttons
-below it.
+on for each object layer Tiled draws *Top Down*, the one a scene adds its
+actors to among them. UI does not use it, because its order is structural: a
+list opens over the buttons below it.
 
 ### Opacity
 

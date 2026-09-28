@@ -351,8 +351,8 @@ exactly when the mistake gets made.
 Where a Core class genuinely needs something Engine has, it takes the object and
 calls it by method name — the same duck-typing the engine layer uses on a
 renderer, pointed the other way. `Core::TileMapRenderer` is the worked example:
-it needs a tile grid, so it is *handed* one and calls `map.gid(layer, col, row)`
-and `map.above_layer?(index)`, and could not tell you what class answered.
+it needs a tile grid, so it is *handed* one and calls `map.tile(layer, col, row)`
+and `map.layer(index)`, and could not tell you what class answered.
 
 **The one place allowed to name both layers is the glue**, a single class
 directly under `RGame`. Wiring the two halves together is what a glue class is

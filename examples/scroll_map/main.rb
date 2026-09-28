@@ -118,11 +118,10 @@ module ScrollMapExample
       # World space begins here. Everything under it is drawn in world
       # coordinates, once per viewport, through that viewport's camera.
       view = add_node(Engine::WorldView.new)
-      # One node per Tiled layer. The :actors place sits between the
-      # ground layers and any layer Tiled flags `above`, which is where things
-      # that walk around go — the rig included, so a canopy layer would pass over
-      # it without this file choosing a single z.
-      actors = Engine::TileMapLayer.mount(view)[:actors]
+      # One node per Tiled layer. Things that walk around go in the map's
+      # `actors` layer — the rig included, so a canopy layer placed after it in
+      # Tiled would pass over it without this file choosing a single z.
+      actors = Engine::TileMapLayer.mount(view)['actors']
       actors.add_node(build_rig(map, players.primary.camera))
     end
 

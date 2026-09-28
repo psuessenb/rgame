@@ -6,9 +6,10 @@
      run south from the trees at x = 12, 18 and 24 tiles, close enough to hop
      and too wide to step over, into a chasm eight tiles deep across the
      south of the map. The trenches and the chasm are on the `pits` layer, in
-     tiles of class `gap` from pits.tsx. `start` is where the hero stands
-     first, and comes back to after a fall. -->
-<map version="1.10" tiledversion="1.10.2" orientation="orthogonal" renderorder="right-down" width="40" height="30" tilewidth="16" tileheight="16" infinite="0" nextlayerid="5" nextobjectid="2">
+     tiles of class `gap` from pits.tsx. `start`, in the `spawns` layer, is
+     where the hero stands first, and comes back to after a fall. The hero
+     walks in the empty `actors` layer on top. -->
+<map version="1.10" tiledversion="1.10.2" orientation="orthogonal" renderorder="right-down" width="40" height="30" tilewidth="16" tileheight="16" infinite="0" nextlayerid="6" nextobjectid="2">
  <tileset firstgid="1" source="tileset.tsx"/>
  <tileset firstgid="133" source="pits.tsx"/>
  <layer id="1" name="ground" width="40" height="30">
@@ -25,4 +26,5 @@
    <point/>
   </object>
  </objectgroup>
+ <objectgroup id="5" name="actors"/>
 </map>

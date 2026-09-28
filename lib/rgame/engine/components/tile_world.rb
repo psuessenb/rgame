@@ -98,19 +98,6 @@ module RGame
         def layer(index) = @rgame_map.layer(index)
         def layer_index(name_or_path) = @rgame_map.layer_index(name_or_path)
 
-        # The first layer Tiled flags `above`, or the layer count if none is —
-        # which is where TileMapLayer.mount puts the actors on a map that marks
-        # no layer for them, so a map with neither puts them over everything. Read once at mount rather
-        # than per frame: which layers cover the actors is a fact about the
-        # scene's arrangement, and the arrangement is made once.
-        def first_above_layer
-          layer_count.times.find { |index| @rgame_map.layer(index).above? } || layer_count
-        end
-
-        # The index of the object layer the designer marked `actors`, or `nil`
-        # when none is, as `TileMap#actors_layer` answers it.
-        def actors_layer = @rgame_map.actors_layer
-
         # The map's objects, as `TileMap#objects` lists them: each a MapObject
         # naming the layer it sits in.
         def objects = @rgame_map.objects

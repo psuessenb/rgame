@@ -77,7 +77,7 @@ module RGame
       class Layer
         attr_reader :index, :name, :path, :kind, :class_name, :opacity, :properties
 
-        def initialize(index:, path:, kind:, class_name:, visible:, opacity:, above:, properties:)
+        def initialize(index:, path:, kind:, class_name:, visible:, opacity:, properties:)
           @index = index
           @path = path.dup.freeze
           @name = @path.last
@@ -85,16 +85,11 @@ module RGame
           @class_name = class_name
           @visible = visible
           @opacity = opacity
-          @above = above
           @properties = properties
           freeze
         end
 
         def visible? = @visible
-
-        # Whether the layer covers the actors: a canopy or a roof. Set in Tiled
-        # with a bool property named `above`.
-        def above? = @above
       end
 
       # A layer that shows one image, placed at `(offset_x, offset_y)` in the
@@ -120,9 +115,8 @@ module RGame
       # A layer that holds objects. Their records are in `TileMap#objects`,
       # each naming this layer's index.
       class ObjectLayer < Layer
-        def initialize(y_sort:, actors:, **)
+        def initialize(y_sort:, **)
           @y_sort = y_sort
-          @actors = actors
           super(kind: :object, **)
         end
 
@@ -130,19 +124,11 @@ module RGame
         # Down* draw order does. False for *Manual*, which keeps the order
         # Tiled lists them in.
         def y_sort? = @y_sort
-
-        # Whether the designer marked the layer for the actors, with a bool
-        # property named `actors`. At most one layer of a map is marked.
-        def actors? = @actors
       end
 
       attr_reader :width, :height, :tile_width, :tile_height,
                   :pixel_width, :pixel_height, :tile_table,
                   :image_layers, :objects, :properties, :source
-
-      # The index of the object layer the designer marked `actors`, or `nil`
-      # when no layer is marked.
-      attr_reader :actors_layer
 
       # A map from already-built data. `layers` is the flat list of `Layer`s.
       # `cells` has one entry per layer: a flat Array of `width * height` tile
@@ -167,7 +153,6 @@ module RGame
         @pixel_height = height * tile_height
         @layers = layers.dup.freeze
         @image_layers = @layers.grep(ImageLayer).freeze
-        @actors_layer = @layers.find { it.is_a?(ObjectLayer) && it.actors? }&.index
         @tile_table = tile_table.dup.freeze
         @solid = solid.dup.freeze
         @tile_classes = tile_classes.dup.freeze

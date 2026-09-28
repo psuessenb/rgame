@@ -1,26 +1,29 @@
 # Roadmap
 
-**Steps 0–8 are implemented.** Step 9 is rough and gets re-planned before it
-starts. Step 5 was inserted after step 4
-landed, and every step from 5 on moved up by one, landed notes included, so a
-number in this document is today's.
+**Steps 0–9 are implemented.** Step 10 is rough and gets re-planned before it
+starts. Step 5 was inserted after step 4 landed, and step 9 after step 8. Each
+time, every later step moved up by one, landed notes included, so a number in
+this document is today's.
 
 ## Dependency shape
 
 ```
-0 tour.tmx requirements ──────────────────────────────────────────────────────────────────────────┐  authoring runs in parallel
-                                                                                                  │
-1 parse + transform ─→ 3 map settings + builder ─→ 5 id + Fact ─┐                                 │
-                       4 one tile drawn ────────────────────────┴─→ 6 mount builds ─┐             │
-2 random source ────────────────────────────────────────────────────────────────────┴─→ 7 migrate ─→ 8 export ─→ 9 checked + played ─→ 10 fold back
+0 tour.tmx requirements ────────────────────────────────────────────────────────────────────────────────────────────────┐  authoring runs in parallel
+                                                                                                                        │
+1 parse + transform ─→ 3 map settings + builder ─→ 5 id + Fact ─┐                                                       │
+                       4 one tile drawn ────────────────────────┴─→ 6 mount builds ─┐                                   │
+2 random source ────────────────────────────────────────────────────────────────────┴─→ 7 migrate ─┬─→ 8 export ────────┴─────┬─→ 10 checked + played ─→ 11 fold back
+                                                                                                   └─→ 9 actors' layer named ─┘
 ```
 
 Steps 1, 2 and 4 depend on nothing in this plan and can land in any order. Step 3
 needs step 1, because the class it resolves may come from the object's tile.
 Step 5 needs step 3, whose builder and `Node2D` keywords it changes, and step 6
 builds every node on what step 5 leaves. Step 7 needs step 2, because a `Walker`
-built from a map finds its random source in the tree. Step 9 needs step 8: the
-level's designer picks classes from the exported types, rather than typing them.
+built from a map finds its random source in the tree. Step 9 needs step 7, whose
+maps it moves again, and not step 8. Step 10 needs both. Its level's designer
+picks classes from the exported types rather than typing them, and puts the
+actors in a layer the map names.
 
 ## The invariant every step preserves
 
@@ -53,7 +56,7 @@ Step 3 has no caller until step 6, so it lands for step 6 rather than alone.
 
 Authoring is half done, and step 1 changes what the parser reads. So the
 requirements settle first, and you keep authoring against them while steps 1–8
-are built. The level map gets its own requirements in step 9, once the exported
+are built. The level map gets its own requirements in step 10, once the exported
 types exist to author it with.
 
 ### Shape
@@ -768,7 +771,7 @@ end
   animated tiles now draw through `draw_tile` every frame.
 - **Every driven project reports the same under `--seed 1`, before and after.**
   No project draws a tile object yet, and a layer draws the calls it drew.
-- No driven project reaches `map_tile` until step 9, so rules 10 and 15 are what
+- No driven project reaches `map_tile` until step 10, so rules 10 and 15 are what
   decide its allocations.
 - `docs/api/drawing.md` documents `map_tile` beside `tilemap`, and
   `docs/api/components.md` documents `MapTile`. `CHANGELOG.md` has an Added entry
@@ -1118,7 +1121,7 @@ Where the sketch was wrong, or said too little:
   nothing, and a parameter before it, as in `fetch(key, ...)`, costs an object.
   The first allocation spec caught it, and write-ruby-code's table gained the
   row. `Facts#fetch` itself is unchanged, since no per-frame path calls it.
-  **For step 10:** it could take explicit parameters, and the note belongs in
+  **For step 11:** it could take explicit parameters, and the note belongs in
   `docs/plans/possible-todos.md` if no step fixes it.
 - **The step touched `Components::Facts`' class comment**, which said the store
   holds only flags that belong to no object. It now names `Fact` as the way a
@@ -1590,7 +1593,7 @@ under Xvfb, and Tiled's source was read at `221be20`.
 Decision 8 has rgame write Tiled's custom types. A designer then picks a class
 from a list and fills in its members, rather than typing both. Step 7 moved
 every map onto the builder and tagged each constructor the maps name, so the
-export has real classes to write. Step 9's level is the first map authored
+export has real classes to write. Step 10's level is the first map authored
 against them. The export only helps: nothing at load reads what it writes
 (hard constraint 7).
 
@@ -1813,7 +1816,7 @@ What `rgame new` writes:
 
 ### What this step does not deliver
 
-- **A Tiled project in this repository.** Step 9's level brings the first
+- **A Tiled project in this repository.** Step 10's level brings the first
   (decision 25).
 - **A project shared by two games**, such as one for `examples/assets/`.
 - **Tiled seeing an export while it has the project open.** The designer
@@ -1892,7 +1895,7 @@ Where the sketch was wrong, or said too little:
   899 of 900 frames, the variance steps 2, 5 and 7 found, and matched when
   driven again.
 
-**For step 9:** an example's classes export through the scratch script above,
+**For step 10:** an example's classes export through the scratch script above,
 which loads its `main.rb` with the game's window left shut.
 
 Documented in `docs/api/tile_maps.md` ("Tiled's custom types"),
@@ -1903,16 +1906,322 @@ Documented in `docs/api/tile_maps.md` ("Tiled's custom types"),
 write-ruby-code skill. `CHANGELOG.md` has Added entries for `MapTypes` and for
 the Tiled project `rgame new` writes, with `--no-tiled`.
 
-## Step 9 — the maps checked, and the level played *(rough)*
+---
+
+## What was measured before planning step 9
+
+Taken at `3b43605`, where `rake spec` ran 4516 examples, 0 failures, in 35.6 s.
+
+| | |
+|---|---|
+| Scenes calling `mount(...)[:actors]` | 13, in 12 projects: 9 examples, adventure's town and garden, topdownplatformer and tiled_world |
+| Scenes passing `mount(y_sort:)` | 0. One spec and one example in `docs/api/components.md` pass it |
+| Maps those scenes mount | 8: 7 tracked, and `media/map/beach_large.tmx`, which is gitignored, so CI never drives it |
+| Maps with a layer marked `actors` | 1: `course.tmx`, on `spawns` |
+| Maps with a layer marked `above` | 1: `beach_large.tmx`, on `Over`. Its one object layer, `Objects`, lies over `Over` |
+| Maps with no object layer | 2: `town.tmx` and `puzzle.tmx` |
+| Where the actors draw today | over every layer on 6 maps, in `spawns` on `course.tmx`, and between `Trunks` and `Over` on `beach_large.tmx` |
+| Names that go | 9: `places[:actors]`, `mount(y_sort:)`, `Layer#above?` and the `above:` that builds a layer, `ObjectLayer#actors?` and its `actors:`, `TileMap#actors_layer`, `TileWorld#first_above_layer` and `TileWorld#actors_layer` |
+| Of those, in v0.4.0 | 2: `TileWorld#first_above_layer`, and `TileMap#above_layer?(index)`, which Unreleased renamed `layer(index).above?`. v0.4.0's `mount(parent, under:)` returned a node under the first `above` layer |
+| Spec files naming them | 9: `tile_map_layer_spec.rb`, `tile_map_spec.rb`, `tile_world_spec.rb`, `example_assets_spec.rb`, `a_tile_map.rb`, `stub_tile_map.rb` and its spec, `walled_tile_map.rb`, and `spec_core/rgame/core/tile_map_renderer_spec.rb` |
+| `docs/api/` passages naming them | 13: 6 in `tile_maps.md`, 6 in `components.md` and 1 in `scene_graph.md` |
+| `CHANGELOG.md` Unreleased entries naming them | 4: y-sorted drawing, what a tile map says, a cell holding a tile id, and `mount` returning places |
+| Game code describing the place | comments in 5 files: `collision_tiles`, `scroll_map`, adventure's `town.rb`, tiled_world's `beach_scene.rb` and topdownplatformer's `course.rb`, and the header of `course.tmx`. Adventure's comment promises a canopy its map does not have |
+| An empty object layer where `mount`'s node stood | `collision_tiles`, on a `town.tmx` with an `actors` layer and with `mount`'s node taken out, reports byte for byte what `main` reports. 240 ticks under `--seed 1 --texts`, with the checkout's path normalised *(measured)* |
+| The same between two tile layers | tiled_world differs from `main` only in its `tilemap` calls for `Over`, which name layer 3 rather than 2, since the new layer takes index 2 *(measured)* |
+| Tiled writing a map | drops the XML comment that opens each of the 7 tracked maps. `town.tmx` written again by Tiled 1.12.2's `--export-map tmx` keeps 0 of its 1 comment *(measured)* |
+| R23 on `build-step-8-tiled-map` | not met. `tour.tmx` carries no `actors` or `above` property |
+
+---
+
+## Step 9 — the actors' place is an object layer the map names *(Engine, pure, and the maps)*
+
+Step 6 made every object layer a place a scene finds by name, and kept
+`places[:actors]` beside it. On `course.tmx`, that key is another name for the
+layer marked `actors`. On the other seven maps, `mount` makes a node of its own
+for the actors, under the first layer marked `above`, or over every layer. The
+`above` property and `mount(y_sort:)` exist only for that node. So two sources
+decide what covers the actors: the layer order a designer sees in Tiled, and two
+properties Tiled gives no meaning. [Decision 27](README.md#decisions-already-taken)
+leaves one.
+
+The maps move first, while `mount` still makes its node, so each commit stays
+green.
+
+What it resembles:
+
+- **Reused.** `places[name]`, from step 6, finds the actors' layer as it finds
+  `doors`, and raises as it does. The node `mount` builds for an object layer is
+  the y-sorted `Node2D` it made for the actors, so nothing draws differently.
+  The raft rule in `spec/example_assets_spec.rb` asks its question of the layer
+  named `actors`.
+- **Extended.** Nothing.
+- **Genuinely new.** Nothing. The step takes code out.
+
+### Sub-steps
+
+- **9a** — the maps and the games. Seven maps gain a layer named `actors` or
+  give the name to one, `beach_large.tmx` gains one outside git, and the 13
+  scenes write `places['actors']`. `mount` still makes its node, and it stays
+  empty.
+- **9b** — the engine. `mount` builds the map's layers and nothing else.
+  `places[:actors]`, `mount(y_sort:)`, `above?`, the mark and their readers go,
+  and the specs, the tile map contract, `docs/api/` and `CHANGELOG.md` follow.
+
+### Shape
+
+```ruby
+# 9a — each of the 13 scenes, in its game's module
+actors = Engine::TileMapLayer.mount(view)['actors']
+```
+
+What the maps hold after 9a:
+
+| Map | Mounted by | The actors draw today | After 9a |
+|---|---|---|---|
+| `town.tmx` | `collision_tiles`, `cutscene`, `jump_topdown`, `pathfinding`, `scroll_map` | over every layer | an empty `actors` over `obstacles` |
+| `town_with_gate.tmx` | `doors`, adventure's town | over every layer | an empty `actors` over `doors` |
+| `garden.tmx` | `doors`, adventure's garden | over every layer | an empty `actors` over `doors` |
+| `puzzle.tmx` | `block_puzzle` | over every layer | an empty `actors` over `obstacles` |
+| `pits.tmx` | `pits` | over every layer | an empty `actors` over `spawns` |
+| `platforms.tmx` | `moving_platforms` | over every layer | an empty `actors` over `platforms` |
+| `course.tmx` | topdownplatformer | in `spawns`, marked `actors` | `spawns` renamed `actors`, without the mark |
+| `beach_large.tmx`, gitignored | tiled_world | between `Trunks` and `Over`, which is marked `above` | an empty `actors` between them, and `Over` without the mark |
+
+- **Each map is edited by hand**, so it keeps the comment it opens with: an
+  `<objectgroup id="…" name="actors"/>` taking the map's `nextlayerid`, which
+  then goes up by one. Tiled writes no `draworder` for *Top Down*, the default, so the new
+  layer sorts as `mount`'s node did.
+- **A map gains a layer rather than giving the name to one it has.** `pits.tmx`
+  already has `spawns` on top, and naming it `actors` would draw the same. But
+  the map would lose a node, and the report a `world` band call per viewport. A
+  new layer keeps every index and node count on six maps, so their reports match
+  byte for byte. `course.tmx` renames instead: its marked layer holds the flags,
+  the crate and the walker, and they sort with the heroes.
+- **Each map's header comment, its section in `examples/assets/README.md`, and
+  the game comments counted above say where the actors go.** Adventure's town
+  stops promising a canopy.
+
+```ruby
+# 9b — Engine, pure
+module RGame
+  module Engine
+    class TileMapLayer < Node2D
+      class Places
+        def initialize(world, object_layers)
+
+        # The node of the object layer a name or 'Group/layer' path names, as
+        # TileMap#layer_index takes them.
+        def [](place)
+      end
+
+      # A node for each layer of the scene's map, at the z of its index, and no other.
+      def self.mount(parent)
+    end
+
+    class TileMap
+      class Layer
+        def initialize(index:, path:, kind:, class_name:, visible:, opacity:, properties:)
+      end
+
+      class ObjectLayer < Layer
+        def initialize(y_sort:, **)
+      end
+    end
+  end
+end
+
+places = RGame::Engine::TileMapLayer.mount(view)
+places['actors']                    # the object layer named actors, as any name finds its layer
+places[:actors]                     # ArgumentError: a place is the name or 'Group/layer' path of an object layer, as a String
+RGame::Engine::TileMapLayer.mount(view, y_sort: false)   # ArgumentError: unknown keyword: :y_sort
+map.layer(3).properties['above']    # => true, a custom property that nothing in rgame reads
+```
+
+- **A leftover `above` or `actors` property is a custom property like any
+  other.** Nothing raises for it, whatever its type or layer. rgame then draws
+  what Tiled shows, since Tiled gives neither a meaning. Raising on one was the
+  option not taken: it would reserve two words in every game's maps, to catch
+  maps that exist only in this repository, and 9a moves all of them.
+- **`places` takes only a String.** Tiled names a layer with a String, and
+  `places[:actors]` is what every scene writes today, so its message names the
+  rule and the key it got.
+- **R23 of [map-requirements.md](map-requirements.md#r23) is retired**, and
+  was struck through when this step was planned, since it tells the author what
+  to build today. Step 10 checks `tour.tmx` against R1–R22. The authoring
+  branch has not met R23, so its map needs no change.
+
+### The rules the tests pin
+
+**9a**
+
+1. **A map under `examples/` or `test_projects/` with a `Raft` has an object
+   layer named `actors`, and each raft lies in a layer under it**, so a hero
+   draws over the raft they ride. It replaces the rule that read the mark and
+   `above`.
+
+**9b**
+
+2. **`mount` builds a node for each layer of the map, at the z of its index, and
+   no other node.**
+3. **`mount` takes no `y_sort:`.** Ruby raises `ArgumentError` for the unknown
+   keyword.
+4. **`places` takes a name or a `'Group/layer'` path, as a String.** Any other
+   key, `:actors` included, raises `ArgumentError` naming the key.
+5. **A map with no layer named `actors` raises `KeyError` for
+   `places['actors']`**, listing its object layers, or saying it has none.
+6. **`above` and `actors` are custom properties like any other.**
+   `layer.properties` answers them, on any layer and of any type. A mark on a
+   tile layer or a group, marks on two layers, a hidden marked layer and a String
+   value each load.
+7. **The caller that uses all of it.** In two views, a hero added to the object
+   layer that holds a tree draws behind the tree while north of its origin, and
+   in front of it once south. Both draw under a tile layer that follows the
+   object layer in Tiled's order and carries no property.
+
+### Tests
+
+- `spec/example_assets_spec.rb`: rule 1, in 9a. In 9b, `tile_layers` stops
+  reading `above?`, and the gated town still matches `town.tmx` cell for cell.
+- `spec/rgame/engine/tile_map_layer_spec.rb`: rules 2–5 and 7. Its maps lose
+  `above:` and `actors:`. The examples that placed the actors' node by `above`
+  go, and so does `describe 'the actors mark'`. The places example draws
+  `shadows` and an `actors` layer under the canopy.
+- `spec/rgame/engine/tile_map_spec.rb`: rule 6. `describe 'above?'` and
+  `describe 'the actors mark'`, 10 examples between them, give way to one
+  describe. The map that hosts the contract drops both marks.
+- `spec/support/shared_examples/a_tile_map.rb`: the examples for `above?` and
+  `actors_layer` go, and the map it describes drops both marks. `StubTileMap`
+  loses `above:` and `actors_layer:`. Its spec, `walled_tile_map.rb` and
+  `spec_core/rgame/core/tile_map_renderer_spec.rb` stop passing them.
+- `spec/rgame/engine/components/tile_world_spec.rb`: `describe '#actors_layer'`
+  goes.
+
+### Verify
+
+- `rake spec`, `rake spec:core`, `rake docs:coverage` and `rake drive:allocations`.
+- **Driven with `--seed 1 --texts` on `main` and after 9b, one run after
+  another**, with the checkout's path normalised: every script of the 12
+  projects that mount a map, and `doors` again for 900 ticks, 20 runs.
+  Adventure runs for 1640 ticks and topdownplatformer for 1654, as in steps 6
+  to 8. Every report matches byte for byte, except that tiled_world's `tilemap`
+  calls for `Over` name layer 3 rather than 2. Run each alone, since a run
+  beside the suites can drop a frame (step 7).
+- **The `main` runs of tiled_world go first.** `media/` is gitignored, so 9a's
+  edit of `beach_large.tmx` reaches `main`'s checkout too. There `Over` has lost
+  `above`, and `mount`'s node draws the actors over the canopy until 9b lands.
+- `grep -rnE '\babove\?|actors\?|actors_layer|first_above_layer|\[:actors\]' lib spec spec_core examples test_projects tools docs/api`
+  finds nothing, and no `.tmx` under `examples/` or `test_projects/` carries an
+  `above` or `actors` property.
+- `docs/api/tile_maps.md` says the layers draw in Tiled's order, the actors'
+  layer among them, and that a scene adds its actors to a layer it names.
+  `docs/api/components.md`'s `mount` loses `places[:actors]` and `y_sort:`, and
+  `TileWorld` its two readers. `docs/api/scene_graph.md` says `mount` y-sorts
+  each object layer Tiled draws *Top Down*. The comments on `TileMapLayer`,
+  `TileWorld`, `Node2D#y_sort`, the transform and `Core::TileMapRenderer` stop
+  naming `above` and the mark.
+- `CHANGELOG.md` states the change against v0.4.0. The `mount` entry says to
+  write `mount(world)['actors']`, naming an object layer the map gives the
+  actors, and that no `above` layer places them. A Removed entry names
+  `TileMap#above_layer?` and `TileWorld#first_above_layer`. The Changed entry
+  on tile ids loses its two sentences on `above`. The y-sort entry and the tile
+  map entry lose `y_sort:`, `actors?` and `actors_layer`, which never shipped.
+
+### What this step does not deliver
+
+- **A place for the actors on a map that names none.** `places['actors']`
+  raises `KeyError` there, listing the object layers. A map a scene adds actors
+  to needs an object layer, even an empty one.
+- **`beach_large.tmx` in git.** `media/` stays gitignored, so the edit lives in
+  this checkout, and the landed note says what it was. CI skips tiled_world, as
+  today.
+
+**Landed.** Two commits on `actors-layer-named`, 9a and 9b as sketched.
+`rake spec` 4496 examples, 0 failures (4516 before: 25 examples of the mark,
+`above?`, `actors_layer` and `mount`'s own node gone, 5 new). `rake spec:core`
+555, 0 failures, once the extension was rebuilt (see below). `rake docs:coverage`:
+0 of 222 modules and classes with an undocumented name. `rake drive:allocations`:
+all 44 projects within budget. `make test` was not run, as the step changes no
+C.
+
+The 20 runs were driven with `--seed 1 --texts` on `main` and on the branch,
+one batch after the other, on the same rebuilt extension. 13 reports match byte
+for byte. topdownplatformer differs only in its map id, the map's absolute path
+in each checkout. The six tiled_world runs differ only in their `tilemap` calls
+for `Over`, which name layer 3 rather than 2. tiled_world draws 236 frames of
+240 in every script, on `main` as on the branch. `grep` for the removed names
+finds only the spec that pins `places[:actors]` raising, and no `.tmx` under
+`examples/` or `test_projects/` carries an `above` or `actors` property.
+
+`beach_large.tmx`, in this checkout's `media/`, gained
+`<objectgroup id="5" name="actors"/>` between `Trunks` and `Over`, and `Over`
+lost its `above` property. Its `nextlayerid` was 4, which its `Objects` layer
+already held, so the new layer took 5 and `nextlayerid` became 6.
+
+Where the sketch was wrong, or said too little:
+
+- **The compiled extension was older than the C it was built from.**
+  `lib/rgame/core_ext.so` predated `99442bf` and the smooth-art commits, so
+  `rake spec:core` failed `app_spec.rb:305`, a spec of a window collected on
+  another thread, on the branch and on `main` alike. `make ext` fixed it, and
+  the 40 comparison runs were driven again on the new build. Nothing warns that
+  an extension is stale: CLAUDE.md names `make ext-core` as a prerequisite of
+  `rake spec:core`, which is a rule someone has to remember. **For step 11:**
+  the learn-from-mistakes pass should weigh a guard.
+- **`mount` takes no keywords, so Ruby says "wrong number of arguments (given
+  2, expected 1)"**, not "unknown keyword: :y_sort", as rule 3 had it. Step 6's
+  example for `slots:` meets the same message, and changed with it.
+- **A doc example counted `town_with_gate.tmx`'s layers.** `tile_maps.md` said
+  3, and the doc spec failed in 9a when the map gained `actors`. The sketch put
+  every `docs/api` change in 9b.
+- **A room costs 2 objects more to build on the door maps.** `doors` allocates
+  628 objects where `main` allocates 624, and adventure 1964 where `main`
+  allocates 1960, on the same ticks. Each builds two rooms after its warm-up,
+  the garden and the town again. `places['actors']` looks the layer up through
+  `TileMap#layer_index`, which allocates an Array and a String per layer: 5
+  objects on those four-layer maps. `mount` no longer calls
+  `TileWorld#first_above_layer`, whose `layer_count.times.find` allocated 3. So
+  a mount and its lookup cost 2 more there, and 1 more on a three-layer map,
+  off the per-frame path. The other ten projects build no room after their
+  warm-up, and allocate exactly what `main` does. **For step 11:**
+  `layer_index` could keep each path joined, if a game looks layers up often.
+- **Two more game comments named the actors' place**: adventure's
+  `sparkles.rb`, which also promised a canopy, and the cursor in `pathfinding`.
+  The sketch counted five files.
+- **CLAUDE.md's worked example of Core calling a map by name** said
+  `map.gid(layer, col, row)` and `map.above_layer?(index)`. The first was
+  renamed before this plan, and the second is gone. It now says `map.tile` and
+  `map.layer`, which `Core::TileMapRenderer` calls.
+- **`example_assets_spec.rb` compares each tile layer's custom properties**
+  between `town.tmx` and `town_with_gate.tmx`, where it compared `above?`. Its
+  raft rule's helper is `actors_index`, so the grep above does not find it.
+- **The `main` runs did not need to go first.** They ran in a worktree holding a
+  copy of `media/` made before 9a, rather than a link, so the edited map never
+  reached them.
+
+Documented in `docs/api/tile_maps.md` (layers draw in Tiled's order, the
+layer table without `above?`, `ObjectLayer`, "Put the actors in an object layer
+of their own", the rooms example, the contract's list, and the layer count),
+`docs/api/components.md` (`TileWorld`'s readers, `mount`, the actors'
+paragraph, what `places` raises, and three example comments),
+`docs/api/scene_graph.md` (what `mount` y-sorts), `examples/assets/README.md`
+and the seven maps' header comments. `CHANGELOG.md` states the `mount` entry
+against v0.4.0, has a Removed entry for `TileMap#above_layer?` and
+`TileWorld#first_above_layer`, and drops `y_sort:`, `actors?` and
+`actors_layer` from the entries that named them.
+
+---
+
+## Step 10 — the maps checked, and the level played *(rough)*
 
 Two halves, as [map-requirements.md](map-requirements.md#the-check-and-the-example-that-plays-the-map)
 sketches:
 
-- `spec/example_assets_spec.rb` checks `tour.tmx` against R1–R23, and its
+- `spec/example_assets_spec.rb` checks `tour.tmx` against R1–R22, and its
   gzip and infinite twins.
 - A second map, designed as a level, is played by a new example with a drive
   script. Its requirements are written at this step's re-plan, against the
-  exported types: trees as tile objects in the marked layer, a chest whose state
+  exported types: trees as tile objects in the actors' layer, a chest whose state
   survives leaving the room, a value a node passes on to its component.
 - The level's Tiled project is the first this repository keeps (decision 25).
   An example's `main.rb` starts its game when required, so no spec can load its
@@ -1923,16 +2232,15 @@ sketches:
 This is the first driven project with a tile object, so its
 `rake drive:allocations` budget is where `map_tile` is measured in a whole game.
 R19's comparison with Tiled's export, and R21's turned tile object, check
-step 4's box draw by eye. `puzzle.tmx`, which has no object layer, covers the
-place `mount` leaves for the actors on a map with no mark.
+step 4's box draw by eye.
 
 ---
 
-## Step 10 — fold the plan back and delete it
+## Step 11 — fold the plan back and delete it
 
 - **`docs/api/tile_maps.md`** says what a map builds and how: the class rule,
-  data classes, the `@param` tags, tile objects, the `actors`
-  mark, hidden layers and objects, `route:` and `name:`, `map_object_id` and
+  data classes, the `@param` tags, tile objects, the layer a scene adds its
+  actors to, hidden layers and objects, `route:` and `name:`, `map_object_id` and
   `Components::Facts`, and `places[name]`. It also covers `@placeable`,
   `MapTypes` and `rake tiled`, and says that a map needs no Tiled project. Step
   6 rewrote "Building nodes from objects"; this step checks it against the
@@ -1949,7 +2257,7 @@ place `mount` leaves for the actors on a map with no mark.
 
 ### Verify
 
-`CHANGELOG.md` covers everything steps 1–9 shipped, per
+`CHANGELOG.md` covers everything steps 1–10 shipped, per
 [update-changelog](../../../.claude/skills/update-changelog/SKILL.md): what the
 Tiled parser gained, the random source, map-built nodes and `places[name]`, the
 `@param` convention, `map_tile` and `MapTile`, and `Components::Facts` with

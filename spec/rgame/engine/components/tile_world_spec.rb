@@ -11,18 +11,6 @@ RSpec.describe RGame::Engine::Components::TileWorld do
     instance_double(RGame::Engine::Camera, :world_width= => nil, :world_height= => nil)
   end
 
-  describe '#actors_layer' do
-    it "answers the map's layer marked for the actors" do
-      map = StubTileMap.new(layers: [[1, 2, 0, 3], nil], object_layers: [1], actors_layer: 1)
-
-      expect(described_class.new(map: map, tilemap_id: :level).actors_layer).to eq(1)
-    end
-
-    it 'is nil for a map with no mark' do
-      expect(world.actors_layer).to be_nil
-    end
-  end
-
   describe '#objects' do
     it "lists the map's objects, as the map does" do
       map = RGame::Engine::TileMap.from_tiled(RGame::Engine::Tiled::Map.parse(

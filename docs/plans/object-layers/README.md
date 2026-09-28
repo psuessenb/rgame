@@ -1,9 +1,9 @@
 # Object layers
 
-**Status: steps 0–8 are implemented.** Step 9 of [the roadmap](04-roadmap.md)
+**Status: steps 0–9 are implemented.** Step 10 of [the roadmap](04-roadmap.md)
 is rough and gets re-planned before it starts.
-Step 5 was inserted after step 4 landed, and the steps after it moved up by
-one. Step 10 folds the plan back and deletes it.
+Step 5 was inserted after step 4 landed, and step 9 after step 8. Each time,
+the steps after it moved up by one. Step 11 folds the plan back and deletes it.
 
 ## The request
 
@@ -39,11 +39,11 @@ load, and written out as Tiled custom types, so the designer picks from the
 game's real names.
 
 **An object layer is a y-sorted node in the place Tiled draws it**, so a tree
-placed as a tile object sorts against the actors in its layer. The layer a
-designer marks `actors` is where `mount(view)[:actors]` puts the heroes that
-code spawns. A map without the mark keeps today's place for them. An object
-layer also marks a place for anything else a scene spawns, which replaces
-`mount`'s named slots.
+placed as a tile object sorts against the actors in its layer. It is also
+where a scene puts what it spawns, found by the layer's name. The heroes go in
+`mount(view)['actors']`, on a map with a layer of that name. Object layers
+replace `mount`'s named slots, the `actors` mark, and the node `mount` made
+for the actors under the first `above` layer.
 
 **Around that:**
 
@@ -85,8 +85,9 @@ layer also marks a place for anything else a scene spawns, which replaces
 ## Decisions already taken
 
 Settled in conversation, in two question rounds, in a third before steps 4, 6
-and 7 were re-planned, in a fourth before step 5 was inserted, and in a fifth
-before step 8 was planned in detail. Not reopened inside this plan.
+and 7 were re-planned, in a fourth before step 5 was inserted, in a fifth
+before step 8 was planned in detail, and in a conversation after step 8 landed,
+which inserted step 9. Not reopened inside this plan.
 
 1. **The loader builds, not the scene.** An object layer becomes a node in the
    map, and its objects become nodes inside it. Scenes stop calling `spawn_into`.
@@ -110,9 +111,12 @@ before step 8 was planned in detail. Not reopened inside this plan.
 6. **Every tile object draws its tile** (Q5). A data tile object becomes a node
    that draws it. A node class's node draws it too, under whatever it draws
    itself.
-7. **The designer marks where spawned actors go** (Q6). A bool property `actors`
+7. ~~**The designer marks where spawned actors go** (Q6). A bool property `actors`
    on one object layer, read once as `above` is. `slots[:actors]` is that
-   layer's node, and a map with no mark behaves as today.
+   layer's node, and a map with no mark behaves as today.~~ **Amended by
+   [decision 27](#decisions-already-taken).** The designer still decides where
+   the actors go, by where they put the layer for them in Tiled. The map names
+   that layer rather than marking it.
 8. **rgame writes Tiled's custom types** (Q7), after the load-time check lands
    in the same plan. The research found no Tiled loader that raises on an
    unknown property.
@@ -149,13 +153,16 @@ before step 8 was planned in detail. Not reopened inside this plan.
     hidden tile layer still blocks. That is what Tiled shows. A hidden layer
     marked `actors` raises at load. Building nothing was rejected, since the
     same checkbox would then mean different things for two kinds of layer.
+    Step 9 takes the check on a hidden marked layer out with the mark
+    (decision 27).
 17. **Object layers replace `mount`'s named slots** (re-plan Q3). A scene adds
     what it spawns to an object layer's node, found by the layer's name or path,
     and an empty object layer marks a place the way a named slot did. A child
     takes on its layer's draw order, opacity and visibility, and sorts with the
-    objects built there. `places[:actors]` stays: the marked layer, or today's
-    place on a map with no mark. After step 7 no project passes a slot other
-    than `:actors`, and `slots:` never shipped.
+    objects built there. ~~`places[:actors]` stays: the marked layer, or today's
+    place on a map with no mark.~~ Step 9 takes `places[:actors]` out as well
+    (decision 27). After step 7 no project passes a slot other than `:actors`,
+    and `slots:` never shipped.
 18. **A raft's size is `deck_width` and `deck_height`** (re-plan Q4). A raft is
     a polyline or a polygon, its route, whose box is 0×0, and step 3 reserves
     `width` and `height` for the box. Letting a property set the box for a shape
@@ -230,10 +237,10 @@ before step 8 was planned in detail. Not reopened inside this plan.
     project's layout inside the gem, require `rgame` from a CLI that requires
     only the standard library, and need `bundle exec` to load the game against
     its own engine.
-25. **This repository keeps no Tiled project before step 9** (step 8's Q5). A
+25. **This repository keeps no Tiled project before step 10** (step 8's Q5). A
     project belongs to one game, and the export writes one module's classes.
     `examples/assets/` serves many examples, and a project there would need a
-    merge no game needs. Step 9's level brings the first.
+    merge no game needs. Step 10's level brings the first.
 26. **A class with no `initialize` of its own carries `@placeable` in its class
     comment** (step 8's review, settling open question 8). In the user's words:
     "Allow `@placeable` to be set on the class, and change the docs to recommend
@@ -244,6 +251,20 @@ before step 8 was planned in detail. Not reopened inside this plan.
     names each class's own definition. Above `initialize`, it still comes with
     the constructor. Switching `Lint/UselessMethodDefinition` off in the
     generated `.rubocop.yml` was the option not taken.
+27. **A map names the layer for its actors, and `mount` makes no place of its
+    own** (a conversation after step 8 landed). In the user's words: "The
+    `object-layers` made it so that nodes can be mounted on _any_ object layer.
+    That means a game should now be able to name its 'actors layer' whatever it
+    wants, right?" Step 6 kept `places[:actors]`: the layer marked `actors`, or
+    on a map with no mark, a node `mount` made under the first `above` layer.
+    Twelve of the 13 scenes that mount a map used that node, and the `above`
+    property and `mount(y_sort:)` existed only for it. Step 9 takes all of them
+    out with the mark. The layer order in Tiled then decides what covers the
+    actors, as it decides what covers everything else. A scene names the layer,
+    and a map without it raises `KeyError`, listing the object layers it has.
+    Keeping the mark, so that scene code shared by two maps need not know a
+    layer's name, was the option not taken. The mark is a second name for one
+    layer, and two maps share a name by giving their layers the same one.
 
 ## What was measured before planning
 
@@ -343,7 +364,7 @@ Taken at `abb91ad`, and on `origin/build-step-8-tiled-map` for `tour.tmx`.
    keyword" as the room is built, naming neither the map nor the object. Step 7
    found it in adventure's `Warp`. Following `**` up the chain would remove the
    rule, and naming the map and the object would at least say where it broke.
-   *Waits on step 10, which moves it to `possible-todos.md` if no step takes
+   *Waits on step 11, which moves it to `possible-todos.md` if no step takes
    it.*
 8. ~~**How should a class with nothing to set carry `@placeable`?**~~
    **Settled in step 8's review by decision 26 — in its class comment.** The

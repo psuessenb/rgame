@@ -824,6 +824,31 @@ their own plan in [object-layers/](object-layers/README.md).
 
 ---
 
+## Map notes that survive a save in Tiled
+
+**What.** Move the note each example map opens with into a README beside it, so
+the maps can be edited in Tiled without losing anything.
+
+**What exists instead.** The six maps in `examples/assets/` and topdownplatformer's
+`course.tmx` each open with an XML comment, 6 to 19 lines long. It says what the
+map is for and why it is shaped that way: `town.tmx`'s says where the fence's one
+gap sits, and why there. Each comment also says to edit the map in Tiled, and so
+does `examples/assets/README.md`, four times. But Tiled writes a map anew when it
+saves it, and keeps no comment. `town.tmx` written again by Tiled 1.12.2's
+`--export-map tmx` kept 0 of its 1. So anyone following the advice deletes the
+note, and every edit so far has been made in a text editor instead.
+
+**Why not now.** The maps are plain, and several were written by a short Ruby
+script. Their edits are a few lines each, such as an empty object layer for the
+actors, and a text editor makes them. Only a designer drawing in Tiled loses the
+notes, and nobody draws these maps.
+
+**Trigger.** The example maps being replaced by better-looking maps drawn by hand
+in Tiled. What still holds of each note moves into the README before the first
+save, and the maps open with nothing Tiled would drop.
+
+---
+
 ## A map that sets a component's values
 
 **What.** A Tiled property whose type is a component's class, such as a

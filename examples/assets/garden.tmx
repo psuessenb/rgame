@@ -4,8 +4,9 @@
      40x30 tiles at 16px = 640x480 pixels, the window exactly. A garden of
      grass and flowers walled with trees, with a few small trees standing in it.
      The doors, the warp pads and the entrances are in the "doors" object
-     layer, and a door draws itself, so no tile marks one. -->
-<map version="1.10" tiledversion="1.10.2" orientation="orthogonal" renderorder="right-down" width="40" height="30" tilewidth="16" tileheight="16" infinite="0" nextlayerid="4" nextobjectid="9">
+     layer, and a door draws itself, so no tile marks one. The heroes walk in
+     the empty "actors" layer over it, so they draw over the doors. -->
+<map version="1.10" tiledversion="1.10.2" orientation="orthogonal" renderorder="right-down" width="40" height="30" tilewidth="16" tileheight="16" infinite="0" nextlayerid="5" nextobjectid="9">
  <tileset firstgid="1" source="tileset.tsx"/>
  <layer id="1" name="ground" width="40" height="30">
   <data encoding="base64" compression="zlib">eJztkzEOwCAMA1P4/5+7UyrlgkEMHlhQZB8R1yPiWTz9574JMsYZkkl7stlZVroD2rO6i1lPNTOzEwXv2FPJzLAqeGc9NJP8NTUr5bXDvMcO73VYzVrhtcOsxw7bYTJTybDDdzhMeuywlveEwy35nkqPHbbDO3jt8DfzVodfD60Fbw==</data>
@@ -50,4 +51,5 @@
    </properties>
   </object>
  </objectgroup>
+ <objectgroup id="4" name="actors"/>
 </map>

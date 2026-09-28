@@ -22,7 +22,7 @@ module WalledTileMap
     engine::TileMap.new(
       width: rows.first.length, height: rows.length, tile_width: tile, tile_height: tile,
       layers: [engine::TileMap::Layer.new(index: 0, path: ['walls'], kind: :tile, class_name: '', visible: true,
-                                          opacity: 1.0, above: false, properties: empty)],
+                                          opacity: 1.0, properties: empty)],
       cells: [rows.join.chars.map { TILES.fetch(it, 0) }],
       tile_table: [nil, engine::TileMap::TileSource.new(tileset: 0, local_id: 0),
                    engine::TileMap::TileSource.new(tileset: 0, local_id: 1)],

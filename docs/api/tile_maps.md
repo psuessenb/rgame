@@ -35,7 +35,7 @@ map = RGame::Engine::TileMap.from_tiled(parsed)
 
 map.width         # => 60 — in tiles
 map.pixel_width   # => 960
-map.layer_count   # => 3 — ground, obstacles and the doors object layer
+map.layer_count   # => 4 — ground, obstacles, and the doors and actors object layers
 map.tile_count    # => 132
 map.object_named('start').x # => 376.0 — a point the doors layer names
 ```
@@ -280,7 +280,6 @@ one another in Tiled's order, depth first. `layer(index)` answers a
 | `class_name` | the class set in Tiled |
 | `visible?` | false when the layer or any group around it is hidden |
 | `opacity` | the layer's opacity times every group's around it |
-| `above?` | whether it covers the actors |
 | `properties` | its custom properties |
 
 **Find a layer by name rather than by index.** `layer_index` takes a name or a
@@ -288,26 +287,18 @@ one another in Tiled's order, depth first. `layer(index)` answers a
 It raises `KeyError` listing the map's layers when nothing matches, and when a
 bare name matches layers in two groups.
 
-**Mark a layer `above` in Tiled** to draw it over the actors, for tree canopies or
-roofs: add a custom **bool** property named `above` and tick it. A layer without
-the property draws below, and an `above` property of any other type raises.
-`TileWorld#first_above_layer` returns the first flagged layer. On a map that
-marks no layer `actors`, [`TileMapLayer.mount`](components.md#tileworld) puts
-the actors' place below it. Tiles in a tile layer do not sort with the actors, so
-a tree whose canopy a character walks under is two layers: a trunk below the
-actors and a canopy in an `above` layer. A tree placed as a tile object in the
+**Layers draw in the order Tiled lists them.** A scene adds its actors to an
+object layer, so every layer Tiled lists after that one covers them: a tree
+canopy or a roof. Tiles in a tile layer do not sort with the actors, so a tree
+whose canopy a character walks under is two tile layers, a trunk before the
+actors' layer and a canopy after it. A tree placed as a tile object in the
 actors' layer sorts with them instead.
+[Building nodes from objects](#building-nodes-from-objects) says how a scene
+finds that layer.
 
-**An object layer is a `TileMap::ObjectLayer`**, a `Layer` that adds two
-answers. `y_sort?` is true for Tiled's *Top Down* draw order, the default, and
-false for *Manual*, which keeps the order Tiled lists the objects in. `actors?`
-is true for the layer marked for the actors: an object layer with a custom
-**bool** property named `actors`, ticked. `map.actors_layer` is that layer's
-index, or `nil` when no layer is marked, and `TileWorld#actors_layer` answers the
-same. A map may mark one object layer. A mark on a tile layer, an image layer or
-a group, marks on two layers, a mark on a hidden layer, and an `actors` property
-that is not a bool each raise `Tiled::FormatError`, naming the layers. No actor
-spawned into a hidden layer would draw.
+**An object layer is a `TileMap::ObjectLayer`**, a `Layer` that adds one
+answer. `y_sort?` is true for Tiled's *Top Down* draw order, the default, and
+false for *Manual*, which keeps the order Tiled lists the objects in.
 
 `map.image_layers` lists the image layers, each a `TileMap::ImageLayer`: a
 `Layer` that adds `image` (the image's path, or `nil`), `offset_x` and `offset_y`
@@ -433,10 +424,12 @@ its objects build, in the layer's order. It sorts them by where they stand when
 Tiled draws the layer *Top Down*, and keeps Tiled's order for *Manual*. It
 draws at the layer's opacity.
 
-**Mark the layer the actors walk in.** Add a custom **bool** property named
-`actors` to an object layer and tick it. `places[:actors]` is then that layer's
-node, so a hero the scene spawns sorts against the trees placed there. On a map
-with no mark, the actors get a node of their own below the first `above` layer.
+**Put the actors in an object layer of their own.** Add one in Tiled where they
+belong in the layer order, and name it; the examples call theirs `actors`. It
+may be empty, or hold trees placed as tile objects. `places['actors']` is then
+that layer's node, so a hero the scene spawns sorts against the trees placed
+there, and every layer after it covers the hero. A map a scene adds actors to
+needs the layer: `places` raises `KeyError` for a name the map lacks.
 
 **An object layer is also a place for what a scene adds itself.**
 `places['doors']` is the object layer named `doors`, and a `'Group/layer'` path
@@ -460,7 +453,7 @@ class Grounds < RGame::Engine::Scene::Room
     @map = root.context.assets.tilemap(@map_id).map
     add_component(RGame::Engine::Components::TileWorld.new(map: @map, tilemap_id: @map_id))
     add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: 32))
-    @actors = RGame::Engine::TileMapLayer.mount(add_node(RGame::Engine::WorldView.new))[:actors]
+    @actors = RGame::Engine::TileMapLayer.mount(add_node(RGame::Engine::WorldView.new))['actors']
   end
 
   def _arrive(node, entrance)
@@ -671,9 +664,9 @@ are values of the same class. "No properties" is `Properties::EMPTY`, never
 names `TileMap`. rgame's own suite states that contract in
 `spec/support/shared_examples/a_tile_map.rb`. It checks both `TileMap` and the
 spec stand-in `StubTileMap` against it. The contract covers `layer_count`,
-`layer`, `layer_index`, `actors_layer`, `width`, `height`, `tile_width`,
-`tile_height`, `cell_x`, `cell_y`, `col_at`, `row_at`, `tile`, `orientation`,
-`solid?`, `tile_offset`, `animated_tiles` and `frame_tile`.
+`layer`, `layer_index`, `width`, `height`, `tile_width`, `tile_height`,
+`cell_x`, `cell_y`, `col_at`, `row_at`, `tile`, `orientation`, `solid?`,
+`tile_offset`, `animated_tiles` and `frame_tile`.
 
 A spec that needs a map but no files parses a `.tmx` String with its tilesets
 embedded, as [above](#loading-a-map).

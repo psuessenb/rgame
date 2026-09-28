@@ -132,7 +132,7 @@ module PitsExample
 
       start = map.object_named('start')
       view = add_node(Engine::WorldView.new)
-      actors = Engine::TileMapLayer.mount(view)[:actors]
+      actors = Engine::TileMapLayer.mount(view)['actors']
       @hero = actors.add_node(Hero.new(x: start.x, y: start.y))
     end
 

@@ -16,8 +16,8 @@ module TopDownPlatformer
   # point: the last checkpoint that hero reached. That point is ground, since a
   # Respawn refuses any other, so a join never puts a hero over a gap.
   #
-  # The map marks its `spawns` layer `actors`, so the heroes go there and sort
-  # against the flags, the crate and the walker. The rafts are in the
+  # The heroes go in the map's `actors` layer, and sort there against the flags,
+  # the crate and the walker. The rafts are in the
   # `platforms` layer under it, so a hero draws over the raft they ride. The
   # course listens to `Players#on_joined` for as long as it is in the tree, and
   # ends that as it leaves.
@@ -33,7 +33,7 @@ module TopDownPlatformer
                       map: @map, tilemap_id: MAP, cameras: @players.map(&:camera)
                     ))
       add_component(Components::CollisionWorld.new(cell_size: CELL_SIZE))
-      @actors = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new))[:actors]
+      @actors = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new))['actors']
       @heroes = {}
       @players.each_active { spawn(it) }
       @joining = @players.on_joined { spawn(it) }

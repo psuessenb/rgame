@@ -153,7 +153,7 @@ module DoorsExample
       @map = root.context.assets.tilemap(@map_id).map
       add_component(Components::TileWorld.new(map: @map, tilemap_id: @map_id))
       add_component(Components::CollisionWorld.new(cell_size: 32))
-      @actors = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new))[:actors]
+      @actors = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new))['actors']
     end
 
     # A hero arrives standing on the entrance the move named.

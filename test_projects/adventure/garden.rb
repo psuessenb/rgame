@@ -35,7 +35,7 @@ module Adventure
       add_component(Components::TileWorld.new(map: @map, tilemap_id: MAP))
       add_component(Components::CollisionWorld.new(cell_size: CELL_SIZE))
 
-      @actors = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new))[:actors]
+      @actors = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new))['actors']
     end
 
     def _arrive(hero, entrance)

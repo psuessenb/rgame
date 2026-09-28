@@ -21,13 +21,11 @@
 # in there:
 #
 #   2 x 2 tiles, 16 px each, four layers named ground, canopy, sky and
-#   spawns, layer 1 flagged "above",
-#   hidden, and at half opacity, layer 2 an image layer at (8, 4),
-#   repeated along x but not along y, and layer 3 an object layer marked
-#   for the actors
+#   spawns, layer 1 hidden, and at half opacity, layer 2 an image layer at
+#   (8, 4), repeated along x but not along y, and layer 3 an object layer
 #
-#   layer 0 (below):  tile 1  tile 2      layer 1 (above):  0       0
-#                     0       tile 3                        tile 4  0
+#   layer 0:  tile 1  tile 2      layer 1:  0       0
+#             0       tile 3                tile 4  0
 #
 #   tile 2 in layer 0 is turned a quarter clockwise
 #   tile 3 is solid
@@ -82,12 +80,6 @@ RSpec.shared_examples 'a tile map' do
   end
 
   describe 'layers' do
-    it 'says which layers draw above the actors' do
-      # A map that got this backwards would put every tree canopy behind every
-      # character.
-      tile_map { |map| expect([map.layer(0).above?, map.layer(1).above?]).to eq([false, true]) }
-    end
-
     it 'says which layers are shown' do
       tile_map { |map| expect([map.layer(0).visible?, map.layer(1).visible?]).to eq([true, false]) }
     end
@@ -106,10 +98,6 @@ RSpec.shared_examples 'a tile map' do
 
     it 'says what kind each layer is' do
       tile_map { |map| expect(Array.new(4) { map.layer(it).kind }).to eq(%i[tile tile image object]) }
-    end
-
-    it 'names the object layer marked for the actors' do
-      tile_map { |map| expect(map.actors_layer).to eq(3) }
     end
 
     it 'says where an image layer draws, and along which axes it repeats' do

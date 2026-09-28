@@ -162,7 +162,7 @@ module JumpTopdownExample
                     ))
 
       view = add_node(Engine::WorldView.new)
-      actors = Engine::TileMapLayer.mount(view)[:actors]
+      actors = Engine::TileMapLayer.mount(view)['actors']
       @hero = actors.add_node(Hero.new(camera: players.primary.camera, x: START_X, y: START_Y))
     end
 

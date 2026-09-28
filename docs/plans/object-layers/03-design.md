@@ -8,7 +8,7 @@ Five stages, each owned by one piece:
    class property's class, and reads a tileset's `objectalignment`.
 2. **`TileMap.from_tiled` turns it into what a game reads.** A tile object takes
    its tile's class when it has none, alignment is applied once, and an object
-   layer becomes a `TileMap::ObjectLayer` that answers `y_sort?` and `actors?`.
+   layer becomes a `TileMap::ObjectLayer` that answers `y_sort?`.
 3. **`TileMapLayer.mount` builds the tree.** An object layer becomes a node in
    its place among the layers, and each object in it goes to `MapBuilder`.
 4. **`MapBuilder` builds one node.** It resolves the class, checks every property
@@ -38,8 +38,6 @@ bag['collider']['width']             # => 20.0
 
 layer = map.layer(3)                 # => a TileMap::ObjectLayer
 layer.y_sort?                        # => true for Tiled's "Top Down" draw order, false for "Manual"
-layer.actors?                        # => true when the layer has a bool property `actors`
-map.actors_layer                     # => 3, or nil when no layer is marked
 ```
 
 - **`Properties#class_name`** carries Tiled's `propertytype`. It is the one piece
@@ -47,9 +45,9 @@ map.actors_layer                     # => 3, or nil when no layer is marked
 - **`TileMap::ObjectLayer`** subclasses `Layer`, as `ImageLayer` does.
   `draworder` arrives as `y_sort?`, because the runtime view speaks none of
   Tiled's words (hard constraint 6).
-- **`actors?` is read once, as `above?` is.** A mark on a layer that is not an
-  object layer raises `Tiled::FormatError`, and so do marks on two layers or a
-  non-bool value. There is one place spawned actors go.
+- **No property of a layer says where the actors go.** Step 1 read an `actors`
+  mark as `actors?`, beside `above?`, and step 9 takes both out (decision 27).
+  A layer's place in Tiled's order says what it covers.
 - **`objectalignment` moves the corner once.** The transform turns each of its
   nine values into the object's top-left corner, as it does for Tiled's
   bottom-left default today. Nothing downstream learns the alignment.
@@ -265,7 +263,7 @@ renderer.map_tile(tilemap_id, tile, left, top, width, height, orientation, elaps
 
 ```ruby
 places = TileMapLayer.mount(view)   # object layers become nodes and build their objects
-places[:actors]                     # the layer marked `actors`; on a map with no mark, a node under the first `above` layer
+places['actors']                    # the object layer named 'actors', where a scene's heroes go
 places['doors']                     # the object layer named 'doors', for what a scene spawns itself
 ```
 
@@ -277,11 +275,12 @@ places['doors']                     # the object layer named 'doors', for what a
 - **An object layer replaces a named slot** (decision 17). A scene adds what it
   spawns to `places[name]`, and it takes on the layer's draw order, opacity and
   visibility. An empty object layer in Tiled marks a place in the layer order.
-- **`mount(y_sort:)` covers only the actors' place on a map with no mark.** An
-  object layer follows the draw order the designer set in Tiled, where they can
-  see it.
-- **The marked layer is `places[:actors]`**, so a hero a scene spawns sorts
-  against the trees placed there. A map with no mark keeps today's place.
+- **The actors go in an object layer the map names** (decision 27), so a hero
+  a scene spawns sorts against the trees placed there. The layer order in
+  Tiled decides what covers the hero, and the layer's draw order whether it
+  sorts. Steps 6 to 8 kept an `actors` mark, and on a map without one, a node
+  of `mount`'s own under the first `above` layer, sorted unless
+  `mount(y_sort: false)`. Step 9 takes all three out.
 - **`mount` builds once.** A second `mount` over the same `TileWorld` raises.
 
 ## The random source
@@ -404,6 +403,8 @@ out the project and the spec.
   goes rather than gaining a Removed one.
 - **`mount`'s named slots**, which object layers replace (decision 17). After
   step 7 no project passes a slot other than `:actors`.
+- **`places[:actors]`, the `actors` mark, `above` and `mount(y_sort:)`**,
+  which a layer the map names replaces in step 9 (decision 27).
 - **`Random.new(ENV.fetch('RGAME_SEED', DEFAULT_SEED).to_i)`**, in 9 projects.
 - **`Node2D`'s `map_object:` and `fact_key:`**, which step 3 added. The id stays
   as `map_object_id`, and `Components::Facts` makes the key.

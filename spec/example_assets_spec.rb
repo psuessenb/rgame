@@ -342,9 +342,10 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
   end
 
   # A hero draws over the raft they ride only while the raft's layer lies under
-  # the place the actors walk in. Nothing fails when a designer drags the two
-  # apart in Tiled: the hero draws under the raft. So every map the examples and
-  # the test projects play is held to it, and none is named here.
+  # the layer the actors walk in, which each of these maps names `actors`.
+  # Nothing fails when a designer drags the two apart in Tiled: the hero draws
+  # under the raft. So every map the examples and the test projects play is held
+  # to it, and none is named here.
   describe 'every Raft on a map under examples/ or test_projects/' do
     let(:root) { File.expand_path('..', __dir__) }
     let(:maps) do
@@ -354,18 +355,22 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
     end
     let(:rafts) { maps.flat_map { |path, map| map.objects.select { it.class_name == 'Raft' }.map { [path, map, it] } } }
 
-    # Where TileMapLayer.mount puts the actors: the layer marked `actors`, or
-    # on a map with no mark, before the first `above` layer, or over every layer.
-    def actors_place(map)
-      map.actors_layer || (0...map.layer_count).find { map.layer(it).above? } || map.layer_count
+    # The index of the layer named `actors`, or nil on a map without one.
+    def actors_index(map)
+      map.layer_index('actors')
+    rescue KeyError
+      nil
     end
 
     it 'finds a raft to check' do
       expect(rafts).not_to be_empty
     end
 
-    it 'lies in a layer under the actors, so a hero draws over the raft they ride' do
-      over = rafts.reject { |_, map, raft| raft.layer < actors_place(map) }
+    it 'lies in a layer under the one named actors, so a hero draws over the raft they ride' do
+      over = rafts.reject do |_, map, raft|
+        actors = actors_index(map)
+        actors && raft.layer < actors
+      end
 
       expect(over.map { |path, _, raft| "#{path} #{raft.name}" }).to be_empty
     end
@@ -399,7 +404,7 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
       layers = (0...map.layer_count).map { map.layer(it) }.select { it.kind == :tile }
       layers.map do |layer|
         cells = (0...map.height).flat_map { |row| (0...map.width).map { |col| map.tile(layer.index, col, row) } }
-        [layer.path, layer.visible?, layer.opacity, layer.above?, cells]
+        [layer.path, layer.visible?, layer.opacity, layer.properties.to_h, cells]
       end
     end
 

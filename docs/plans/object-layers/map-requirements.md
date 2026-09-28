@@ -1,11 +1,11 @@
 # Requirements for the Tiled acceptance map
 
-**Status: being authored on `build-step-8-tiled-map`, 10 of 23 done.** These
+**Status: being authored on `build-step-8-tiled-map`, 10 of 22 done.** These
 requirements were step 0 of the Tiled format plan, and the check below was its
 step 8. [Step 0 of this plan](04-roadmap.md#step-0--the-requirements-for-tourtmx)
 added R20–R23, which building nodes from objects needs, and carried over the done
-marks from the authoring branch. Links into the Tiled format plan point at it as
-it stood in `dcb07f8`.
+marks from the authoring branch. Step 9 retired R23. Links into the Tiled format
+plan point at it as it stood in `dcb07f8`.
 
 **A map authored in Tiled, saved by Tiled, and never edited by hand.** It is the
 one input the parser cannot have written itself. `TiledFixture` emits what the
@@ -43,7 +43,7 @@ A mark is the author's word. The check confirms it once it exists.
 | [R20](#r20) | a tile object that takes its tile's class | |
 | [R21](#r21) | a tileset with an object alignment | |
 | [R22](#r22) | both draw orders | |
-| [R23](#r23) | the `actors` mark | |
+| [R23](#r23) | ~~the `actors` mark~~ retired by step 9 | |
 
 ## The check, and the example that plays the map
 
@@ -61,7 +61,7 @@ Two halves, still rough:
   the only tier where all three layers are present at once, and the only one
   that would catch a map that parses and draws wrong. What it should do depends
   on what the map contains, and on the nodes this plan builds from its objects.
-  It plays the second map, the level, whose requirements step 9 writes once
+  It plays the second map, the level, whose requirements step 10 writes once
   rgame exports its types (see the [roadmap](04-roadmap.md)).
 
 ## What to hand over
@@ -122,7 +122,7 @@ These apply to every file above.
 
 Three of the files are copies of the first, so the order matters.
 
-1. Build `tour.tmx` until it meets R1–R15, R17, R18 and R20–R23. Save it.
+1. Build `tour.tmx` until it meets R1–R15, R17, R18 and R20–R22. Save it.
 2. Export `tour_reference.png` from it ([R19](#r19)).
 3. Change the layer format and **Save As** `tour_gzip.tmx` ([R7](#r7)).
 4. Reopen `tour.tmx`, make it Infinite, shift it, and **Save As**
@@ -537,18 +537,9 @@ object.**
 
 ### R23
 
-**The *Top Down* object layer from [R22](#r22) carries a bool property `actors`
-set to `true`, and no other layer does.**
-
-- **In Tiled:** select the layer and add a property with the **+** in the
-  Properties panel. Name it `actors`, choose `bool`, and tick it.
-- **Why:** the mark says where the heroes a scene spawns in code go. From
-  [step 6](04-roadmap.md#step-6--mount-builds-the-object-layers-and-they-replace-named-slots-engine-pure) on,
-  `places[:actors]` is the marked layer's node, so the heroes sort by y
-  against the objects placed in it. That is why the mark belongs on a *Top Down*
-  layer.
-  [Step 1c](04-roadmap.md#step-1--the-parse-and-the-transform-enginetiled-and-tilemap-pure)
-  reads the mark once, as it reads `above`.
-- **The check reports:** "R23: no object layer carries a bool `actors` set to
-  true." A mark that is not a bool, a mark on a layer that is not an object layer,
-  and marks on two layers each fail the load, and the check reports that error.
+~~**The *Top Down* object layer from [R22](#r22) carries a bool property `actors`
+set to `true`, and no other layer does.**~~ **Retired by
+[step 9](04-roadmap.md#step-9--the-actors-place-is-an-object-layer-the-map-names-engine-pure-and-the-maps).**
+From that step on, rgame reads no `actors` mark. A scene adds its actors to an
+object layer it names, and a property called `actors` is a custom property like
+any other. The check does not look for one.
