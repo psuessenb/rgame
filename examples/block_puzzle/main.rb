@@ -233,7 +233,7 @@ module BlockPuzzleExample
                              ))
 
       view = add_node(Engine::WorldView.new)
-      actors = Engine::TileMapLayer.mount(view)[:actors]
+      actors = Engine::TileMapLayer.mount(view)['actors']
       @squares = SQUARES.map { |col, row| actors.add_node(Square.new(world: @world, col:, row:)) }
       @blocks = BLOCKS.map { |col, row| actors.add_node(Block.new(world: @world, col:, row:)) }
       actors.add_node(Hero.new(room: self, x: @world.cell_x(START.first) + 2, y: @world.cell_y(START.last) + 2))

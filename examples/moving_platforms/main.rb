@@ -153,7 +153,7 @@ module MovingPlatformsExample
                       map: map, tilemap_id: MAP, cameras: players.map(&:camera)
                     ))
 
-      actors = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new))[:actors]
+      actors = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new))['actors']
       start = map.object_named('start')
       actors.add_node(Hero.new(camera: players.primary.camera, x: start.x, y: start.y))
     end

@@ -127,7 +127,7 @@ module PathfindingExample
   # that tile can be stood on; what confirming *means* is the scene's business, so it
   # only reports the tile's centre. Every size and position it draws at comes from the
   # world, which is what knows how big a tile is. Its `z: 1` keeps it over the hero,
-  # wherever the two stand in the y-sorted actors' place.
+  # wherever the two stand in the map's y-sorted `actors` layer.
   class Cursor < Engine::Node2D
     WALKABLE = Util::Color.rgba(120, 230, 120, 255)
     SOLID = Util::Color.rgba(240, 90, 90, 255)
@@ -248,7 +248,7 @@ module PathfindingExample
                             ))
 
       view = add_node(Engine::WorldView.new)
-      actors = Engine::TileMapLayer.mount(view)[:actors]
+      actors = Engine::TileMapLayer.mount(view)['actors']
       # What stands on the start tile is the hero's feet box, so the box's centre
       # goes on the tile's.
       @hero = Hero.new(x: world.cell_centre_x(START_COL), y: world.cell_centre_y(START_ROW) - FEET_CENTRE_Y)

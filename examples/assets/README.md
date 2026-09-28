@@ -54,7 +54,8 @@ new examples need them.
 60x40 tiles = 960x640 pixels, deliberately larger than the 640x480 window on
 both axes so a camera has somewhere to scroll. Two tile layers, `ground`
 (entirely walkable) and `obstacles` (a tree border, a fence across the middle,
-scattered trees), and no object layer.
+scattered trees), and an empty object layer on top, `actors`, where the examples
+put what walks.
 
 Layer data is **base64 + zlib**, which is what `RGame::Engine::TileMap.parse`
 reads — it inflates the layer and unpacks little-endian `uint32` gids. CSV will
@@ -93,7 +94,8 @@ class, and a door names where it goes in its properties:
 | `garden_gate` | `Door` | `to: garden`, `entrance: gate_in` |
 
 An entrance is a point, where a node arriving stands, and its lower-case class
-keeps it data. A door draws itself, so the layer changes no tile.
+keeps it data. A door draws itself, so the layer changes no tile. The heroes walk
+in the empty `actors` layer over it, so they draw over the gate.
 
 ### `garden.tmx` — ours
 
@@ -113,7 +115,8 @@ like the others. Its `doors` layer:
 | `horn` | `Door` | `to: town`, `entrance: square`, `party: true` |
 
 A warp is a door into its own room, so it names only an entrance. A door marked
-`party` moves every hero, and any other door moves the hero who touched it.
+`party` moves every hero, and any other door moves the hero who touched it. The
+heroes walk in the empty `actors` layer over `doors`.
 `spec/example_assets_spec.rb` holds this map and `town_with_gate.tmx` to three
 rules: a door's entrance exists on the map it leads to, no entrance lies on a
 door, and every door and entrance stands on walkable ground.
@@ -123,7 +126,8 @@ door, and every door and entrance stands on walkable ground.
 40x30 tiles = 640x480 pixels, the window exactly, for `examples/block_puzzle`.
 A room of grass sixteen tiles by twelve, walled with trees (tile 16) and set in
 a forest of them, with a three-tile wall of trees standing inside. The blocks and
-their squares are nodes the example places, not part of the map.
+their squares are nodes the example places, not part of the map. It puts them,
+and the hero, in the empty `actors` object layer on top.
 
 Written by a short Ruby script rather than in Tiled, in the same base64 + zlib
 format as `town.tmx`, over the same `tileset.tsx`. Edit it in Tiled like the
@@ -151,6 +155,7 @@ trees at x = 12, 18 and 24 tiles, close enough to hop, into a chasm eight tiles
 deep across the south of the map. The gaps are on their own layer, `pits`, over
 `pits.tsx`. The point object `start` in the `spawns` layer is where the hero
 first stands, and `spec/example_assets_spec.rb` holds it to standing on floor.
+The hero walks in the empty `actors` layer on top.
 
 Written by a short Ruby script rather than in Tiled, as `puzzle.tmx` was, in the
 same base64 + zlib format over `tileset.tsx` and `pits.tsx`. Edit it in Tiled
@@ -166,7 +171,8 @@ class `Raft`: the route the raft's centre shuttles along, from x = 396 to
 564 at y = 240, with the raft's size in its `deck_width` and `deck_height`
 properties.
 Each end stops 12 px short of a bank, less than the 40 px a hop carries. The
-point `start` in the `spawns` layer is where the hero first stands.
+point `start` in the `spawns` layer is where the hero first stands. The hero
+walks in the empty `actors` layer on top, so they draw over the raft they ride.
 `spec/example_assets_spec.rb` holds the start to standing on floor, and the
 route's ends to a hop from each bank.
 

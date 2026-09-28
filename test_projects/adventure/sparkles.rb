@@ -4,11 +4,10 @@ module Adventure
   # Where a coin was taken: a burst of sparkles that runs its life out after the
   # coin is gone.
   #
-  # The emitter is a node of its own in the actors' place, not a component on each
-  # coin. A coin frees itself as it is taken, and its sparkles would go with it.
-  # So the town builds one of these and hands it to every coin. It sits above the
-  # heroes there, because the sparkles are light, and it draws under the
-  # canopy with everything else there.
+  # The emitter is a node of its own in the town's `actors` layer, not a component
+  # on each coin. A coin frees itself as it is taken, and its sparkles would go
+  # with it. So the town builds one of these and hands it to every coin. It sits
+  # above the heroes there, because the sparkles are light.
   class Sparkles < Engine::Node2D
     COUNT = 12
     RAMP = Util::ColorRamp.new(Util::Color.new(255, 250, 200), Util::Color.new(255, 190, 60, 0))
@@ -21,7 +20,7 @@ module Adventure
                                  ))
     end
 
-    # A burst at (x, y), in the actors' place's space.
+    # A burst at (x, y), in the space of the `actors` layer.
     def burst(x, y) = @particles.burst(COUNT, x, y)
   end
 end

@@ -5,10 +5,10 @@ module Adventure
   # the gate to the garden.
   #
   # It mounts a TileWorld over the town map, puts a WorldView under itself and
-  # lets TileMapLayer.mount lay the map's layers out. The heroes go in the
-  # actors' place, so a tree's canopy draws in front of whoever walks under it.
-  # The coins, the chest, the lever and the crate go there too, for the same
-  # reason, and so do the sparkles every coin bursts as it is taken. The map
+  # lets TileMapLayer.mount lay the map's layers out. The heroes go in the map's
+  # `actors` layer, over every other, and draw there by where they stand. The
+  # coins, the chest, the lever and the crate go there too, so they sort with the
+  # heroes, and so do the sparkles every coin bursts as it is taken. The map
   # builds the gate, a Door, in its `doors` layer under them, so a hero walks
   # over it.
   #
@@ -71,7 +71,7 @@ module Adventure
       add_component(Components::TileWorld.new(map: @map, tilemap_id: MAP))
       add_component(Components::CollisionWorld.new(cell_size: CELL_SIZE))
 
-      @actors = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new))[:actors]
+      @actors = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new))['actors']
 
       sparkles = @actors.add_node(Sparkles.new)
       COINS.each_with_index do |(x, y), index|

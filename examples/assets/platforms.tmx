@@ -7,8 +7,9 @@
      from pits.tsx. `raft` in the `platforms` layer is a polyline of class
      `Raft`: the route its centre shuttles along, with its size in its
      deck_width and deck_height properties. Each end stops 12 px short of a bank, less
-     than a hop. `start` is where the hero stands first. -->
-<map version="1.10" tiledversion="1.10.2" orientation="orthogonal" renderorder="right-down" width="60" height="30" tilewidth="16" tileheight="16" infinite="0" nextlayerid="6" nextobjectid="3">
+     than a hop. `start` is where the hero stands first. The hero walks in the
+     empty `actors` layer on top, so they draw over the raft they ride. -->
+<map version="1.10" tiledversion="1.10.2" orientation="orthogonal" renderorder="right-down" width="60" height="30" tilewidth="16" tileheight="16" infinite="0" nextlayerid="7" nextobjectid="3">
  <tileset firstgid="1" source="tileset.tsx"/>
  <tileset firstgid="133" source="pits.tsx"/>
  <layer id="1" name="ground" width="60" height="30">
@@ -34,4 +35,5 @@
    <polyline points="0,0 168,0"/>
   </object>
  </objectgroup>
+ <objectgroup id="6" name="actors"/>
 </map>

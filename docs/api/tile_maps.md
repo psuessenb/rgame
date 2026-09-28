@@ -35,7 +35,7 @@ map = RGame::Engine::TileMap.from_tiled(parsed)
 
 map.width         # => 60 — in tiles
 map.pixel_width   # => 960
-map.layer_count   # => 3 — ground, obstacles and the doors object layer
+map.layer_count   # => 4 — ground, obstacles, and the doors and actors object layers
 map.tile_count    # => 132
 map.object_named('start').x # => 376.0 — a point the doors layer names
 ```

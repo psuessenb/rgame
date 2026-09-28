@@ -6,9 +6,9 @@ module TiledWorld
   # them to the screen). It resolves everything it needs from the game's asset manager
   # (node.root.context.assets) by relative path — nothing is passed into its constructor.
   #
-  # Actors live in the :actors place TileMapLayer.mount hands back, which sits between the
-  # map's ground layers and the layers Tiled flags `above` — so palm canopies
-  # render in front of a walker and trunks behind. No z is picked anywhere here.
+  # Actors live in the map's `actors` layer, which lies between its `Trunks` and `Over`
+  # layers in Tiled — so palm canopies render in front of a walker and trunks behind.
+  # No z is picked anywhere here.
   #
   # It mounts both collision systems, which is the case a game usually wants and this
   # project is the acceptance test for: TileWorld for the map's walls, CollisionWorld for
@@ -39,7 +39,7 @@ module TiledWorld
       add_component(Components::CollisionWorld.new(cell_size: ACTOR_CELL))
 
       @view = add_node(Engine::WorldView.new)
-      @actors = Engine::TileMapLayer.mount(@view)[:actors]
+      @actors = Engine::TileMapLayer.mount(@view)['actors']
 
       @players.each_active { |player| spawn_walker(player) }
       @players.on_joined { |player| spawn_walker(player) }

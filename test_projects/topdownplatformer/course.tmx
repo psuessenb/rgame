@@ -7,15 +7,15 @@
      tile wide in columns 16, 20 and 24, a chasm in columns 34 to 49 (x 544 to
      800), and one in columns 58 to 81 (x 928 to 1312).
 
-     The `platforms` layer lies under `spawns`, which is marked `actors`, so a
+     The `platforms` layer lies under `actors`, where the heroes walk, so a
      hero draws over the raft they ride and sorts against what stands in
-     `spawns`. In `platforms`, `shuttle` is a polyline of class `Raft` that
+     `actors`. In `platforms`, `shuttle` is a polyline of class `Raft` that
      its centre walks back and forth, stopping 12 px short of each bank, and
      `ring` a polygon it walks round, never touching a bank. The ring's west
      and east legs run 12 px from a bank. Each carries its size in its
      deck_width and deck_height properties.
 
-     In `spawns`, `start` is where the first hero stands. `first`, `second`
+     In `actors`, `start` is where the first hero stands. `first`, `second`
      and `last` are points of class `Flag`, `crate` of class `Crate` and
      `walker` of class `Walker`, which rides the ring. -->
 <map version="1.10" tiledversion="1.10.2" orientation="orthogonal" renderorder="right-down" width="100" height="30" tilewidth="16" tileheight="16" infinite="0" nextlayerid="6" nextobjectid="9">
@@ -46,10 +46,7 @@
    <polygon points="0,0 264,0 264,96 0,96"/>
   </object>
  </objectgroup>
- <objectgroup id="4" name="spawns">
-  <properties>
-   <property name="actors" type="bool" value="true"/>
-  </properties>
+ <objectgroup id="4" name="actors">
   <object id="1" name="start" x="96" y="248">
    <point/>
   </object>
