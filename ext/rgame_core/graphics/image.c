@@ -285,10 +285,8 @@ rgame_app *rgame_image_owner(const rgame_image *image) {
     return image ? image->app : NULL;
 }
 
-void rgame_image_destroy(rgame_image *image) {
-    if (!image) {
-        return;
-    }
+static void image_teardown(void *object) {
+    rgame_image *image = object;
 
     /* Only the *last* handle on a sheet gets a name back to delete, which is
      * how dropping a sprite sheet while its tiles are still alive stays safe.
@@ -310,4 +308,11 @@ void rgame_image_destroy(rgame_image *image) {
     }
     rgame_app_gl_release(image->app);
     free(image);
+}
+
+void rgame_image_destroy(rgame_image *image) {
+    if (!image || rgame_app_hand_back(image->app, image_teardown, image)) {
+        return;
+    }
+    image_teardown(image);
 }

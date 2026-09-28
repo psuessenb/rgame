@@ -250,5 +250,12 @@ tells you to use `close`. Only `close` and closing the window stop the loop.
 ## Several windows in one process
 
 A process can create more than one `App`, and their lifetimes may overlap. The
-engine keeps SDL alive until the last one is gone. Test suites rely on this: they
-create and discard a window per example.
+engine keeps SDL alive until the last one is gone. Test suites rely on this: they
+create and discard a window per example.
+
+A discarded window closes when Ruby collects its `App`. Ruby collects on
+whichever thread's allocation set the collection off, and only the thread that
+opened a window may close it. A window another thread collects waits for its
+own thread: the next `App.new` there, the start of its next frame in `App#run`,
+or, for the main thread, the end of the process. Its images and fonts wait the
+same way, since their textures live in the window's context.

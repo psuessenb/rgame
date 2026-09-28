@@ -76,6 +76,11 @@ static ID id_linear;
  * collected, Ruby tears down the SDL window / GL context for us by calling the
  * public destroy function. rgame_app_destroy is NULL-safe, so an App that was
  * allocated but never initialized frees cleanly too.
+ *
+ * Ruby runs this on whichever thread's allocation set off the collection, and
+ * only the thread that opened the window may close it. rgame_app_destroy sees
+ * to that itself, handing the teardown back; Init_core_ext runs whatever is
+ * still waiting when Ruby exits.
  */
 static void app_free(void *ptr) {
     rgame_app_destroy((rgame_app *)ptr);
@@ -511,6 +516,11 @@ static VALUE app_default_gamepad(VALUE self, VALUE slot) {
     return Qnil;
 }
 
+static void destroy_handed_back_at_exit(VALUE unused) {
+    (void)unused;
+    rgame_app_destroy_handed_back();
+}
+
 /* ------------------------------------------------------------------------- *
  * Entry point. Ruby calls Init_<basename of the required path> when the .so is
  * loaded; we require it as "rgame/core_ext", so this must be
@@ -578,6 +588,10 @@ void Init_core_ext(void) {
     rb_define_method(cApp, "resize", app_default_resize, 2);
     rb_define_method(cApp, "gamepad_connected", app_default_gamepad, 1);
     rb_define_method(cApp, "gamepad_disconnected", app_default_gamepad, 1);
+
+    /* A window collected on another thread waits for the thread that opened
+     * it, and after Ruby's last frame that thread only gets this chance. */
+    rb_set_end_proc(destroy_handed_back_at_exit, Qnil);
 
     rgame_init_image(mCore);
     rgame_init_renderer(mCore);

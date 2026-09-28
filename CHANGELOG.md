@@ -652,6 +652,12 @@ index, not the argument.
 
 ### Fixed
 
+- **A window collected on another thread no longer freezes the process on
+  Windows.** When a thread other than the one that opened a window ran the
+  collection that freed its `RGame::Core::App`, both threads waited on each
+  other for good. The window, and its images and fonts, now close on the
+  thread that opened them. See
+  [docs/api/app.md](docs/api/app.md#several-windows-in-one-process).
 - **A scene enters and leaves the tree with its host.** The scenes on a
   `RGame::Engine::Scene::SceneStack` stayed in the tree, and their components
   registered with their systems, after the node holding the stack left it. A
