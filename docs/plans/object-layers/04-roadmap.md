@@ -2174,13 +2174,17 @@ Where the sketch was wrong, or said too little:
 - **A doc example counted `town_with_gate.tmx`'s layers.** `tile_maps.md` said
   3, and the doc spec failed in 9a when the map gained `actors`. The sketch put
   every `docs/api` change in 9b.
-- **`places['actors']` allocates where `places[:actors]` did not.** `doors`
-  allocates 628 objects where `main` allocates 624, and adventure 1964 where
-  `main` allocates 1960, on the same ticks. `TileMap#layer_index` joins every
-  layer's path to compare it: 6 objects a lookup on `garden.tmx`. It runs once
-  per room built, off the per-frame path. The other ten projects allocate
-  exactly what `main` does. **For step 11:** `layer_index` could keep each
-  path joined, if a game looks layers up often.
+- **A room costs 2 objects more to build on the door maps.** `doors` allocates
+  628 objects where `main` allocates 624, and adventure 1964 where `main`
+  allocates 1960, on the same ticks. Each builds two rooms after its warm-up,
+  the garden and the town again. `places['actors']` looks the layer up through
+  `TileMap#layer_index`, which allocates an Array and a String per layer: 5
+  objects on those four-layer maps. `mount` no longer calls
+  `TileWorld#first_above_layer`, whose `layer_count.times.find` allocated 3. So
+  a mount and its lookup cost 2 more there, and 1 more on a three-layer map,
+  off the per-frame path. The other ten projects build no room after their
+  warm-up, and allocate exactly what `main` does. **For step 11:**
+  `layer_index` could keep each path joined, if a game looks layers up often.
 - **Two more game comments named the actors' place**: adventure's
   `sparkles.rb`, which also promised a canopy, and the cursor in `pathfinding`.
   The sketch counted five files.
