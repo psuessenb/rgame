@@ -95,6 +95,7 @@ BUILD_DIR := build
 # Engine objects, named after their sources in $(EXT_CORE_DIR).
 APP_OBJ := $(BUILD_DIR)/app.o
 FRAME_LOOP_OBJ := $(BUILD_DIR)/frame_loop.o
+TEARDOWN_QUEUE_OBJ := $(BUILD_DIR)/teardown_queue.o
 LOCALE_OBJ := $(BUILD_DIR)/locale.o
 DEVICE_SLOTS_OBJ := $(BUILD_DIR)/device_slots.o
 INPUT_OBJ := $(BUILD_DIR)/input.o
@@ -149,6 +150,7 @@ MAIN_BIN := $(BUILD_DIR)/rgame
 # means adding to TEST_OBJS, not adding another binary.
 TEST_OBJS := $(BUILD_DIR)/test_main.o \
              $(BUILD_DIR)/test_frame_loop.o \
+             $(BUILD_DIR)/test_teardown_queue.o \
              $(BUILD_DIR)/test_locale.o \
              $(BUILD_DIR)/test_device_slots.o \
              $(BUILD_DIR)/test_input.o \
@@ -200,10 +202,14 @@ $(APP_OBJ): $(EXT_CORE_DIR)/app/app.c $(EXT_CORE_DIR)/app/frame_loop.h $(EXT_COR
             $(EXT_CORE_DIR)/input/gamepad.h $(EXT_CORE_DIR)/graphics/canvas.h $(EXT_CORE_DIR)/graphics/primitives.h \
             $(EXT_CORE_DIR)/graphics/gl_backend.h $(EXT_CORE_DIR)/graphics/image_internal.h \
             $(EXT_CORE_DIR)/text/font_internal.h $(EXT_CORE_DIR)/app/sdl_session.h \
+            $(EXT_CORE_DIR)/app/app_gl.h $(EXT_CORE_DIR)/app/teardown_queue.h \
             $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) $(SDL_CFLAGS) -c $< -o $@
 
 $(FRAME_LOOP_OBJ): $(EXT_CORE_DIR)/app/frame_loop.c $(EXT_CORE_DIR)/app/frame_loop.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) -c $< -o $@
+
+$(TEARDOWN_QUEUE_OBJ): $(EXT_CORE_DIR)/app/teardown_queue.c $(EXT_CORE_DIR)/app/teardown_queue.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) -c $< -o $@
 
 $(LOCALE_OBJ): $(EXT_CORE_DIR)/app/locale.c $(EXT_CORE_DIR)/app/locale.h \
@@ -305,7 +311,7 @@ $(BUILD_DIR)/%_impl.o: $(EXT_CORE_DIR)/vendor/%_impl.c $(VENDOR_SOURCES) | $(BUI
 $(BUILD_DIR)/%_impl.o: $(EXT_UTIL_DIR)/vendor/%_impl.c $(UTIL_VENDOR_SOURCES) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(DEPFLAGS) -w -c $< -o $@
 
-$(CORE_LIB): $(APP_OBJ) $(FRAME_LOOP_OBJ) $(LOCALE_OBJ) $(DEVICE_SLOTS_OBJ) $(INPUT_OBJ) $(GAMEPAD_OBJ) $(VIRTUAL_GAMEPAD_OBJ) \
+$(CORE_LIB): $(APP_OBJ) $(FRAME_LOOP_OBJ) $(TEARDOWN_QUEUE_OBJ) $(LOCALE_OBJ) $(DEVICE_SLOTS_OBJ) $(INPUT_OBJ) $(GAMEPAD_OBJ) $(VIRTUAL_GAMEPAD_OBJ) \
              $(TRANSFORM_OBJ) $(CLIP_OBJ) $(DRAW_QUEUE_OBJ) \
              $(CANVAS_OBJ) $(BACKEND_OBJ) $(TEXTURE_OBJ) $(PIXELS_OBJ) $(PRIMITIVES_OBJ) \
              $(RECORDING_OBJ) $(ATLAS_OBJ) $(GLYPH_CACHE_OBJ) $(FONT_ATLAS_OBJ) $(VORBIS_DECODER_OBJ) $(AUDIO_OBJ) $(GL_BACKEND_OBJ) $(IMAGE_OBJ) $(VENDOR_OBJS) \

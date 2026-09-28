@@ -54,8 +54,26 @@ rgame_app *rgame_app_create(int width, int height, const char *title, int fullsc
  */
 rgame_texture_filter rgame_app_texture_filter(const rgame_app *app);
 
-/* Destroys the GL context/window and frees the app. Safe to call with NULL. */
+/*
+ * Destroys the GL context/window and frees the app. Safe to call with NULL.
+ *
+ * Only the thread that created the app may destroy its window. On Windows,
+ * destroying a window from another thread waits for its own thread to answer,
+ * and if that thread is waiting too, neither ever moves. So on any other
+ * thread this, rgame_image_destroy and rgame_font_destroy hand the teardown
+ * back instead. The app's thread runs it at its next rgame_app_create, at the
+ * start of every frame of rgame_app_run, and in rgame_app_destroy_handed_back.
+ * A garbage collector is what calls a destroy from another thread: Ruby's
+ * frees an object on whichever thread happened to allocate.
+ */
 void rgame_app_destroy(rgame_app *app);
+
+/*
+ * Runs every teardown that other threads handed back to the calling thread;
+ * see rgame_app_destroy. The Ruby binding calls it at exit, and a program that
+ * destroys apps from other threads calls it wherever its own thread is free.
+ */
+void rgame_app_destroy_handed_back(void);
 
 /*
  * ---------------------------------------------------------------------------
@@ -493,7 +511,8 @@ rgame_image *rgame_image_tile(const rgame_image *image, int tile_width, int tile
 int rgame_image_width(const rgame_image *image);
 int rgame_image_height(const rgame_image *image);
 
-/* Releases this handle's share of the texture. Safe to call with NULL. */
+/* Releases this handle's share of the texture. Safe to call with NULL, and
+ * from any thread; see rgame_app_destroy. */
 void rgame_image_destroy(rgame_image *image);
 
 /*
@@ -669,6 +688,7 @@ rgame_font *rgame_font_open(rgame_app *app, const unsigned char *ttf, size_t len
  */
 rgame_font *rgame_font_load(rgame_app *app, const char *path, int pixel_height, char *err,
                             size_t err_size);
+/* Safe to call with NULL, and from any thread; see rgame_app_destroy. */
 void rgame_font_destroy(rgame_font *font);
 
 /* The size the font was loaded at, which is also the line height to step by for

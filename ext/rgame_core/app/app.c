@@ -56,6 +56,15 @@ static int rgame_live_apps = 0;
 /* Counts the times SDL has started from no live apps; see sdl_session.h. */
 static unsigned rgame_sdl_sessions = 0;
 
+/*
+ * Teardowns other threads handed back to the thread that owns their app; see
+ * teardown_queue.h. The only state here more than one thread touches, so it
+ * has a lock of its own. SDL's spinlock needs no SDL_Init, and is held only
+ * while the list changes, never while a teardown runs.
+ */
+static rgame_teardown_queue handed_back;
+static SDL_SpinLock handed_back_lock;
+
 unsigned rgame_sdl_session(void) {
     return rgame_live_apps > 0 ? rgame_sdl_sessions : 0;
 }
@@ -63,6 +72,9 @@ unsigned rgame_sdl_session(void) {
 struct rgame_app {
     SDL_Window *window;
     SDL_GLContext gl_context;
+    /* The thread that created the window, and the only one that may destroy
+     * it or anything in its context; see rgame_app_hand_back. */
+    SDL_threadID owner_thread;
     int running;
     /*
      * How many things still hold this pointer: the creator, plus every image
@@ -111,6 +123,10 @@ struct rgame_app {
 
 rgame_app *rgame_app_create(int width, int height, const char *title, int fullscreen,
                             rgame_texture_filter filter) {
+    /* Before SDL_Init: a handed-back app may be the last one alive, and its
+     * teardown then shuts SDL down. */
+    rgame_app_destroy_handed_back();
+
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) != 0) {
         SDL_Log("SDL_Init failed: %s", SDL_GetError());
         return NULL;
@@ -153,6 +169,7 @@ rgame_app *rgame_app_create(int width, int height, const char *title, int fullsc
         rgame_sdl_sessions++;
     }
 
+    app->owner_thread = SDL_ThreadID();
     app->running = 1;
     app->refs = 1;
     app->texture_filter = filter;
@@ -175,10 +192,29 @@ static void app_unref(rgame_app *app) {
     }
 }
 
-void rgame_app_destroy(rgame_app *app) {
-    if (!app) {
-        return;
+int rgame_app_hand_back(rgame_app *app, rgame_teardown_fn teardown, void *object) {
+    if (!app || app->owner_thread == SDL_ThreadID()) {
+        return 0;
     }
+
+    SDL_AtomicLock(&handed_back_lock);
+    rgame_teardown_queue_push(&handed_back, teardown, object, (uint64_t)app->owner_thread);
+    SDL_AtomicUnlock(&handed_back_lock);
+    return 1;
+}
+
+void rgame_app_destroy_handed_back(void) {
+    rgame_teardown_queue mine = { 0 };
+
+    SDL_AtomicLock(&handed_back_lock);
+    rgame_teardown_queue_take(&handed_back, (uint64_t)SDL_ThreadID(), &mine);
+    SDL_AtomicUnlock(&handed_back_lock);
+
+    rgame_teardown_queue_run(&mine);
+}
+
+static void app_teardown(void *object) {
+    rgame_app *app = object;
 
     /* Idempotent: the window is NULLed below, so a second call falls out here
      * rather than shutting SDL down twice or dropping a reference twice. */
@@ -204,6 +240,13 @@ void rgame_app_destroy(rgame_app *app) {
     }
 
     app_unref(app);
+}
+
+void rgame_app_destroy(rgame_app *app) {
+    if (!app || rgame_app_hand_back(app, app_teardown, app)) {
+        return;
+    }
+    app_teardown(app);
 }
 
 void rgame_app_gl_retain(rgame_app *app) {
@@ -516,6 +559,9 @@ void rgame_app_run(rgame_app *app, const rgame_app_callbacks *cb) {
     /* Every step re-checks `running`, because any callback may have asked to
      * close — including a Ruby callback that raised and unwound into one. */
     while (app->running) {
+        /* Between frames, so a handed-back window never closes mid-draw. */
+        rgame_app_destroy_handed_back();
+
         rgame_app_poll_events(app, cb);
         if (!app->running) {
             break;

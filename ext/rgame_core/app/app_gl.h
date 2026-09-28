@@ -1,6 +1,7 @@
 #ifndef RGAME_APP_GL_H
 #define RGAME_APP_GL_H
 
+#include "app/teardown_queue.h"
 #include "rgame/core.h"
 
 /*
@@ -60,5 +61,17 @@ void rgame_app_gl_restore(const rgame_gl_context_save *saved);
  */
 void rgame_app_gl_retain(rgame_app *app);
 void rgame_app_gl_release(rgame_app *app);
+
+/*
+ * Queues `teardown(object)` for the thread that created `app`, when the caller
+ * is on any other thread, and returns 1: the caller must then not tear down
+ * itself. Returns 0 on the app's own thread, and for a NULL app, where the
+ * caller goes ahead.
+ *
+ * Every destroy that ends in SDL or GL starts with this: rgame_app_destroy,
+ * and an image's or a font's, since a texture lives in its app's context. The
+ * app's thread runs the queue in rgame_app_destroy_handed_back.
+ */
+int rgame_app_hand_back(rgame_app *app, rgame_teardown_fn teardown, void *object);
 
 #endif /* RGAME_APP_GL_H */

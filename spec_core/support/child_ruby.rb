@@ -7,9 +7,14 @@ require 'open3'
 #
 # Every Core spec that needs a fresh process goes through here. Those children
 # open real windows and run real loops, and one that never exits would
-# otherwise hold the suite for as long as CI lets a job run: a stalled
-# `game.start` on a Windows runner once kept a job busy for 51 minutes. With a
-# deadline the example fails with what the child printed, and the suite goes on.
+# otherwise hold the suite for as long as CI lets a job run. With a deadline
+# the example fails with what the child printed, and the suite goes on.
+#
+# The deadline runs on this process's main thread, so it cannot end a hang in
+# this process. The Windows hangs it was first written for were one: a reader
+# thread here collected a window only the main thread may close, and the two
+# waited on each other. The engine now hands that teardown back; see
+# rgame_app_destroy in core.h.
 #
 # The child has finished only when it has exited and closed its output. Any
 # process it started can inherit that output and hold it open after the child

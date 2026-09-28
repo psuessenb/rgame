@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'json'
+
 RSpec.describe RGame::Core::App do
   # Every example builds its own window. That only works because the engine
   # refcounts SDL's lifetime across apps — before it did, a garbage-collected
@@ -273,6 +275,54 @@ RSpec.describe RGame::Core::App do
 
       expect { catch(:bail) { thrower.run } }
         .to raise_error(RuntimeError, /non-local exit/)
+    end
+  end
+
+  # Ruby frees an object on whichever thread's allocation set off the
+  # collection, and only the thread that opened a window may close it. On
+  # Windows the other thread waited for an answer while holding the GVL, and the
+  # opening thread, waiting in a join, never answered: this suite froze for
+  # twenty minutes at a time in the first examples to read a child's output on a
+  # second thread. Each example runs in a child, so a regression fails in a
+  # minute here rather than freezing the suite.
+  describe 'collected on a thread that did not open it' do
+    it 'does not wait on the thread that opened the window' do
+      script = <<~RUBY
+        require 'rgame/core'
+        2.times { RGame::Core::App.new(width: 32, height: 24, caption: 'dropped') }
+        collector = Thread.new { GC.start(full_mark: true, immediate_sweep: true) }
+        puts collector.join(10) ? 'collected' : 'stuck'
+      RUBY
+
+      output, errors, status = ChildRuby.capture(script)
+
+      expect([output, errors, status.success?]).to eq(["collected\n", '', true])
+    end
+
+    # The texture count is what makes the hand-back visible on every platform:
+    # it is still live after the other thread's collection, and gone once the
+    # loading thread opens its next window.
+    it 'deletes a texture on the thread that loaded it, at its next window' do
+      script = <<~RUBY
+        require 'rgame/core'
+        require 'json'
+
+        def load_and_drop(app) = RGame::Core::Image.new(app, ARGV[0]).width
+        def live = RGame::Core::Image.debug_live_textures
+
+        app = RGame::Core::App.new(width: 32, height: 24, caption: 'loading thread')
+        before = live
+        load_and_drop(app)
+        Thread.new { 3.times { GC.start(full_mark: true, immediate_sweep: true) } }.join
+        handed_back = live - before
+        RGame::Core::App.new(width: 32, height: 24, caption: 'next window')
+        puts JSON.generate([handed_back, live - before, app.width])
+      RUBY
+      image = PngFixture.write(4, 4) { [255, 0, 0, 255] }
+
+      output, = ChildRuby.capture(script, image)
+
+      expect(JSON.parse(output)).to eq([1, 0, 32])
     end
   end
 end

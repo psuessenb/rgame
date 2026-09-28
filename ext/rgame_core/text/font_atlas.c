@@ -250,10 +250,8 @@ rgame_font *rgame_font_load(rgame_app *app, const char *path, int pixel_height, 
     return font;
 }
 
-void rgame_font_destroy(rgame_font *font) {
-    if (!font) {
-        return;
-    }
+static void font_teardown(void *object) {
+    rgame_font *font = object;
 
     if (font->page_count > 0) {
         /* Deleting a texture acts on whatever context is current, so say which
@@ -277,6 +275,13 @@ void rgame_font_destroy(rgame_font *font) {
     rgame_typeface_close(font->typeface);
     rgame_app_gl_release(font->app);
     free(font);
+}
+
+void rgame_font_destroy(rgame_font *font) {
+    if (!font || rgame_app_hand_back(font->app, font_teardown, font)) {
+        return;
+    }
+    font_teardown(font);
 }
 
 /* ------------------------------------------------------------------------- *
