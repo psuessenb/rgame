@@ -1,0 +1,12 @@
+# The English table: every string this example draws.
+en:
+  status:
+    linear: "texture_filter :linear — every image is sampled smoothly"
+    nearest: "texture_filter :nearest — every image is sampled to the nearest texel"
+  help:
+    keys: "F switches fullscreen. RGAME_FILTER=nearest runs the scene unfiltered, and RGAME_FILTER=linear filtered."
+  captions:
+    as_drawn: as drawn
+    scaled: 2.5 times
+    turned: turned
+    moving: moving and fading

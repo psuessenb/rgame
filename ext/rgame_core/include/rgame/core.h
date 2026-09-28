@@ -477,8 +477,8 @@ size_t rgame_preferred_locales(char *out, size_t capacity);
  * cleanly afterwards. Either order works, which matters because a garbage
  * collector picks the order, not the programmer.
  *
- * Images are scaled with nearest-neighbour sampling, always: the engine exists
- * to draw pixel art, and smoothing it is never the intent.
+ * Each image is sampled with the filter of the app that loaded it; see
+ * rgame_app_texture_filter.
  */
 typedef struct rgame_image rgame_image;
 

@@ -515,6 +515,27 @@ RSpec.describe RGame::Core::TileMapRenderer do
     end
   end
 
+  # Tiles of one sheet, side by side on screen, which is where a tile sampling
+  # its neighbour would show.
+  describe 'a :linear sheet, through a real window' do
+    # The sheet holds a red tile then a blue one, and the map shows them the
+    # other way round. The edge each tile shares with the other on the sheet then
+    # lies at an end of the map on screen, where a bleed would show as purple.
+    it 'draws each tile without its neighbour at a scale that is not whole' do
+      sheet = PngFixture.write(32, 16) { |x, _y| x < 16 ? [255, 0, 0, 255] : [0, 0, 255, 255] }
+      frame = RenderedFrame.capture(width: 48, height: 24, texture_filter: :linear) do |renderer, app|
+        image = RGame::Core::Image.new(app, sheet)
+        tiles = [nil, image.tile(16, 16, 0), image.tile(16, 16, 1)]
+        map = described_class.new(StubTileMap.new(width: 2, height: 1, layers: [[2, 1]]), tiles)
+        renderer.scaled(1.5) { map.draw_layer(renderer, 0, 0, 0, 32, 16) }
+      end
+      pixels = (0...48).to_a.product((0...24).to_a).map { |x, y| frame.at(x, y).first(3) }
+
+      expect([frame.at(0, 12).first(3), frame.at(47, 12).first(3)]).to eq([[0, 0, 255], [255, 0, 0]])
+      expect(pixels.tally).to eq([0, 0, 255] => 24 * 24, [255, 0, 0] => 24 * 24)
+    end
+  end
+
   # A tile object, as Tiled's CellRenderer draws one: the tile stretched to its
   # box, turned and mirrored inside it.
   describe '#draw_tile' do

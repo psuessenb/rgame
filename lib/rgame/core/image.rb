@@ -17,8 +17,9 @@ module RGame
     # video memory. The texture is released when the last view of it is
     # collected, in whatever order that happens.
     #
-    # Images are always sampled nearest-neighbour: this engine draws pixel art,
-    # and there is no setting to blur it.
+    # An image is sampled with its app's `texture_filter`. `:nearest`, the
+    # default, keeps pixel art's hard edges at any scale, and `:linear` keeps
+    # anti-aliased art smooth; docs/api/images.md has both.
     #
     # The class itself is defined in C (ext/rgame_core/ruby/image_ext.c); what is
     # added here is the sheet-slicing convenience, which is a loop and belongs

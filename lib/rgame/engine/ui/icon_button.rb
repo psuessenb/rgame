@@ -29,10 +29,11 @@ module RGame
       #
       # **Tint is a multiply**, so the art should be white: white takes each
       # colour in `tints:` exactly, and dark art takes none of them. Scales
-      # default to 1 in every state because images sample nearest-neighbour, so
-      # any scale but a whole number doubles some pixel rows and not others; focus
-      # shows through the tint and the style instead. `tints:` and `scales:` need
-      # every state, checked here rather than the first frame one is reached.
+      # default to 1 in every state: images sample nearest-neighbour unless the
+      # game chose `:linear`, and then any scale but a whole number doubles some
+      # pixel rows and not others. Focus shows through the tint and the style
+      # instead. `tints:` and `scales:` need every state, checked here rather than
+      # the first frame one is reached.
       #
       # No style by default: an icon on its own is a complete look. The style is
       # drawn at `z: 0` or below, the picture and the caption at `z: 1`. A style

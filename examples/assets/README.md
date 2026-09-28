@@ -1,7 +1,7 @@
 # Example assets
 
-Everything the examples draw and play. Twenty-three files besides this one, about
-135 KB in total — of which the music is 93 KB, and the reason for `tools/shrink_ogg.c`.
+Everything the examples draw and play. Twenty-five files besides this one, about
+148 KB in total — of which the music is 93 KB, and the reason for `tools/shrink_ogg.c`.
 
 ## Why these files and not the ones in `media/`
 
@@ -314,7 +314,7 @@ shape in alpha only, so `renderer.image(..., color:)` — and `UI::IconButton`'s
 per-state tints — colour it exactly; the black variant would stay black under
 any tint.
 
-**1x, because images sample nearest-neighbour.** A 50-pixel icon in
+**1x, because images sample nearest-neighbour by default.** A 50-pixel icon in
 `examples/radial_menu`'s 64-pixel slots draws at scale 1 and the chosen one in
 the middle at scale 2, both whole numbers; a 2x icon would need scale 0.5 or
 thereabouts, which drops pixel rows unevenly.
@@ -357,11 +357,27 @@ edges lost.
 
 **`Double` (64 pixels), not `Default` (32).** The glyph sits in about half its
 square, so a 32-pixel cursor on an 80-pixel disc is a thumbnail. Either draws at
-scale 1, which nearest-neighbour sampling needs.
+scale 1, which the default nearest-neighbour sampling needs.
 
 **One pack per atlas.** These are not in `icons.png` so that each file's
 provenance stays one paragraph; one more `register_ui_atlas` call is the whole
 cost.
+
+### `older-man@1x.png` + `woman@1x.png` — ours
+
+Two standing figures, drawn by hand for rgame and for `examples/smooth_art`.
+The older man is 64x150 pixels and the woman 56x132. Each stands on its bottom
+row, with a transparent margin of 3 or 4 pixels at the sides and 2 at the top.
+
+**Both are anti-aliased throughout**, outlines and inner lines alike. The man
+has 386 pixels at partial alpha, at 59 levels, and the woman 426, at 69. Art
+like this looks uneven under `:nearest` at any scale that is not whole, and is
+what `texture_filter: :linear` is for.
+
+**Every transparent pixel stores black**, as most exporters write it. Keep it
+that way: the engine premultiplies each image as it loads, so the black adds
+nothing to an edge under `:linear`, and these files show that no exporter step
+is needed.
 
 ### `blip.ogg` — Kenney, *Interface Sounds*
 

@@ -61,7 +61,8 @@
 # reads on a fill is the style's to decide, since it chose the fill.
 #
 # The icons are 50 pixels in 64-pixel slots and the chosen one is drawn at scale
-# 2: images sample nearest-neighbour, so only a whole-number scale stays sharp.
+# 2: this game samples its images nearest-neighbour, the default, so only a
+# whole-number scale stays sharp.
 #
 # ## What this example does not solve
 #
