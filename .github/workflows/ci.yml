@@ -58,9 +58,11 @@
 #
 # `timeout-minutes: 20` on `test`, `build-gem`, `source-gem` and `smoke`. The
 # slowest of them takes about 6 minutes. Without a limit GitHub allows 6 hours,
-# and a Windows `test` job once sat for 51 minutes on a child process that never
-# exited. `spec_core/support/child_ruby.rb` puts a deadline on each child, so
-# that case now fails in a minute; this limit covers whatever hangs next.
+# and a Windows `build-gem` job once used all of them: the Core specs
+# deadlocked when a reader thread collected a window only the main thread may
+# close (see rgame_app_destroy in core.h). This limit covers whatever hangs
+# next, and `spec_core/support/child_ruby.rb` gives each child process a
+# deadline of its own.
 # `release` has none: it runs for seconds, and killing it halfway through
 # publishing would leave some gems up and some not.
 #
