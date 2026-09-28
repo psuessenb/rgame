@@ -36,14 +36,13 @@ RSpec.describe RGame::Engine::TileMap do
   # carries the flags Tiled sets for a quarter turn clockwise, and the canopy is
   # hidden at half opacity. Tile 4 is the only tile of a second tileset, which
   # has a drawing offset. The sky is an image layer, repeated along x, and the
-  # spawns an object layer marked for the actors.
+  # spawns an object layer.
   def tile_map
     frames = '<frame tileid="0" duration="100"/><frame tileid="1" duration="100"/>'
     tiles = %(<tile id="0"><animation>#{frames}</animation></tile><tile id="2">#{solid_shape}</tile>)
-    canopy = layer([0, 0, 4, 0], name: 'canopy', attributes: 'visible="0" opacity="0.5"',
-                                 properties: bool_property('above', true))
+    canopy = layer([0, 0, 4, 0], name: 'canopy', attributes: 'visible="0" opacity="0.5"')
     sky = '<imagelayer name="sky" offsetx="8" offsety="4" repeatx="1"><image source="sky.png"/></imagelayer>'
-    spawns = %(<objectgroup name="spawns">#{bool_property('actors', true)}</objectgroup>)
+    spawns = '<objectgroup name="spawns"/>'
     yield build("#{layer([1, 0xA0000002, 0, 3])}#{canopy}#{sky}#{spawns}",
                 tilesets: [sheet(count: 3, tiles: tiles),
                            sheet(firstgid: 4, name: 'props', count: 1, tiles: '<tileoffset x="2" y="-4"/>')])
@@ -200,20 +199,6 @@ RSpec.describe RGame::Engine::TileMap do
     end
   end
 
-  describe 'above?' do
-    it 'reads the bool property once, into the layer' do
-      map = build(layer([0] * 4) + layer([0] * 4, name: 'canopy', properties: bool_property('above', true)))
-
-      expect([map.layer(0).above?, map.layer(1).above?]).to eq([false, true])
-    end
-
-    it 'raises for an above property that is not a bool, rather than reading it as false' do
-      text = '<properties><property name="above" value="true"/></properties>'
-
-      expect { build(layer([0] * 4, properties: text)) }.to raise_error(tiled::FormatError, /make it a bool/)
-    end
-  end
-
   describe 'an object layer' do
     let(:map) do
       build('<objectgroup name="topdown" draworder="topdown"/><objectgroup name="unstated"/>' \
@@ -229,54 +214,25 @@ RSpec.describe RGame::Engine::TileMap do
     end
   end
 
-  describe 'the actors mark' do
-    def spawns(name = 'spawns', marked: true)
-      %(<objectgroup name="#{name}">#{bool_property('actors', marked)}</objectgroup>)
+  # A layer's place in Tiled's order says what it covers, and no property of it
+  # does. So a designer's `above` or `actors` is a custom property like any other.
+  describe 'a layer property named above or actors' do
+    def marks = bool_property('actors', true)
+
+    it 'reads as a custom property, of any type' do
+      text = %(<objectgroup name="spawns"><properties><property name="actors" value="yes"/></properties>) +
+             '</objectgroup>'
+      map = build(layer([0] * 4, name: 'canopy', properties: bool_property('above', true)) + text)
+
+      expect([map.layer(0).properties['above'], map.layer(1).properties['actors']]).to eq([true, 'yes'])
     end
 
-    it 'reads the bool property once, into the layer, and names its index' do
-      map = build(layer([0] * 4) + spawns('props', marked: false) + spawns)
+    it 'loads on a tile layer, on a group, on two layers and on a hidden layer' do
+      text = layer([0] * 4, properties: marks) +
+             %(<group name="Near">#{marks}<objectgroup name="spawns">#{marks}</objectgroup></group>) +
+             %(<objectgroup name="far" visible="0">#{marks}</objectgroup>)
 
-      expect([map.layer(1).actors?, map.layer(2).actors?, map.actors_layer]).to eq([false, true, 2])
-    end
-
-    it 'names no layer when none is marked' do
-      expect(build(%(#{layer([0] * 4)}<objectgroup name="spawns"/>)).actors_layer).to be_nil
-    end
-
-    it 'raises for an actors property that is not a bool' do
-      text = '<properties><property name="actors" value="true"/></properties>'
-
-      expect { build(%(<objectgroup name="spawns">#{text}</objectgroup>)) }
-        .to raise_error(tiled::FormatError, /'actors' property of "true"; make it a bool/)
-    end
-
-    it 'raises for a mark on a tile layer, naming it' do
-      expect { build(layer([0] * 4, properties: bool_property('actors', true))) }
-        .to raise_error(tiled::FormatError, /layer 'ground' in the map is marked 'actors', and only an object layer/)
-    end
-
-    it 'raises for a mark on a group, naming it' do
-      group = %(<group name="Near">#{bool_property('actors', true)}<objectgroup name="spawns"/></group>)
-
-      expect { build(group) }.to raise_error(tiled::FormatError, /layer 'Near' in the map is marked 'actors'/)
-    end
-
-    it 'raises for marks on two layers, naming both' do
-      expect { build(%(<group name="Near">#{spawns}</group>#{spawns('far')})) }
-        .to raise_error(tiled::FormatError, %r{layers 'Near/spawns' and 'far' in the map are both marked 'actors'})
-    end
-
-    it 'raises for a hidden layer marked, naming it, since no actor spawned into it would draw' do
-      hidden = %(<objectgroup name="spawns" visible="0">#{bool_property('actors', true)}</objectgroup>)
-
-      expect { build(hidden) }
-        .to raise_error(tiled::FormatError, /layer 'spawns' in the map is marked 'actors' and hidden/)
-    end
-
-    it 'raises for a marked layer in a hidden group' do
-      expect { build(%(<group name="Near" visible="0">#{spawns}</group>)) }
-        .to raise_error(tiled::FormatError, %r{layer 'Near/spawns' in the map is marked 'actors' and hidden})
+      expect(build(text).layer_count).to eq(3)
     end
   end
 
@@ -624,7 +580,7 @@ RSpec.describe RGame::Engine::TileMap do
       by_hand = described_class.new(
         width: 2, height: 1, tile_width: 16, tile_height: 16,
         layers: [described_class::Layer.new(index: 0, path: ['ground'], kind: :tile, class_name: '',
-                                            visible: true, opacity: 1.0, above: false,
+                                            visible: true, opacity: 1.0,
                                             properties: RGame::Engine::Properties::EMPTY)],
         cells: [[1, 2]], tile_table: [nil, described_class::TileSource.new(tileset: 0, local_id: 0),
                                       described_class::TileSource.new(tileset: 0, local_id: 1)],

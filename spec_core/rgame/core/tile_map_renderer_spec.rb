@@ -18,7 +18,7 @@ RSpec.describe RGame::Core::TileMapRenderer do
 
   # 2x2, two layers. Layer 0 has three tiles, layer 1 has one.
   def two_layer_map(animations: {})
-    StubTileMap.new(layers: [[1, 2, 0, 3], [0, 0, 4, 0]], above: [false, true], animations: animations)
+    StubTileMap.new(layers: [[1, 2, 0, 3], [0, 0, 4, 0]], animations: animations)
   end
 
   # The tile ids baked into the recording the last draw replayed.

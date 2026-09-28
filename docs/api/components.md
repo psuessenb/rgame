@@ -966,7 +966,7 @@ object on the map, as
 A scene adds one itself for a tile it places in code:
 
 ```ruby
-# In a scene whose TileWorld holds the map; `actors` is places[:actors].
+# In a scene whose TileWorld holds the map; `actors` is places['actors'].
 tree = actors.add_node(RGame::Engine::Node2D.new(x: 184, y: 312, width: 16, height: 32))
 tree.add_component(RGame::Engine::Components::MapTile.new(tile: 399))   # the map's own id for the tile
 ```
@@ -1218,7 +1218,7 @@ point. It smooths the route into as few straight segments as the node's collider
 travel, and walks it.
 
 ```ruby
-# `actors` is the :actors place TileMapLayer.mount returned, in a scene with a TileWorld mounted.
+# `actors` is places['actors'], as TileMapLayer.mount returned it, in a scene with a TileWorld mounted.
 hero = RGame::Engine::Node2D.new(x: 40, y: 40)
 hero.add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
 hero.add_component(RGame::Engine::Components::FeetCollider.new(width: 12, height: 6))
@@ -1287,7 +1287,7 @@ navigator.go_to(200.0, 360.0) # => true — the hero sets off; false when there 
 the tree**, for a crate, a closed door or a statue.
 
 ```ruby
-# `actors` is the :actors place TileMapLayer.mount returned, and `world` the scene's TileWorld.
+# `actors` is places['actors'], as TileMapLayer.mount returned it, and `world` the scene's TileWorld.
 crate = Crate.new(x: world.cell_x(12), y: world.cell_y(7))
 crate.add_component(RGame::Engine::Components::OccupiesCell.new(col: 12, row: 7))
 actors.add_node(crate)
@@ -1785,11 +1785,9 @@ data to another, depends on a sibling's add order, or names a layer it may not n
     from one onto the other wherever they meet or overlap. A point already off
     the floor moves the whole way.
   - `tilemap_id` and `elapsed`, which the layers read.
-  - `layer_count`, `layer(index)`, `layer_index(name_or_path)` and
-    `first_above_layer`, which `TileMapLayer.mount` reads to decide where its slots
-    go. The first three answer as [`TileMap`](tile_maps.md#layers) does, and so
-    does `actors_layer`, the index of the object layer marked for the actors, or
-    `nil`. `objects` lists the map's objects, as `TileMap#objects` does, and
+  - `layer_count`, `layer(index)` and `layer_index(name_or_path)`, which answer
+    as [`TileMap`](tile_maps.md#layers) does, and which `TileMapLayer.mount`
+    reads. `objects` lists the map's objects, as `TileMap#objects` does, and
     `mount` builds from it.
 - **Solidity is read from the map once.** On the first request, `TileWorld` reads
   the map's `solid_tile?` once per cell into one
@@ -1813,7 +1811,7 @@ data to another, depends on a sibling's add order, or names a layer it may not n
 ```ruby
 world = scene.add_node(RGame::Engine::WorldView.new)
 places = RGame::Engine::TileMapLayer.mount(world)   # a node per Tiled layer
-places[:actors].add_node(player)                    # where the actors go
+places['actors'].add_node(player)                   # in the object layer named actors
 places['boats'].add_node(ferry)                     # in the object layer named boats
 ```
 
@@ -1830,18 +1828,14 @@ layer's opacity, and draws nothing when the layer is hidden. A second `mount`
 over the same `TileWorld` raises `RuntimeError`, since it would build every
 object twice.
 
-**`places[:actors]` is where the scene's actors go.** It is the object layer
-marked `actors` in Tiled, so a hero sorts against the trees placed there. On a
-map with no mark, it is a node of its own below the first layer flagged
-`above`, so trunks draw under the walker and canopies over it. With no `above`
-layer either, it draws over every layer. That node is y-sorted, so a hero
-walking below a chest draws in front of it. A side-view game passes
-`y_sort: false`, and the node draws its children in `z` order and then in the
-order added:
-
-```ruby
-places = RGame::Engine::TileMapLayer.mount(world, y_sort: false)
-```
+**The actors go in an object layer, as anything else a scene adds does.**
+`places['actors']` is the layer a map names `actors`, so a hero sorts against
+the trees placed there, and every layer Tiled lists after it draws over the
+hero: trunks under the walker, canopies over it. `mount` makes no node of its
+own for them. Drawn *Top Down*, the layer is y-sorted, so a hero walking below
+a chest draws in front of it. A side-view game draws its actors' layer
+*Manual*, and the node draws its children in `z` order and then in the order
+added.
 
 **`places[name]` is the object layer a name or `'Group/layer'` path names**, as
 `TileMap#layer_index` takes them. A node added there takes on the layer's place,
@@ -1849,8 +1843,8 @@ draw order, opacity and visibility, and sorts with the objects built there. An
 empty object layer in Tiled marks a place in the layer order for a scene to
 fill. A tile or image layer's name raises `ArgumentError`, since only an object
 layer holds nodes. A name no layer has, or one that matches layers in two
-groups, raises `KeyError` listing the object layers. Any key other than
-`:actors` or a String raises `ArgumentError`.
+groups, raises `KeyError` listing the object layers. A key that is not a String
+raises `ArgumentError`.
 
 ### `Timer`
 

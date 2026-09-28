@@ -6,7 +6,7 @@ module RGame
     #
     #   world = scene.add_node(WorldView.new)
     #   places = TileMapLayer.mount(world)
-    #   places[:actors].add_node(player)
+    #   places['actors'].add_node(player)
     #   places['doors'].add_node(door)
     #
     # A node per layer that draws, and the layers Tiled lists are the layers you
@@ -29,33 +29,27 @@ module RGame
     # Draw order is tree order (see RGame::Util::Z), so a node's drawing is
     # contiguous, and "between two layers" means between two nodes. A designer
     # orders the layers in Tiled and sees the result there. Content goes in any
-    # object layer, wherever the designer put it, and the `above` property is
-    # read once, by `mount`, to place the actors on a map that marks no layer
-    # for them.
+    # object layer, wherever the designer put it, the actors included: a layer
+    # covers them when Tiled lists it after theirs.
     class TileMapLayer < Node2D
-      # The places `mount` made for what a scene adds itself: the actors', and
-      # each object layer's node.
+      # The places `mount` made for what a scene adds itself: each object
+      # layer's node.
       class Places
-        def initialize(world, actors, object_layers)
+        def initialize(world, object_layers)
           @world = world
-          @actors = actors
           @object_layers = object_layers.freeze
           freeze
         end
 
-        # The node for `place`. `:actors` is where the scene's actors go: the
-        # layer marked `actors`, or on a map with no mark, a node under the
-        # first layer marked `above`. A String is the object layer that name or
-        # `'Group/layer'` path names, as `TileMap#layer_index` takes them.
+        # The node of the object layer that `place` names, a name or a
+        # `'Group/layer'` path, as `TileMap#layer_index` takes them.
         #
-        # Raises `KeyError` listing the object layers for a String that names
-        # no one layer, and `ArgumentError` for a tile or image layer's name and
-        # for any other key.
+        # Raises `KeyError` listing the object layers for a name that names no
+        # one layer, and `ArgumentError` for a tile or image layer's name and for
+        # a key that is not a String.
         def [](place)
-          return @actors if place == :actors
-
           unless place.is_a?(String)
-            raise ArgumentError, "a place is :actors, or the name or 'Group/layer' path of an object layer; " \
+            raise ArgumentError, "a place is the name or 'Group/layer' path of an object layer, as a String; " \
                                  "got #{place.inspect}"
           end
 
@@ -93,37 +87,30 @@ module RGame
       # The layer's node is y-sorted when the layer draws *Top Down* in Tiled,
       # at the layer's opacity, or 0 when it is hidden.
       #
-      # **The actors go in the layer marked `actors`.** On a map with no mark,
-      # they go in a node of their own, under the first layer marked `above`,
-      # or over every layer when none is. That node is y-sorted (see
-      # Node2D#y_sort), so actors in it draw by where they stand, and
-      # `y_sort: false` leaves them in the order added, for a side-view game.
+      # **The actors go in an object layer too**, whichever the scene names,
+      # and a layer Tiled lists after it covers them. `mount` makes no node of
+      # its own: a node for each layer, at the `z` of its index, and nothing
+      # else.
       #
       # `parent` must be inside a WorldView, like the nodes themselves. A
       # second mount over the same TileWorld raises, since it would build every
       # object twice.
-      def self.mount(parent, y_sort: true)
+      def self.mount(parent)
         world = parent.system!(Components::TileWorld)
         world.record_mount
         builder = MapBuilder.new(tilemap_id: world.tilemap_id, scope: world.node.class)
         objects = world.objects.group_by(&:layer)
-        actors_under = world.first_above_layer unless world.actors_layer
-        z = -1
-        actors = nil
         object_layers = {}
 
-        (world.layer_count + 1).times do |index|
-          actors = parent.add_node(Node2D.new(z: z += 1, y_sort:)) if index == actors_under
-          next if index == world.layer_count
-
+        world.layer_count.times do |index|
           layer = world.layer(index)
           if layer.kind == :object
-            object_layers[index] = parent.add_node(object_layer(layer, objects.fetch(index, NONE), builder, z += 1))
+            object_layers[index] = parent.add_node(object_layer(layer, objects.fetch(index, NONE), builder, index))
           else
-            parent.add_node(new(layer: index, z: z += 1))
+            parent.add_node(new(layer: index, z: index))
           end
         end
-        Places.new(world, actors || object_layers.fetch(world.actors_layer), object_layers)
+        Places.new(world, object_layers)
       end
 
       NONE = [].freeze

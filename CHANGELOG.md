@@ -71,8 +71,8 @@ index, not the argument.
   `node.y_sort = true`, draws its children by `z`, then lower on the screen
   later, then in the order added. A child stands at the bottom edge of its
   `BoxCollider` box, or at its `y` if it has none. `control` and `update` keep
-  the order they had. `TileMapLayer.mount` y-sorts the actors' place, and
-  `mount(..., y_sort: false)` does not. See
+  the order they had. `TileMapLayer.mount` y-sorts each object layer Tiled
+  draws *Top Down*. See
   [docs/api/scene_graph.md](docs/api/scene_graph.md#y-sort).
 - **Sprites take an anchor.** `Components::Sprite` and
   `Components::AnimatedSprite` take `anchor:`, one of `:center`, `:bottom` and
@@ -280,10 +280,9 @@ index, not the argument.
   `orientation`, `tile_class`, `tile_properties`, `layer`, `layer_index`,
   `image_layers` and `objects`, which are `RGame::Engine::MapObject`s in the
   game's coordinates. `object_named` finds the one object a designer named. An
-  object layer is a `TileMap::ObjectLayer`, which answers `y_sort?` and
-  `actors?`, and `TileMap#actors_layer` names the one a designer marked for the
-  actors. Custom properties are `RGame::Engine::Properties`, and a class
-  property's value answers `class_name`. See
+  object layer is a `TileMap::ObjectLayer`, which answers `y_sort?`. Custom
+  properties are `RGame::Engine::Properties`, and a class property's value
+  answers `class_name`. See
   [docs/api/tile_maps.md](docs/api/tile_maps.md).
 - **A tile map draws what Tiled shows.** Turned and flipped tiles draw turned,
   hidden layers draw nothing, and a layer fades by its opacity. Tilesets with a
@@ -600,18 +599,16 @@ index, not the argument.
   `TileMap.from_tiled(RGame::Engine::Tiled::Map.load(path))`, or
   `Tiled::Map.parse(string)` for a map held in a String.
 - **A cell holds a tile id, not a gid.** Ids start at 1 across every tileset.
-  `map.gid(layer, col, row)` becomes `map.tile(layer, col, row)`, and
-  `map.above_layer?(index)` becomes `map.layer(index).above?`. An `above`
-  property that is not a bool now raises.
+  `map.gid(layer, col, row)` becomes `map.tile(layer, col, row)`.
 - **`TileMapRenderer.new(map, tiles, layer_images: [])` takes images indexed by
   tile id**, with nothing at 0, rather than one tileset sliced by local id, and
   the image of each image layer.
-- **`TileMapLayer.mount` returns places, and takes no `under:`.** Write
-  `mount(world)[:actors]` for the node it used to return. The actors go in the
-  object layer a designer marks `actors` in Tiled, or below the first `above`
-  layer on a map with no mark. `places['name']` is an object layer's node, for
-  what a scene adds itself, so a layer placed in Tiled replaces `under:`. See
-  [docs/api/components.md](docs/api/components.md#tileworld).
+- **`TileMapLayer.mount` returns places, and makes no node for the actors.** It
+  takes no `under:`, and no `above` layer places the actors. Add an object layer
+  for them in Tiled, where they belong in the layer order, and write
+  `mount(world)['actors']` for one named `actors`. `places['name']` is any
+  object layer's node, and every layer Tiled lists after the actors' covers
+  them. See [docs/api/components.md](docs/api/components.md#tileworld).
 
 - **`Game/NoLiteralText` also checks `text_lines`.** A String literal as the
   first argument of `text_lines` is an offense, as it is for `text` and
@@ -641,6 +638,10 @@ index, not the argument.
   `solid?(tile)`, `animated_tiles` and `frame_tile(tile, elapsed)`, which takes
   seconds. `solid_ids` has no replacement; a tile is solid when it has a
   collision shape in Tiled.
+- **`TileMap#above_layer?` and `TileWorld#first_above_layer`.** A layer covers
+  the actors when Tiled lists it after their object layer, and an `above`
+  property is a custom property like any other. See
+  [docs/api/tile_maps.md](docs/api/tile_maps.md#layers).
 - **The `[r, g, b]` form of a colour.** A colour is a `RGame::Util::Color` or
   `nil` for white, everywhere one is taken: `Color.coerce` raises `TypeError` on
   an Array, and so do every drawing method, `NineSlice#draw`, a recording's

@@ -356,7 +356,7 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
     let(:rafts) { maps.flat_map { |path, map| map.objects.select { it.class_name == 'Raft' }.map { [path, map, it] } } }
 
     # The index of the layer named `actors`, or nil on a map without one.
-    def actors_layer(map)
+    def actors_index(map)
       map.layer_index('actors')
     rescue KeyError
       nil
@@ -368,7 +368,7 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
 
     it 'lies in a layer under the one named actors, so a hero draws over the raft they ride' do
       over = rafts.reject do |_, map, raft|
-        actors = actors_layer(map)
+        actors = actors_index(map)
         actors && raft.layer < actors
       end
 
@@ -404,7 +404,7 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
       layers = (0...map.layer_count).map { map.layer(it) }.select { it.kind == :tile }
       layers.map do |layer|
         cells = (0...map.height).flat_map { |row| (0...map.width).map { |col| map.tile(layer.index, col, row) } }
-        [layer.path, layer.visible?, layer.opacity, layer.above?, cells]
+        [layer.path, layer.visible?, layer.opacity, layer.properties.to_h, cells]
       end
     end
 

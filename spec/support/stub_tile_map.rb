@@ -3,7 +3,7 @@
 # A tile map built by hand, for specs that draw one without parsing a `.tmx`.
 #
 #   map = StubTileMap.new(
-#     layers: [[1, 2, 0, 3], [0, 0, 4, 0]], above: [false, true], visible: [true, false],
+#     layers: [[1, 2, 0, 3], [0, 0, 4, 0]], visible: [true, false],
 #     opacity: [1.0, 0.5], solid: [3], tile_offsets: { 4 => [2, -4] },
 #     animations: { 1 => [[1, 0.1], [2, 0.1]] }, orientations: { [0, 1, 0] => [1, false] }
 #   )
@@ -14,22 +14,20 @@
 # `RGame::Engine::TileMap` (see stub_tile_map_spec.rb).
 #
 # Layers are flat tile-id Arrays in reading order, `width * height` long, so a
-# spec can see the map it is describing. `above`, `visible` and `opacity` are
-# per layer, defaulting to below, shown and opaque. `animations` is
+# spec can see the map it is describing. `visible` and `opacity` are per
+# layer, defaulting to shown and opaque. `animations` is
 # `{ tile => [[tile, seconds], ...] }`, and `orientations` is
 # `{ [layer, col, row] => [quarter_turns, mirrored] }` for the turned cells.
 # `tile_offsets` is `{ tile => [x, y] }` for the tiles drawn off their cell.
 # `image_layers` is `{ layer => { offset_x:, offset_y:, repeat_x:, repeat_y: } }`,
 # every key optional, and such a layer's entry in `layers` is `nil`, as is an
-# object layer's, whose index `object_layers` lists. `actors_layer` is the
-# index of the one marked for the actors, or `nil`. `names` are the layers'
+# object layer's, whose index `object_layers` lists. `names` are the layers'
 # names, `layer0`, `layer1` and so on when not given.
 #
 # It names no Engine class, because the Core suite loads it too.
 class StubTileMap
   # One layer, as far as a reader of the map asks about it.
-  Layer = Data.define(:name, :kind, :above, :visible, :opacity, :offset_x, :offset_y, :repeat_x, :repeat_y) do
-    def above? = above
+  Layer = Data.define(:name, :kind, :visible, :opacity, :offset_x, :offset_y, :repeat_x, :repeat_y) do
     def visible? = visible
     def repeat_x? = repeat_x
     def repeat_y? = repeat_y
@@ -44,11 +42,11 @@ class StubTileMap
   IDENTITY = Orientation.new(quarter_turns: 0, mirrored: false)
   NO_OFFSET = [0, 0].freeze
 
-  attr_reader :width, :height, :tile_width, :tile_height, :actors_layer
+  attr_reader :width, :height, :tile_width, :tile_height
 
   def initialize(layers:, width: 2, height: 2, tile_width: 16, tile_height: 16,
-                 above: [], visible: [], opacity: [], solid: [], animations: {}, orientations: {},
-                 tile_offsets: {}, image_layers: {}, object_layers: [], actors_layer: nil, names: [])
+                 visible: [], opacity: [], solid: [], animations: {}, orientations: {},
+                 tile_offsets: {}, image_layers: {}, object_layers: [], names: [])
     @cells = layers
     @layers = Array.new(layers.length) do |index|
       image = image_layers[index]
@@ -56,11 +54,10 @@ class StubTileMap
              elsif object_layers.include?(index) then :object
              else :tile
              end
-      Layer.new(name: names.fetch(index, "layer#{index}"), kind: kind, above: above.fetch(index, false),
+      Layer.new(name: names.fetch(index, "layer#{index}"), kind: kind,
                 visible: visible.fetch(index, true), opacity: opacity.fetch(index, 1.0),
                 **placement(image || {}))
     end
-    @actors_layer = actors_layer
     @width = width
     @height = height
     @tile_width = tile_width

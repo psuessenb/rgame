@@ -20,8 +20,7 @@ module RGame
     #   cell `(0, 0)` is the map's top-left;
     # - a tile object with no class takes its tile's, and its tile's
     #   properties sit under its own, as Tiled shows them;
-    # - an object layer's draw order becomes `y_sort?`, and the bool properties
-    #   `above` and `actors` become `above?` and `actors?`, each checked once;
+    # - an object layer's draw order becomes `y_sort?`;
     # - a tileset's drawing offset becomes each of its tiles' `tile_offset`.
     class TileMap
       # Builds a map from a `Tiled::Map`. The only way one is built.
@@ -120,13 +119,12 @@ module RGame
         def flatten(layers, groups)
           layers.each do |layer|
             path = groups + [layer.name]
-            actors = actors?(layer, path)
             next flatten(layer.layers, path) if layer.is_a?(Tiled::GroupLayer)
 
             common = { index: @layers.size, path: path, class_name: layer.class_name,
                        visible: layer.effective_visible?, opacity: layer.effective_opacity,
-                       above: mark(layer, 'above'), properties: layer.properties }
-            @layers << runtime_layer(layer, common, actors)
+                       properties: layer.properties }
+            @layers << runtime_layer(layer, common)
             tiles = layer.is_a?(Tiled::TileLayer)
             @cells << (layer.gids.each_with_index.map { |raw, cell| tile_of(raw) { cell_name(layer, cell) } } if tiles)
             @orientations << (layer.gids.map { orientation_of(it) } if tiles)
@@ -134,43 +132,15 @@ module RGame
           end
         end
 
-        def runtime_layer(layer, common, actors)
+        def runtime_layer(layer, common)
           case layer
           when Tiled::TileLayer then Layer.new(kind: :tile, **common)
-          when Tiled::ObjectLayer then ObjectLayer.new(y_sort: layer.draw_order == :topdown, actors: actors, **common)
+          when Tiled::ObjectLayer then ObjectLayer.new(y_sort: layer.draw_order == :topdown, **common)
           when Tiled::ImageLayer
             ImageLayer.new(image: layer.image&.source,
                            offset_x: layer.offset_x - @shift_x, offset_y: layer.offset_y - @shift_y,
                            repeat_x: layer.repeat_x?, repeat_y: layer.repeat_y?, **common)
           end
-        end
-
-        def mark(layer, name)
-          value = layer.properties.fetch(name, false)
-          return value if [true, false].include?(value)
-
-          raise Tiled::FormatError, "layer '#{layer.name}' in #{file} has an '#{name}' property of " \
-                                    "#{value.inspect}; make it a bool property in Tiled"
-        end
-
-        def actors?(layer, path)
-          return false unless mark(layer, 'actors')
-
-          marked = path.join('/')
-          unless layer.is_a?(Tiled::ObjectLayer)
-            raise Tiled::FormatError, "layer '#{marked}' in #{file} is marked 'actors', and only an object layer " \
-                                      'holds actors; move the mark to one'
-          end
-          if @actors
-            raise Tiled::FormatError, "layers '#{@actors}' and '#{marked}' in #{file} are both marked 'actors'; " \
-                                      'keep the mark on one'
-          end
-          unless layer.effective_visible?
-            raise Tiled::FormatError, "layer '#{marked}' in #{file} is marked 'actors' and hidden, so no actor " \
-                                      'spawned into it would draw; show the layer, or move the mark to one shown'
-          end
-          @actors = marked
-          true
         end
 
         def file = @tiled.source_path || 'the map'
