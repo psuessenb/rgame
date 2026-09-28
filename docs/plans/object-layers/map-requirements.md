@@ -61,7 +61,7 @@ Two halves, still rough:
   the only tier where all three layers are present at once, and the only one
   that would catch a map that parses and draws wrong. What it should do depends
   on what the map contains, and on the nodes this plan builds from its objects.
-  It plays the second map, the level, whose requirements step 9 writes once
+  It plays the second map, the level, whose requirements step 10 writes once
   rgame exports its types (see the [roadmap](04-roadmap.md)).
 
 ## What to hand over

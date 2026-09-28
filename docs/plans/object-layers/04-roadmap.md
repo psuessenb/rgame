@@ -1,26 +1,29 @@
 # Roadmap
 
-**Steps 0–8 are implemented.** Step 9 is rough and gets re-planned before it
-starts. Step 5 was inserted after step 4
-landed, and every step from 5 on moved up by one, landed notes included, so a
+**Steps 0–8 are implemented.** Steps 9 and 10 are rough and get re-planned
+before they start. Step 5 was inserted after step 4 landed, and step 9 after
+step 8. Each time, every later step moved up by one, landed notes included, so a
 number in this document is today's.
 
 ## Dependency shape
 
 ```
-0 tour.tmx requirements ──────────────────────────────────────────────────────────────────────────┐  authoring runs in parallel
-                                                                                                  │
-1 parse + transform ─→ 3 map settings + builder ─→ 5 id + Fact ─┐                                 │
-                       4 one tile drawn ────────────────────────┴─→ 6 mount builds ─┐             │
-2 random source ────────────────────────────────────────────────────────────────────┴─→ 7 migrate ─→ 8 export ─→ 9 checked + played ─→ 10 fold back
+0 tour.tmx requirements ────────────────────────────────────────────────────────────────────────────────────────────────┐  authoring runs in parallel
+                                                                                                                        │
+1 parse + transform ─→ 3 map settings + builder ─→ 5 id + Fact ─┐                                                       │
+                       4 one tile drawn ────────────────────────┴─→ 6 mount builds ─┐                                   │
+2 random source ────────────────────────────────────────────────────────────────────┴─→ 7 migrate ─┬─→ 8 export ────────┴─────┬─→ 10 checked + played ─→ 11 fold back
+                                                                                                   └─→ 9 actors' layer named ─┘
 ```
 
 Steps 1, 2 and 4 depend on nothing in this plan and can land in any order. Step 3
 needs step 1, because the class it resolves may come from the object's tile.
 Step 5 needs step 3, whose builder and `Node2D` keywords it changes, and step 6
 builds every node on what step 5 leaves. Step 7 needs step 2, because a `Walker`
-built from a map finds its random source in the tree. Step 9 needs step 8: the
-level's designer picks classes from the exported types, rather than typing them.
+built from a map finds its random source in the tree. Step 9 needs step 7, whose
+maps it moves again, and not step 8. Step 10 needs both. Its level's designer
+picks classes from the exported types rather than typing them, and puts the
+actors in a layer the map names.
 
 ## The invariant every step preserves
 
@@ -53,7 +56,7 @@ Step 3 has no caller until step 6, so it lands for step 6 rather than alone.
 
 Authoring is half done, and step 1 changes what the parser reads. So the
 requirements settle first, and you keep authoring against them while steps 1–8
-are built. The level map gets its own requirements in step 9, once the exported
+are built. The level map gets its own requirements in step 10, once the exported
 types exist to author it with.
 
 ### Shape
@@ -768,7 +771,7 @@ end
   animated tiles now draw through `draw_tile` every frame.
 - **Every driven project reports the same under `--seed 1`, before and after.**
   No project draws a tile object yet, and a layer draws the calls it drew.
-- No driven project reaches `map_tile` until step 9, so rules 10 and 15 are what
+- No driven project reaches `map_tile` until step 10, so rules 10 and 15 are what
   decide its allocations.
 - `docs/api/drawing.md` documents `map_tile` beside `tilemap`, and
   `docs/api/components.md` documents `MapTile`. `CHANGELOG.md` has an Added entry
@@ -1118,7 +1121,7 @@ Where the sketch was wrong, or said too little:
   nothing, and a parameter before it, as in `fetch(key, ...)`, costs an object.
   The first allocation spec caught it, and write-ruby-code's table gained the
   row. `Facts#fetch` itself is unchanged, since no per-frame path calls it.
-  **For step 10:** it could take explicit parameters, and the note belongs in
+  **For step 11:** it could take explicit parameters, and the note belongs in
   `docs/plans/possible-todos.md` if no step fixes it.
 - **The step touched `Components::Facts`' class comment**, which said the store
   holds only flags that belong to no object. It now names `Fact` as the way a
@@ -1590,7 +1593,7 @@ under Xvfb, and Tiled's source was read at `221be20`.
 Decision 8 has rgame write Tiled's custom types. A designer then picks a class
 from a list and fills in its members, rather than typing both. Step 7 moved
 every map onto the builder and tagged each constructor the maps name, so the
-export has real classes to write. Step 9's level is the first map authored
+export has real classes to write. Step 10's level is the first map authored
 against them. The export only helps: nothing at load reads what it writes
 (hard constraint 7).
 
@@ -1813,7 +1816,7 @@ What `rgame new` writes:
 
 ### What this step does not deliver
 
-- **A Tiled project in this repository.** Step 9's level brings the first
+- **A Tiled project in this repository.** Step 10's level brings the first
   (decision 25).
 - **A project shared by two games**, such as one for `examples/assets/`.
 - **Tiled seeing an export while it has the project open.** The designer
@@ -1892,7 +1895,7 @@ Where the sketch was wrong, or said too little:
   899 of 900 frames, the variance steps 2, 5 and 7 found, and matched when
   driven again.
 
-**For step 9:** an example's classes export through the scratch script above,
+**For step 10:** an example's classes export through the scratch script above,
 which loads its `main.rb` with the game's window left shut.
 
 Documented in `docs/api/tile_maps.md` ("Tiled's custom types"),
@@ -1903,7 +1906,41 @@ Documented in `docs/api/tile_maps.md` ("Tiled's custom types"),
 write-ruby-code skill. `CHANGELOG.md` has Added entries for `MapTypes` and for
 the Tiled project `rgame new` writes, with `--no-tiled`.
 
-## Step 9 — the maps checked, and the level played *(rough)*
+## Step 9 — the actors' place is an object layer the map names *(rough)*
+
+Step 6 made every object layer a place a scene finds by name, and kept
+`places[:actors]` beside it. That key does two things. On `course.tmx`, the one
+map with the `actors` mark, it is another name for the marked layer. On every
+other map, `mount` makes a node of its own for the actors, under the first layer
+marked `above`, or over every layer. Twelve of the 13 scenes that mount a map
+rely on that node. The `above` property and `mount(y_sort:)` exist only for it.
+So two sources decide what covers the actors: the layer order a designer sees in
+Tiled, and two properties that only rgame reads.
+
+This step leaves one source. A map names an object layer for the actors, where
+Tiled shows them, and a scene finds it as `places['actors']`, like any other
+place. `mount` then builds the map's layers and nothing else.
+[Decision 27](README.md#decisions-already-taken) records why.
+
+- **Every map in the repository names its actors' layer `actors`**, standing
+  where `mount` puts the actors today and drawn *Top Down*. Six maps gain an
+  empty one. `course.tmx`'s marked `spawns` takes the name and drops the mark.
+  `beach_large.tmx`, gitignored under `media/`, gains one between `Trunks` and
+  `Over`, and `Over` drops `above`.
+- **The 13 scenes write `places['actors']`.**
+- **What goes:** `places[:actors]`, the node `mount` makes, `mount(y_sort:)`,
+  `Layer#above?`, `TileWorld#first_above_layer`, the `actors` mark,
+  `ObjectLayer#actors?`, `TileMap#actors_layer` and `TileWorld#actors_layer`.
+
+Each new layer stands where `mount`'s own node stood and sorts as it did, so
+every driven project should draw what it draws today. The re-plan counts every
+spelling of the names that go. It also decides what a leftover `above` or
+`actors` property does, and what R23 of
+[map-requirements.md](map-requirements.md#r23) becomes.
+
+---
+
+## Step 10 — the maps checked, and the level played *(rough)*
 
 Two halves, as [map-requirements.md](map-requirements.md#the-check-and-the-example-that-plays-the-map)
 sketches:
@@ -1912,7 +1949,7 @@ sketches:
   gzip and infinite twins.
 - A second map, designed as a level, is played by a new example with a drive
   script. Its requirements are written at this step's re-plan, against the
-  exported types: trees as tile objects in the marked layer, a chest whose state
+  exported types: trees as tile objects in the actors' layer, a chest whose state
   survives leaving the room, a value a node passes on to its component.
 - The level's Tiled project is the first this repository keeps (decision 25).
   An example's `main.rb` starts its game when required, so no spec can load its
@@ -1923,16 +1960,15 @@ sketches:
 This is the first driven project with a tile object, so its
 `rake drive:allocations` budget is where `map_tile` is measured in a whole game.
 R19's comparison with Tiled's export, and R21's turned tile object, check
-step 4's box draw by eye. `puzzle.tmx`, which has no object layer, covers the
-place `mount` leaves for the actors on a map with no mark.
+step 4's box draw by eye.
 
 ---
 
-## Step 10 — fold the plan back and delete it
+## Step 11 — fold the plan back and delete it
 
 - **`docs/api/tile_maps.md`** says what a map builds and how: the class rule,
-  data classes, the `@param` tags, tile objects, the `actors`
-  mark, hidden layers and objects, `route:` and `name:`, `map_object_id` and
+  data classes, the `@param` tags, tile objects, the layer a scene adds its
+  actors to, hidden layers and objects, `route:` and `name:`, `map_object_id` and
   `Components::Facts`, and `places[name]`. It also covers `@placeable`,
   `MapTypes` and `rake tiled`, and says that a map needs no Tiled project. Step
   6 rewrote "Building nodes from objects"; this step checks it against the
@@ -1949,7 +1985,7 @@ place `mount` leaves for the actors on a map with no mark.
 
 ### Verify
 
-`CHANGELOG.md` covers everything steps 1–9 shipped, per
+`CHANGELOG.md` covers everything steps 1–10 shipped, per
 [update-changelog](../../../.claude/skills/update-changelog/SKILL.md): what the
 Tiled parser gained, the random source, map-built nodes and `places[name]`, the
 `@param` convention, `map_tile` and `MapTile`, and `Components::Facts` with
