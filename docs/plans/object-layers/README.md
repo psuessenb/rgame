@@ -1,6 +1,6 @@
 # Object layers
 
-**Status: steps 0–8 are implemented.** Step 10 of [the roadmap](04-roadmap.md)
+**Status: steps 0–9 are implemented.** Step 10 of [the roadmap](04-roadmap.md)
 is rough and gets re-planned before it starts.
 Step 5 was inserted after step 4 landed, and step 9 after step 8. Each time,
 the steps after it moved up by one. Step 11 folds the plan back and deletes it.

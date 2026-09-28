@@ -1,6 +1,6 @@
 # Roadmap
 
-**Steps 0–8 are implemented.** Step 10 is rough and gets re-planned before it
+**Steps 0–9 are implemented.** Step 10 is rough and gets re-planned before it
 starts. Step 5 was inserted after step 4 landed, and step 9 after step 8. Each
 time, every later step moved up by one, landed notes included, so a number in
 this document is today's.
@@ -2135,6 +2135,76 @@ map.layer(3).properties['above']    # => true, a custom property that nothing in
 - **`beach_large.tmx` in git.** `media/` stays gitignored, so the edit lives in
   this checkout, and the landed note says what it was. CI skips tiled_world, as
   today.
+
+**Landed.** Two commits on `actors-layer-named`, 9a and 9b as sketched.
+`rake spec` 4496 examples, 0 failures (4516 before: 25 examples of the mark,
+`above?`, `actors_layer` and `mount`'s own node gone, 5 new). `rake spec:core`
+555, 0 failures, once the extension was rebuilt (see below). `rake docs:coverage`:
+0 of 222 modules and classes with an undocumented name. `rake drive:allocations`:
+all 44 projects within budget. `make test` was not run, as the step changes no
+C.
+
+The 20 runs were driven with `--seed 1 --texts` on `main` and on the branch,
+one batch after the other, on the same rebuilt extension. 13 reports match byte
+for byte. topdownplatformer differs only in its map id, the map's absolute path
+in each checkout. The six tiled_world runs differ only in their `tilemap` calls
+for `Over`, which name layer 3 rather than 2. tiled_world draws 236 frames of
+240 in every script, on `main` as on the branch. `grep` for the removed names
+finds only the spec that pins `places[:actors]` raising, and no `.tmx` under
+`examples/` or `test_projects/` carries an `above` or `actors` property.
+
+`beach_large.tmx`, in this checkout's `media/`, gained
+`<objectgroup id="5" name="actors"/>` between `Trunks` and `Over`, and `Over`
+lost its `above` property. Its `nextlayerid` was 4, which its `Objects` layer
+already held, so the new layer took 5 and `nextlayerid` became 6.
+
+Where the sketch was wrong, or said too little:
+
+- **The compiled extension was older than the C it was built from.**
+  `lib/rgame/core_ext.so` predated `99442bf` and the smooth-art commits, so
+  `rake spec:core` failed `app_spec.rb:305`, a spec of a window collected on
+  another thread, on the branch and on `main` alike. `make ext` fixed it, and
+  the 40 comparison runs were driven again on the new build. Nothing warns that
+  an extension is stale: CLAUDE.md names `make ext-core` as a prerequisite of
+  `rake spec:core`, which is a rule someone has to remember. **For step 11:**
+  the learn-from-mistakes pass should weigh a guard.
+- **`mount` takes no keywords, so Ruby says "wrong number of arguments (given
+  2, expected 1)"**, not "unknown keyword: :y_sort", as rule 3 had it. Step 6's
+  example for `slots:` meets the same message, and changed with it.
+- **A doc example counted `town_with_gate.tmx`'s layers.** `tile_maps.md` said
+  3, and the doc spec failed in 9a when the map gained `actors`. The sketch put
+  every `docs/api` change in 9b.
+- **`places['actors']` allocates where `places[:actors]` did not.** `doors`
+  allocates 628 objects where `main` allocates 624, and adventure 1964 where
+  `main` allocates 1960, on the same ticks. `TileMap#layer_index` joins every
+  layer's path to compare it: 6 objects a lookup on `garden.tmx`. It runs once
+  per room built, off the per-frame path. The other ten projects allocate
+  exactly what `main` does. **For step 11:** `layer_index` could keep each
+  path joined, if a game looks layers up often.
+- **Two more game comments named the actors' place**: adventure's
+  `sparkles.rb`, which also promised a canopy, and the cursor in `pathfinding`.
+  The sketch counted five files.
+- **CLAUDE.md's worked example of Core calling a map by name** said
+  `map.gid(layer, col, row)` and `map.above_layer?(index)`. The first was
+  renamed before this plan, and the second is gone. It now says `map.tile` and
+  `map.layer`, which `Core::TileMapRenderer` calls.
+- **`example_assets_spec.rb` compares each tile layer's custom properties**
+  between `town.tmx` and `town_with_gate.tmx`, where it compared `above?`. Its
+  raft rule's helper is `actors_index`, so the grep above does not find it.
+- **The `main` runs did not need to go first.** They ran in a worktree holding a
+  copy of `media/` made before 9a, rather than a link, so the edited map never
+  reached them.
+
+Documented in `docs/api/tile_maps.md` (layers draw in Tiled's order, the
+layer table without `above?`, `ObjectLayer`, "Put the actors in an object layer
+of their own", the rooms example, the contract's list, and the layer count),
+`docs/api/components.md` (`TileWorld`'s readers, `mount`, the actors'
+paragraph, what `places` raises, and three example comments),
+`docs/api/scene_graph.md` (what `mount` y-sorts), `examples/assets/README.md`
+and the seven maps' header comments. `CHANGELOG.md` states the `mount` entry
+against v0.4.0, has a Removed entry for `TileMap#above_layer?` and
+`TileWorld#first_above_layer`, and drops `y_sort:`, `actors?` and
+`actors_layer` from the entries that named them.
 
 ---
 
