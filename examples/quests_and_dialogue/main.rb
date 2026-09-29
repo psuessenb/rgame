@@ -19,8 +19,8 @@
 #     conditions, effects, `once:` and a line with a variable;
 #   - UI::DialogueBox — the box, with a portrait drawn in `_draw_portrait` and
 #     the log;
-#   - CollisionWorld#nearest and BoxCollider#on_hit — the two ways a
-#     conversation starts.
+#   - Components::Interactor, Components::Interaction and BoxCollider#on_hit —
+#     the two ways a conversation starts.
 #
 # Read `examples/dialogue` first. It shows the script, the dialogue and the box
 # with nothing else on screen. This example is what they do in a game.
@@ -71,11 +71,14 @@
 #
 # ## Two ways to start a conversation
 #
-# Enter asks the collision world for the nearest `:npc` collider within 56
-# pixels of the hero, which is how talking to the smith works. The signpost
-# needs no button: its collider's `on_hit` fires the step the hero walks into
-# it. `on_hit` is an edge, so standing on the post does not start the sign's
-# conversation again; walking off and back on does.
+# The hero's Interactor reads Enter, the `ui_confirm` action, and presses the
+# nearest node within 56 pixels whose Interaction answers it. Only the smith's
+# does: it calls `talk`, which emits `hailed`, and the village starts the
+# conversation it holds. The smith's `:npc` layer only stops the hero.
+#
+# The signpost needs no button: its collider's `on_hit` fires the step the hero
+# walks into it. `on_hit` is an edge, so standing on the post does not start
+# the sign's conversation again; walking off and back on does.
 #
 # While a conversation runs the hero is paused. The arrows then move the box's
 # focus without walking the hero, and neither Enter nor the signpost can start
@@ -142,6 +145,7 @@ module QuestsAndDialogueExample
       @gold = START_GOLD
       add_component(Components::CharacterBody.new(speed: WALK_SPEED, blocked_by: %i[npc wall]))
       add_component(Components::PlayerController.new)
+      add_component(Components::Interactor.new(range: TALK_RANGE, actions: [:ui_confirm]))
     end
 
     def _enter_tree = @facts = system(Components::FactsDatabase)
@@ -155,6 +159,19 @@ module QuestsAndDialogueExample
       super
       renderer.circle(16, -12, 5, color: LANTERN) if @facts[:lantern]
     end
+  end
+
+  # The smith. Enter within the hero's reach calls `talk`, and the village,
+  # which holds the conversation, hears it as `hailed`.
+  class Smith < Thing
+    signal :hailed
+
+    def initialize(**)
+      super(size: 24, layer: :npc, **)
+      add_component(Components::Interaction.new(ui_confirm: :talk))
+    end
+
+    def talk = hailed_signal.emit
   end
 
   # Lies by the well while the quest says it does.
@@ -240,7 +257,7 @@ module QuestsAndDialogueExample
     def initialize(save:)
       super()
       @save = save
-      @collision = add_component(Components::CollisionWorld.new(cell_size: CELL_SIZE))
+      add_component(Components::CollisionWorld.new(cell_size: CELL_SIZE))
       @gold = Engine::Text.new('hud.gold', :gold)
       @help_walk = Engine::Text.new('help.walk')
       @help_talk = Engine::Text.new('help.talk')
@@ -259,7 +276,6 @@ module QuestsAndDialogueExample
     def _control(actions)
       return if @talk
 
-      talk_to_smith if actions.pressed?(:ui_confirm) && @collision.nearest(@hero.x, @hero.y, TALK_RANGE, layer: :npc)
       save_game if actions.pressed?(:save)
       load_game if actions.pressed?(:load)
     end
@@ -293,7 +309,7 @@ module QuestsAndDialogueExample
     def build_village
       add_node(Thing.new(size: 80, layer: :wall, color: FORGE, x: 320, y: 80))
       add_node(Thing.new(size: 40, layer: :wall, color: STONE, x: 530, y: 250))
-      add_node(Thing.new(size: 24, layer: :npc, color: SMITH_COLOR, x: 320, y: 150))
+      add_node(Smith.new(color: SMITH_COLOR, x: 320, y: 150)).on_hailed { talk_to_smith }
       post = add_node(Thing.new(size: 20, layer: :sign, color: POST, x: 110, y: 310))
       post.collider.on_hit { |other| read_sign if other.layer == :hero }
       hammer = add_node(Hammer.new(x: 530, y: 310))

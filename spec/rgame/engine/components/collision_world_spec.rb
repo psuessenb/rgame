@@ -1,5 +1,9 @@
 # frozen_string_literal: true
 
+# A component with nothing in it, for #nearest's `having:` to look for. It matches by
+# `is_a?`, so a real class stands in rather than a double.
+class SpecWorldMark < RGame::Engine::Component; end
+
 RSpec.describe RGame::Engine::Components::CollisionWorld do
   # The world is a system on the scene node; colliders on child nodes register with
   # it through their tree lifecycle. Place colliders, resolve positions with a
@@ -395,6 +399,38 @@ RSpec.describe RGame::Engine::Components::CollisionWorld do
       place(140, 100, :enemy)
       tick
       expect { world.nearest(120, 100, 100, layer: :enemy) }.to allocate_nothing
+    end
+
+    describe 'having:' do
+      it 'passes over a nearer collider whose node holds no such component' do
+        place(110, 100, :crate) # nearer, same layer, nothing on it
+        marked = place(140, 100, :crate).tap { it.node.add_component(SpecWorldMark.new) }
+        tick
+        expect(world.nearest(100, 100, 100, having: SpecWorldMark)).to be(marked)
+      end
+
+      it 'allocates nothing per lookup' do
+        place(110, 100, :crate)
+        place(140, 100, :crate).node.add_component(SpecWorldMark.new)
+        tick
+        expect { world.nearest(100, 100, 100, having: SpecWorldMark) }.to allocate_nothing
+      end
+    end
+
+    describe 'except:' do
+      it 'leaves out the node it names, however near' do
+        own = place(100, 100, :turret)
+        other = place(140, 100, :enemy)
+        tick
+        expect(world.nearest(100, 100, 100, except: own.node)).to be(other)
+      end
+
+      it 'allocates nothing per lookup' do
+        own = place(100, 100, :turret)
+        place(140, 100, :enemy)
+        tick
+        expect { world.nearest(100, 100, 100, except: own.node) }.to allocate_nothing
+      end
     end
   end
 

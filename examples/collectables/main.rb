@@ -30,9 +30,10 @@
 # press does belongs to the chest: its `Interaction` answers the `interact`
 # action with its own `open` method.
 #
-# The chest also *stops* the hero, through the `blocked_by: [:interactable]` on
-# its CharacterBody — one declaration on the mover, and nothing on the chest. So
-# walking into it puts it in reach, which is how a player finds out there is
+# The chest also *stops* the hero, through the `blocked_by: [:chest]` on the
+# hero's CharacterBody. The layer says what the chest is, and its Interaction
+# says what a press does, so the Interactor never reads the layer. Walking into
+# the chest puts it in reach, which is how a player finds out there is
 # something to press.
 #
 # ## The prompt is drawn from `target`, not from a contact
@@ -107,7 +108,7 @@ module CollectablesExample
     def _draw(renderer, _view) = renderer.circle(0, 0, COIN_RADIUS, color: COIN)
   end
 
-  # A chest: a shape on the `:interactable` layer, a lid, and an Interaction.
+  # A chest: a shape on the `:chest` layer, a lid, and an Interaction.
   #
   # `Interaction.new(interact: :open)` is the whole of "a press opens it": the
   # hero's Interactor finds the nearest node answering `interact`, and calls its
@@ -118,7 +119,7 @@ module CollectablesExample
     def initialize(**)
       super
       add_component(Components::BoxCollider.new(width: CHEST_SIZE, height: CHEST_SIZE,
-                                                layer: :interactable))
+                                                layer: :chest))
       add_component(Components::Interaction.new(interact: :open))
       @open = false
     end
@@ -148,7 +149,7 @@ module CollectablesExample
       super
       add_component(Components::AnimatedSprite.new(sheet: 'hero.json'))
       add_component(Components::CharacterBody.new(speed: SPEED,
-                                                  blocked_by: [:interactable]))
+                                                  blocked_by: [:chest]))
       add_component(Components::PlayerController.new)
       add_component(Components::BoxCollider.new(width: 16, height: 22, offset_x: -8, offset_y: -22,
                                                 layer: :hero))
@@ -204,7 +205,7 @@ module CollectablesExample
 
     # Over whatever is in reach, in world coordinates — the room draws it rather
     # than the chest, because a prompt is about the hero's state and not the
-    # chest's, and every interactable would otherwise need the same code.
+    # chest's, and every node with an Interaction would otherwise need the same code.
     def draw_prompt(renderer)
       target = @hero.target
       return if target.nil? || target.open?

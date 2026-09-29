@@ -81,7 +81,7 @@ after.
 **Uses:** `Components::Collectable`, `Components::Interactor`,
 `Components::Interaction`, `Components::CollisionWorld`,
 `Components::CircleCollider`, `Components::BoxCollider`,
-`Components::CharacterBody` with `blocked_by: [:interactable]`, `Engine::Text`.
+`Components::CharacterBody` with `blocked_by: [:chest]`, `Engine::Text`.
 
 ### collision_tiles
 
@@ -445,7 +445,7 @@ script asks the village, and the village fires the quest's events.
 
 **Uses:** `StateGraph`, `StateMachine`, `Components::FactsDatabase`,
 `Dialogue::Script`, `Engine::Dialogue`, `UI::DialogueBox` and its
-`_draw_portrait` hook, `Components::CollisionWorld#nearest`,
+`_draw_portrait` hook, `Components::Interactor`, `Components::Interaction`,
 `Components::BoxCollider#on_hit`, `Util::SaveFile`.
 
 ### cutscene
