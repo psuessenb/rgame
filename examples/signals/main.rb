@@ -51,11 +51,11 @@
 #
 #     signal :triggered, :action
 #
-# The engine allows one component of a class per node, so a node that wanted a
-# separate component per action could not have one. Emitting the action name
-# instead lets a single trigger serve `fire` and `poke` together, and the
-# listener filters. Hold both keys here and watch the two counters move at
-# different rates: one component, two cooldowns.
+# Emitting the action name lets a single trigger serve `fire` and `poke`
+# together, and the listener filters. A trigger per action would need a slot of
+# its own for each, named with `add_component(..., as:)`, since a node holds one
+# component of a class by default. Hold both keys here and watch the two
+# counters move at different rates: one component, two cooldowns.
 #
 # ## The handle, and why almost nothing uses it
 #

@@ -204,18 +204,18 @@ index, not the argument.
   column of slots and a grid of clothes, and a second page shows the bag and
   says what is worn. See
   [docs/api/examples.md](docs/api/examples.md#equipment).
-- **Things the player presses, and things that pick themselves up.**
-  `RGame::Engine::Components::Interaction` maps the input actions a node
-  answers to its own methods, as
+- **Things the player presses.** `RGame::Engine::Components::Interaction` maps
+  the input actions a node answers to its own methods, as
   `Interaction.new(interact: :open, search: :search)`, and a handler may take
-  the actor as `by:`.
-  `Components::Interactor` is a `Targeting` that reads one or more `actions:`,
-  and a press calls the handler of the nearest node answering that action.
-  `Components::Collectable` acts on the step a collider on the layer it names
-  touches it — emit `collected`, play a sound, and free the node unless
-  `free: false`. `:interact` joins `InputMap::DEFAULT_ACTIONS` on E and the
-  pad's X. See [docs/api/components.md](docs/api/components.md#interaction) and
-  the `collectables` example.
+  the actor as `by:`. `Components::Interactor` is a `Targeting` that reads one
+  or more `actions:`, and a press calls the handler of the nearest node
+  answering that action. `:interact` joins `InputMap::DEFAULT_ACTIONS` on E and
+  the pad's X. See [docs/api/components.md](docs/api/components.md#interaction).
+- **Things that pick themselves up.** `Components::Collectable` acts on the
+  step a collider on the layer it names touches it — emit `collected`, play a
+  sound, and free the node unless `free: false`. See
+  [docs/api/components.md](docs/api/components.md#collectable) and the
+  `collectables` example.
 - **A mover pushes what it walks into.** `pushes:` on every mover names collider
   layers a step moves instead of stopping at, and each must be in `blocked_by:`
   too. `RGame::Engine::Components::Pushable` is the thing pushed: a mover with no
