@@ -1,6 +1,6 @@
 # Additional features for 0.5.0
 
-Research for six features that join 0.5.0 once the object-layers and smooth-art
+Research for five features that join 0.5.0 once the object-layers and smooth-art
 plans finish. It is not a plan: it has no roadmap. It records what the code does
 today, what each feature resembles, the traps found while reading, and the
 questions a plan has to settle first. When a plan takes these features up, it
@@ -10,24 +10,20 @@ Everything here was read or measured at commit `99442bf`, on Ruby 4.0.5.
 
 ## Verdict
 
-**All six fit 0.5.0, and none needs a GL loader or a new dependency.** Four are
+**All five fit 0.5.0, and none needs a GL loader or a new dependency.** Four are
 small: the multiply blend, the sprite colour, the pushed platform and the respawn
-point per room. Two need a design decision before any code: where a node's facing
-lives, and whether several verbs means two Interactors or one Interactor with
-several actions.
+point per room. One needs a design decision before any code: where a node's
+facing lives.
 
-**Compatibility constrains two of the six.** `Interactor`, `Respawn`, `Rooms`,
+**Compatibility constrains two of the five.** `Interactor`, `Respawn`, `Rooms`,
 `Pushable` and `Platform` do not exist at the `v0.4.0` tag, so 0.5.0 is their
 first release and they may take whatever shape works best. `Targeting` and
 `Renderer#sprite` shipped in 0.4.0. Every change proposed to them below is an
 addition.
 
-**Two findings correct the todo list:**
-
-- Several verbs on one target already work. Two Interactors in named slots do
-  tap to read and hold to search today, with no engine change *(measured)*.
-- The multiply blend function in `possible-todos.md` is wrong since
-  premultiplied alpha landed. It would draw every transparent pixel black.
+**One finding corrects the todo list:** the multiply blend function in
+`possible-todos.md` is wrong since premultiplied alpha landed. It would draw every
+transparent pixel black.
 
 ## The request
 
@@ -37,9 +33,6 @@ As it arrived:
 >   That rules out raft-pushing puzzles until you work around it.
 > * Facing-aware interaction. Targeting::POLICIES is still only :nearest, measured
 >   from the node's origin, so two signs side by side can pick the wrong one.
-> * Several verbs on one target (tap to read, hold to search). Interactor takes one
->   action, so you read the second one off interactor.target in your own _control.
->   The adventure test project does this.
 > * Multiply blend for night tints and shadows. possible-todos.md says it's small:
 >   one GL 1.0 blend function, no loader.
 > * Respawn resetting when a room move lands
@@ -52,12 +45,6 @@ As it arrived:
 | Projects putting `Pushable` and `Platform` on one node | 0. `Pushable` is in `block_puzzle`, `push_pull`, `adventure` and `topdownplatformer`; `Platform` in `moving_platforms` and `topdownplatformer`'s raft |
 | Projects mounting `Respawn` beside `Rooms` | 0. `Respawn` is in `moving_platforms`, `pits` and `topdownplatformer`; `Rooms` in `doors` and `adventure` |
 | Subclasses of `Targeting` | 2: `Interactor` and `Grab` |
-| `Interactor.new` outside specs and docs | 2: `examples/collectables/main.rb:150`, `test_projects/adventure/hero.rb:63` |
-| `on_interacted` listeners written as `&:open` | 2: `examples/collectables/main.rb:184`, `test_projects/adventure/hero.rb:66` |
-| Two Interactors in named slots, tap and hold on one key | work today: the tap fires only the first, the hold only the second |
-| Cost of each Interactor, 40 colliders on the scene | 11 to 13 µs a tick, 0 objects a tick (194.5, 207.8 and 219.0 µs a tick for 0, 1 and 2) |
-| `Symbol#to_proc` called with a second argument | `ArgumentError: wrong number of arguments (given 1, expected 0)` |
-| Engine code looking up a `Targeting`, `Interactor` or `Grab` by class | 0; two comments mention it |
 | Blend modes | 2, `:alpha` and `:add` |
 | Places that use `:multiply` as the example of an unknown mode | 2: `spec/support/shared_examples/a_renderer.rb:756`, `docs/api/values.md:298` |
 | Specs tying `Util::Blend::MODES` to the C enum | 0 |
@@ -65,9 +52,6 @@ As it arrived:
 | `_arrive` implementations | 6, three in code and three in docs. All six set the position and then add the node |
 | `renderer.sprite` calls, comments excluded | 6: `AnimatedSprite`, 3 in examples, 2 in test projects |
 | Renderer draw calls that take a colour | `rect`, `image`, `image_at`, `background` take `color:`; `nine_slice` takes `tint:`; `sprite` and `map_tile` take none |
-
-The Interactor figures come from a headless script that ticks a scene as
-`interactor_spec.rb` does: 20,000 ticks after 60 to warm up, twice.
 
 ## 1. A pushed platform carries its riders
 
@@ -157,59 +141,7 @@ game standing between two signs decides this, so the acceptance scene is that
 one. The pick must allocate nothing: it runs every tick, and `nearest` allocates
 nothing today *(measured, 0 objects a tick)*.
 
-## 3. Several verbs on one target
-
-**Today.** `Interactor` reads one action and emits
-`interacted(target)` (`interactor.rb:43`). The adventure's hero reads the second
-verb itself: `Hero#_control` checks `pressed?(:search)` and calls
-`@interactor.target&.search` (`hero.rb:96-101`). So every interactable has to
-answer `search`, and `lever.rb:41` defines `def search = nil` for no other
-reason. The two actions share one button, one as a tap and one as a hold
-(`test_projects/adventure/main.rb:56-57`).
-
-**It already works with two Interactors** *(measured)*. `add_component` takes
-`as:`, and the engine never looks an `Interactor` up by class:
-
-```ruby
-read = hero.add_component(Components::Interactor.new(range: 56, action: :interact), as: :read)
-search = hero.add_component(Components::Interactor.new(range: 56, action: :search), as: :search)
-read.on_interacted(&:open)
-search.on_interacted(&:search)
-```
-
-With the adventure's tap and hold bindings, a tap fired only `read` and a hold
-only `search`, both on the right chest. Each Interactor costs 11 to 13 µs a tick
-with 40 colliders on the scene, and allocates nothing. The todo list's "one
-component per class per node" is out of date, and `ActionTrigger`'s header
-repeats it (`action_trigger.rb:7-8`).
-
-**What it resembles.** `ActionTrigger` is one component covering several
-actions, and it emits the action's name: `triggered(action)`. An Interactor
-with several actions would take the same shape and run one query for all of
-them.
-
-**The choice.**
-
-- **A. Document two Interactors.** No code. The cost is a second query that
-  answers the question the first already answered. Two with the same range and
-  layer cannot disagree, since the broadphase yields in the same order.
-- **B. One Interactor with several actions.** `actions:` beside `action:`, and
-  the action's name in the signal, as `ActionTrigger` does. One query.
-
-**B changes the signal, and that breaks both `&:open` listeners.** With a second
-field, a listener receives the action as its second argument. `:open.to_proc`
-then calls `target.open(action)`, which raises `ArgumentError` *(measured)*. A
-block with one parameter ignores the extra argument, and so do the four listeners
-in the specs. `Interactor` first ships in 0.5.0, so the change is allowed, but
-the two listeners have to change with it. A second signal instead keeps them as
-they are.
-
-**Either way, a verb reaches targets that do not answer it.** The lever answers
-`search` with nil only because the hero sends it to everything in reach. A plan
-should decide whether a verb's listener checks the target or the targets declare
-their verbs, for example on a layer of their own.
-
-## 4. Multiply blend
+## 3. Multiply blend
 
 **Today.** `Util::Blend::MODES` is `[:alpha, :add]` (`blend.rb:23`), and a mode's
 position in it is the number C takes (`blend.rb:14`). The chain runs:
@@ -250,7 +182,7 @@ refuses a blend mode, and it refuses multiply for the same reason. A night tint
 is then a rect drawn under `blended(:multiply)` over a `WorldView`, and a shadow
 is a dark sprite drawn the same way.
 
-## 5. The respawn point follows a room move
+## 4. The respawn point follows a room move
 
 **Today.** `Respawn#_attach` (`respawn.rb:68`) records the point on the first
 attach only. Every later attach keeps it and checks it for a gap. The header says
@@ -286,7 +218,7 @@ B puts the reset where the landing is known, and does not depend on a habit.
 **Open:** does a warp reset the point? And does a checkpoint survive leaving its
 room and coming back? A reset on every landing forgets it.
 
-## 6. Tinting a character
+## 5. Tinting a character
 
 **Today.** `Renderer#sprite(id, row, col, x, y, flip_x:, z:)` (`renderer.rb:103`)
 takes no colour. It calls `SpriteSheet#draw`, which calls `image_at`, and
@@ -336,15 +268,11 @@ tint this way (`canvas.c:324-331`).
 **Open:** node-wide, per call, or both. Node-wide answers "tint a character".
 `color:` on `sprite` is parity with `image` and costs almost nothing.
 
-## How the six relate
+## How the five relate
 
-None depends on another, so each is one branch and one pull request. Two pairs
-touch the same code and are easier in sequence:
-
-- **Multiply and tint** both change `graphics/canvas.c` and the renderer's
-  shared contract.
-- **Facing and verbs** both change `Targeting` and `Interactor`. If verbs takes
-  option B, landing facing first means the new constructor takes both at once.
+None depends on another, so each is one branch and one pull request. One pair
+touches the same code and is easier in sequence: **multiply and tint** both
+change `graphics/canvas.c` and the renderer's shared contract.
 
 The pushed platform and the respawn point are loose ends of the top-down
 platforming plan, and share `topdownplatformer` as the place to drive them.
@@ -352,22 +280,18 @@ platforming plan, and share `topdownplatformer` as the place to drive them.
 ## Open questions
 
 1. **Where facing lives, and what `:facing` picks.** Blocks feature 2.
-2. **Two Interactors or one with several actions**, and how a verb meets a
-   target that does not answer it. Blocks feature 3.
-3. **Whether a warp resets the respawn point**, and whether a checkpoint survives
-   a room move and a return. Blocks feature 5.
-4. **A blocker that keeps a pushed raft over the gaps**, or colliders the game
+2. **Whether a warp resets the respawn point**, and whether a checkpoint survives
+   a room move and a return. Blocks feature 4.
+3. **A blocker that keeps a pushed raft over the gaps**, or colliders the game
    places. Does not block the carrying fix.
-5. **A node-wide tint, `color:` on `sprite`, or both.** Blocks feature 6.
+4. **A node-wide tint, `color:` on `sprite`, or both.** Blocks feature 5.
 
 ## Where these came from
 
-Three of the six are in `docs/plans/possible-todos.md`. Remove each entry as its
+Three of the five are in `docs/plans/possible-todos.md`. Remove each entry as its
 feature lands:
 
 - "Blend modes beyond `:add`": the multiply blend.
-- "Loose ends from cutscenes and interacting", the `Interactor` bullet: several
-  verbs.
 - "Loose ends from top-down platforming", two bullets: the pushed platform and
   the respawn point in a room left behind.
 
