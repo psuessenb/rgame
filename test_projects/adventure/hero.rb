@@ -14,20 +14,21 @@ module Adventure
   # serves being stopped, pushing, being seen and picking things up.
   #
   # A Grab on the default `:grab` action, Left Shift or the pad's Y, drags a crate
-  # the other way. It is a Targeting, as the Interactor is, so the hero holds each
-  # by name rather than asking for a Targeting.
+  # the other way.
   #
   # ## A tap opens and a hold searches, on one button
   #
-  # The Interactor reads `:interact`, which this project declares as a tap; the
-  # hold is `:search` on the same buttons, read here. Both act on the same
-  # `target`, so the hero asks "what is in reach" once and the input map decides
-  # which of the two a press meant — see main.rb for the two entries.
+  # The Interactor reads two actions on the same buttons: `interact`, which this
+  # project declares as a tap, and `search`, a hold. See main.rb for the two
+  # entries. The input map decides which one a press meant, and the Interactor
+  # calls it on the nearest thing in reach that answers it. The verbs live on the
+  # chest and the lever, in their Interactions, and the hero names neither. A
+  # lever answers only `interact`, so it never takes a hold meant for a chest.
   #
   # ## What it carries and wears
   #
   # The hero owns both lists, and `carry` is the one way in: a coin calls it on
-  # whoever touched it, and a search carries what the chest gave. The player's Bag
+  # whoever touched it, and a chest on whoever searched it. The player's Bag
   # reads `carried` and `worn` and calls `wear` and `take_off`. The hero draws
   # what it wears over its sprite, and names it in words above its head, as the
   # chest and the crate draw their state.
@@ -60,7 +61,7 @@ module Adventure
       add_component(Components::CameraFollow.new(
                       camera: camera, offset_y: CAMERA_OFFSET_Y
                     ))
-      @interactor = add_component(Components::Interactor.new(range: REACH))
+      add_component(Components::Interactor.new(range: REACH, actions: %i[interact search]))
       add_component(Components::Grab.new(range: GRIP, layer: :crate))
       @carried = []
       @worn = {}
@@ -88,13 +89,6 @@ module Adventure
     def take_off(slot)
       item = @worn.delete(slot)
       carry(item) if item
-    end
-
-    def _control(actions)
-      return unless actions.pressed?(:search)
-
-      found = @interactor.target&.search
-      carry(found) if found
     end
 
     def _draw(renderer, _view)

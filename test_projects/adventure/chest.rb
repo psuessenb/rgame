@@ -2,13 +2,14 @@
 
 module Adventure
   # Something to press. It carries a collider and an Interaction, and nothing
-  # else — no input, no range, no knowledge of a hero.
+  # else — no input, no range, and no hero of its own.
   #
-  # Its Interaction answers `interact` with `open`, so a Hero's Interactor calls
-  # it on a tap. The same hero's own `_control` calls `search` on the Interactor's
-  # target while the button is held. Which of the two happened is the input
-  # map's answer, not this class's: `interact` is a tap and `search` is a hold,
-  # both on E and the pad's X.
+  # Its Interaction answers two actions: `interact` with `open`, and `search`
+  # with `search`. So a Hero's Interactor opens it on a tap and searches it on a
+  # hold. Which of the two a press meant is the input map's answer, not this
+  # class's: `interact` is a tap and `search` is a hold, both on E and the pad's
+  # X. `search` takes the hero that held the button as `by:`, and hands it the
+  # hat.
   #
   # It draws its state as a word so a driven run can tell a tap from a hold. A
   # test project draws Strings; an example would draw a translation key.
@@ -30,9 +31,8 @@ module Adventure
 
     def initialize(key:, **)
       super(**)
-      add_component(Components::BoxCollider.new(width: SIZE, height: SIZE,
-                                                layer: :interactable))
-      add_component(Components::Interaction.new(interact: :open))
+      add_component(Components::BoxCollider.new(width: SIZE, height: SIZE))
+      add_component(Components::Interaction.new(interact: :open, search: :search))
       @facts = add_component(Components::Facts.new(key:, state: 'closed'))
     end
 
@@ -44,14 +44,14 @@ module Adventure
       change(:open) if @state == :closed
     end
 
-    # Returns the hat inside, once. Only an open chest has anything to search, so
-    # a hold on a closed one finds nothing — which is what makes the two actions
-    # distinguishable in a report rather than merely both firing.
-    def search
+    # Hands the hat inside to `by`, once. Only an open chest has anything to
+    # search, so a hold on a closed one finds nothing — which is what makes the
+    # two actions distinguishable in a report rather than merely both firing.
+    def search(by:)
       return unless @state == :open
 
       change(:searched)
-      Item.new('hat', slot: :head, color: STRAW)
+      by.carry(Item.new('hat', slot: :head, color: STRAW))
     end
 
     def _draw(renderer, _view)
