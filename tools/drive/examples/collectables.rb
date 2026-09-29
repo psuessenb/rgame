@@ -12,9 +12,9 @@
 #     Engine::Text rendered again only when the count changes, so a missing
 #     number would mean a coin taken twice or not at all.
 #   - **4 sounds**, one per coin. The chest makes none.
-#   - **"Press E" from tick 121**, and for 17 frames only: the prompt is drawn
-#     from `interactor.target`, which the walk fills when the chest stops the
-#     hero, and the room stops drawing it the moment the chest is open.
+#   - **"Press E" from tick 117**, and for 21 frames only: the prompt is drawn
+#     from `interactor.target`, which fills when the walk brings the chest into
+#     reach, and the room stops drawing it the moment the chest is open.
 #   - **1287 `circle` calls.** That is the coin count integrated over the run,
 #     and it is the one number that says the chest spilled: six coins fall to
 #     four by tick 137, rise to seven, and fall to five.

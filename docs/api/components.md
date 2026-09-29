@@ -443,7 +443,7 @@ one by adding a node.
 
 **`free: false` is the chest**: it reports the touch and stays, and whatever
 listens decides what opening means. Pair it with an
-[`Interactor`](#interactor) for something reached by touch and opened with a
+[`Interaction`](#interaction) for something reached by touch and opened with a
 press.
 
 ### `Collider`
@@ -820,7 +820,8 @@ end
 
 **Holds a [`Pushable`](#pushable) while a button is held, so the node's mover drags
 it**: forwards, backwards and sideways. A [`Targeting`](#targeting) that also reads
-a button, as [`Interactor`](#interactor) is.
+a button, as [`Interactor`](#interactor) is. It picks the nearest node on its
+layer, where an `Interactor` asks each node's [`Interaction`](#interaction).
 
 ```ruby
 hero.add_component(RGame::Engine::Components::CharacterBody.new(speed: 60, blocked_by: %i[tiles crate]))
@@ -925,27 +926,110 @@ The game must get two things right; this component does not check them:
 - **The id allocator belongs in the save.** A counter that restarts at 1 on load
   reissues ids the restored objects already hold. Save the next id with them.
 
-### `Interactor`
+### `Interaction`
 
-**What the owner would interact with, and the press that does it.** A
-[`Targeting`](#targeting) that also reads a button: each `update` it picks the
-nearest node in range on its layer, and a press on `action` emits it.
+**What a node does when an actor presses it.** It maps each input action the node
+answers to one of the node's methods. An [`Interactor`](#interactor) on the actor
+finds the nearest node that answers an action it reads, and calls that method on a
+press.
 
 ```ruby
-hero.add_component(RGame::Engine::Components::Interactor.new(range: 56, layer: :interactable))
-    .on_interacted { |target| target.open }
+require 'rgame'
+
+class Chest < RGame::Engine::Node2D
+  attr_reader :state, :searched_by
+
+  def initialize(**)
+    super
+    add_component(RGame::Engine::Components::BoxCollider.new(width: 20, height: 20))
+    add_component(RGame::Engine::Components::Interaction.new(interact: :open, search: :search))
+    @state = :closed
+  end
+
+  def open = @state = :open
+  def search(by:) = @searched_by = by
+end
+
+scene = RGame::Engine::Node2D.new.tap { it.scene = it }
+scene.add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: 64))
+chest = scene.add_node(Chest.new(x: 30, y: 0))
+hero = scene.add_node(RGame::Engine::Node2D.new)
+hero.add_component(RGame::Engine::Components::Interactor.new(range: 56, actions: %i[interact search]))
+scene.enter_tree
+
+scene.update(1.0 / 60)
+scene.control(RGame::Engine::Actions.new(held: { interact: true, search: true },
+                                          prev_held: { interact: false, search: false }))
+chest.state                 # => :open
+chest.searched_by == hero   # => true — `by:` is the node that pressed
 ```
 
-- **Construct:** `Interactor.new(range:, layer: :interactable, action: :interact,
-  policy: :nearest)`. The range, layer and policy are `Targeting`'s. `action` is
-  read from the actions of whoever owns the node, and `:interact` is in
-  [`InputMap.default`](input.md#defaults-and-rebinding) on E and the pad's X.
-- **State:** `target`, `Targeting`'s, and `action`. Draw a prompt over `target`
-  and label it with `player.input_map.button_for(interactor.action, player.device)`.
-- **Signal:** `on_interacted(target)` fires once per press, and never while
-  `target` is `nil`. There is no signal for a press that reached nothing.
-- **Phase:** `_update(dt)` picks the target, `_control(actions)` reads the press.
-  A press acts on the target the last `update` chose.
+- **Construct:** `Interaction.new(**handlers)`. Each key is an input action's name,
+  and each value names a public method of the node, as a Symbol. No handlers, or a
+  value that is not a Symbol, raises `ArgumentError`.
+- **Handlers:** a handler takes nothing, or a `by:` keyword. `by:` receives the
+  node whose `Interactor` pressed, so a search can hand what it finds to whoever
+  searched.
+- **State:** `actions` lists the actions it answers, in the order given.
+  `answers?(action)` asks about one.
+- **`perform(action, by:)`** calls the handler for `action`, passing `by` to a
+  handler that takes it. The `Interactor` calls it on a press, and a spec may call
+  it directly. An action it does not answer raises `KeyError`.
+- **Phase:** none. It does nothing per frame.
+
+**The verbs belong to the target.** A lever answers `interact` and nothing else, so
+a hold on `search` passes it by and reaches the chest behind it. No node needs a
+method for a verb it has no use for.
+
+**Attach checks what a press would find out too late.** `_attach` raises:
+
+- when the node has no [`Collider`](#collider), box or circle, since no actor's
+  broadphase would ever see it;
+- when the node holds a second `Interaction`, even in a slot of its own. One
+  answers every verb of its node;
+- when a handler is not a public method of the node, naming the class, the action
+  and the method;
+- when a handler needs an argument other than `by:`;
+- when no player's input map declares an action, since nothing would ever press it.
+  A tree with no [`Players`](input.md#players-seats-and-joining) system skips this
+  check, which is how the example above answers `search` with no map at all.
+
+### `Interactor`
+
+**Reaches for the nearest node that answers a press, and presses it.** A
+[`Targeting`](#targeting) that reads buttons. Each `update` it keeps, for each of its
+actions, the nearest node in range whose [`Interaction`](#interaction) answers that
+action. A press on one calls that node's handler, with the Interactor's own node as
+`by:`.
+
+```ruby
+hero.add_component(RGame::Engine::Components::Interactor.new(range: 56, actions: %i[interact search]))
+```
+
+- **Construct:** `Interactor.new(range:, actions: [:interact], policy: :nearest)`.
+  The range and policy are `Targeting`'s, measured from the node's origin.
+  `actions` are read from whoever owns the node, and `:interact` is in
+  [`InputMap.default`](input.md#defaults-and-rebinding) on E and the pad's X. An
+  empty list, a name that is not a Symbol, or a name given twice raises
+  `ArgumentError`.
+- **State:** `target` is the nearest node that answers any of `actions`, or `nil`.
+  `target_for(action)` is the nearest node that answers `action`, or `nil`, and
+  raises `ArgumentError` for an action it does not read. `actions` lists them. Draw
+  a prompt over a target, and label it with
+  `player.input_map.button_for(action, player.device)`.
+- **The press:** a press calls the handler once, and never while the action is
+  held. A press with nothing in range that answers it does nothing.
+- **Phase:** `_update(dt)` finds the targets, and `_control(actions)` reads the
+  presses. A press acts on the targets the last `update` found. Neither allocates,
+  except the call a press makes.
+
+**A collider without an `Interaction` is never a target**, whatever its layer. Nor
+is the Interactor's own node, so two heroes that each answer a verb do not reach
+for themselves.
+
+**An action the owner's map does not declare raises on the first control**, whether
+or not anything is in reach. Every action is asked `pressed?` each tick, and
+[`Actions`](input.md#rgameengineactionmapper) raises `KeyError` for one it does not know.
 
 **It is a `Targeting`, so `get_component(Targeting)` matches it too.** A node
 holding both cannot be asked for either by class — hold the one you want by
@@ -953,7 +1037,7 @@ name, which is what `add_component` returns.
 
 **Two players interact independently with no per-player state here.** The
 control traversal hands each node the actions of its owner, so two heroes either
-side of one chest each press their own button and each reach it.
+side of one chest each press their own button, and each reaches it as `by:`.
 
 ### `MapTile`
 

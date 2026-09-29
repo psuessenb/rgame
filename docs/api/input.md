@@ -227,7 +227,8 @@ both tab actions while it is held.
 game that wants exactly this leaves `input_map` out of its configuration.
 
 `interact` is E and the pad's X, which is what
-[`Components::Interactor`](components.md#interactor) reads. It shares a button
+[`Components::Interactor`](components.md#interactor) reads unless it is given
+other `actions`. It shares a button
 with nothing else in the default map, deliberately: `fire` is Space and A, and
 an action bound to a button another action already uses fires both.
 

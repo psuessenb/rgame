@@ -242,12 +242,14 @@ RSpec.describe RGame::Engine::Node2D do
     let(:hero) do
       described_class.new(x: 100, y: 100).tap do |node|
         node.add_component(RGame::Engine::Components::Interactor.new(range: 56))
-            .on_interacted { |chest| opened << chest }
       end
     end
     let(:chest) do
+      record = opened
       described_class.new(x: 140, y: 100).tap do |node|
+        node.define_singleton_method(:open) { record << node }
         node.add_component(RGame::Engine::Components::CircleCollider.new(radius: 10, layer: :interactable))
+        node.add_component(RGame::Engine::Components::Interaction.new(interact: :open))
       end
     end
 

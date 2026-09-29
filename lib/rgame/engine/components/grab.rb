@@ -20,8 +20,9 @@ module RGame
       # always in hand before the step that drags it, whatever order the two components
       # were added in. Mover's header says how the step moves both.
       #
-      # `action` is read from the actions of whoever owns the node, as Interactor's is, so
-      # two players each hold their own crate.
+      # `action` is read from the actions of whoever owns the node, as an Interactor's
+      # actions are, so two players each hold their own crate. It picks what is nearest on
+      # its layer, where an Interactor asks each candidate's Interaction.
       #
       # Like Interactor it is a Targeting, so a node holding both, or both of these,
       # answers `get_component(Targeting)` with a raise. Hold each by name.

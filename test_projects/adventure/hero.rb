@@ -60,10 +60,7 @@ module Adventure
       add_component(Components::CameraFollow.new(
                       camera: camera, offset_y: CAMERA_OFFSET_Y
                     ))
-      @interactor = add_component(Components::Interactor.new(
-                                    range: REACH, layer: :interactable
-                                  ))
-      @interactor.on_interacted(&:open)
+      @interactor = add_component(Components::Interactor.new(range: REACH))
       add_component(Components::Grab.new(range: GRIP, layer: :crate))
       @carried = []
       @worn = {}
