@@ -2,7 +2,8 @@
 
 RSpec.describe RGame::Engine::Components::Interaction do
   # A scene with the broadphase, and a chest class whose handlers record what
-  # reached them. The numbered rules are the plan's, in docs/plans/interaction-verbs.md.
+  # reached them. The numbered rules are the interaction-verbs plan's, which
+  # `git show 6526120:docs/plans/interaction-verbs.md` keeps.
   let(:controls) { RGame::Util::Controls }
   let(:scene) { RGame::Engine::Node2D.new.tap { it.scene = it } }
   let(:actor) { RGame::Engine::Node2D.new }

@@ -128,8 +128,13 @@ class is the place, because every mover updates it after `take_step` and no
 subclass can forget it.
 
 **The policy.** `POLICIES` is a public constant, and appending `:facing` is an
-addition. `Interactor` and `Grab` inherit `policy:`, so both get it. A `Grab`
-reaching for the crate in front of it is the same fix. `:facing` needs exactly
+addition. `Grab` picks through `Targeting#pick`, so it gets it: a `Grab`
+reaching for the crate in front of it is the same fix. The `Interactor` does
+not *(read at `6526120`)*. It keeps the nearest node answering each of its
+actions from its own `query_circle` pass, and takes `policy:` without reading
+it. So `:facing` has to reach that pass as well, or
+`Interactor.new(policy: :facing)` would pick by distance without a word.
+`:facing` needs exactly
 one `Mover` sibling to read, so it should `require_sibling(Mover)` at attach, as
 `AnimatedSprite` does. `:nearest` stays measured from the origin: that is its
 0.4.0 behaviour.
