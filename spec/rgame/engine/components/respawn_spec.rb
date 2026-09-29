@@ -4,7 +4,7 @@ RSpec.describe RGame::Engine::Components::Respawn do
   let(:root) { RGame::Engine::Node2D.new }
   let(:world) { root.add_node(RGame::Engine::Node2D.new(x: 100, y: 50)) }
   let(:node) { RGame::Engine::Node2D.new(x: 20, y: 30) }
-  let(:respawn) { node.add_component(described_class.new(flash: 0.5)) }
+  let(:respawn) { node.add_component(described_class.new) }
 
   def dt = 1.0 / 60
 
@@ -15,8 +15,8 @@ RSpec.describe RGame::Engine::Components::Respawn do
   end
 
   describe '.new' do
-    it 'refuses a negative flash' do
-      expect { described_class.new(flash: -1) }.to raise_error(ArgumentError, /flash/)
+    it 'takes no arguments, flash: included: a Blink shows where a node came back' do
+      expect { described_class.new(flash: 1.0) }.to raise_error(ArgumentError, /given 1, expected 0/)
     end
   end
 
@@ -110,76 +110,22 @@ RSpec.describe RGame::Engine::Components::Respawn do
       expect([node.world_x, node.world_y]).to eq([120, 80])
     end
 
-    it 'says so once, as the flash starts' do
+    it 'says so once, with the node on its point' do
       seen = []
-      respawn.on_respawned { seen << respawn.flashing? }
+      respawn.on_respawned { seen << [node.world_x, node.world_y] }
       respawn.respawn
       node.update(dt)
 
-      expect(seen).to eq([true])
-    end
-  end
-
-  describe 'the flash' do
-    def opacities(seconds)
-      Array.new((seconds / dt).round) do
-        node.update(dt)
-        node.opacity
-      end
+      expect(seen).to eq([[120, 80]])
     end
 
-    # Six ticks a blink at 60 a second. The first shows for five, since the
-    # node already showed on the tick of the respawn, and the last tick of the
-    # flash gives the opacity back.
-    it 'shows the node for a blink, then hides it for one, until the flash ends' do
+    it 'starts a Blink connected to on_respawned, from its point' do
+      blink = node.add_component(RGame::Engine::Components::Blink.new)
+      respawn.on_respawned { blink.start(0.5) }
       respawn.respawn
-      runs = opacities(0.5).chunk_while { |a, b| a == b }.map { [it.first, it.size] }
+      6.times { node.update(dt) }
 
-      expect(runs).to eq([[1, 5], [0, 6], [1, 6], [0, 6], [1, 7]])
-    end
-
-    it 'gives back the opacity it found when it ends' do
-      node.opacity = 0.75
-      respawn.respawn
-      opacities(0.3)
-      expect(node.opacity).to eq(0)
-
-      opacities(0.3)
-      expect([node.opacity, respawn.flashing?]).to eq([0.75, false])
-    end
-
-    it 'gives back the first opacity it found when a second respawn restarts it' do
-      node.opacity = 0.75
-      respawn.respawn
-      opacities(0.15)
-      respawn.respawn
-      opacities(0.6)
-
-      expect(node.opacity).to eq(0.75)
-    end
-
-    it 'gives the opacity back when the node leaves the tree mid-flash' do
-      respawn.respawn
-      opacities(0.15)
-      world.remove_node(node)
-
-      expect([node.opacity, respawn.flashing?]).to eq([1, false])
-    end
-
-    it 'flashes nothing at 0' do
-      still = described_class.new(flash: 0)
-      other = RGame::Engine::Node2D.new.tap { it.add_component(still) }
-      world.add_node(other)
-      still.respawn
-
-      expect(still).not_to be_flashing
-    end
-
-    it 'allocates nothing' do
-      respawn.respawn
-      node.update(dt)
-
-      expect { node.update(dt) }.to allocate_nothing
+      expect([node.world_x, node.world_y, node.opacity, blink.blinking?]).to eq([120, 80, 0, true])
     end
   end
 end

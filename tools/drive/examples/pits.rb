@@ -7,11 +7,11 @@
 #
 # What the report should show:
 #
-#   - **`sprite` drawn 590 times in 650 ticks.** Each respawn blinks the hero
-#     out for five spells of six ticks, and a blink hides the whole node, so
-#     the 60 missing draws are the two flashes. The flash draws no `faded`:
-#     a node at opacity 0 is not drawn at all. The sprite's y (its fifth
-#     argument) spans −40.0 to −22, the hop's 18px above the standing −22;
+#   - **`sprite` drawn 590 times in 650 ticks.** Each respawn starts the hero's
+#     `Blink`, which hides the whole node for five spells of six ticks, so the
+#     60 missing draws are the two blinks. A blink draws no `faded`: a node at
+#     opacity 0 is not drawn at all. The sprite's y (its fifth argument) spans
+#     −40.0 to −22, the hop's 18px above the standing −22;
 #   - **`scaled` 698 times**: once a frame at (1.0, 1.0) for the presentation,
 #     and 48 more, 24 for each of the two falls, from about 1 toward 0.0. That
 #     is the hero shrinking into a pit;
@@ -30,7 +30,7 @@
 # tick 389 and hops on 393, and steps off the third on tick 474.
 
 idle 10
-hold controls::KEY_DOWN, 140 # into the chasm; falls, and comes back flashing
+hold controls::KEY_DOWN, 140 # into the chasm; falls, and comes back blinking
 idle 90
 hold controls::KEY_RIGHT, 70
 hold [controls::KEY_RIGHT, controls::KEY_SPACE], 1 # a hop across the first trench

@@ -1,6 +1,6 @@
 # Single-job components
 
-**Status:** Steps 1–4 are implemented. Steps 5–7 are rough, and each is
+**Status:** Steps 1–5 are implemented. Steps 6 and 7 are rough, and each is
 re-planned before it starts. Step 8 folds the plan back and deletes it.
 
 ## Verdict
@@ -931,18 +931,161 @@ a new `WalkingSprite`, and in `internals.md` under `AnimationSet`. `toolbox.md`,
 `tools/draw_coin.rb`. `CHANGELOG.md` has a `Changed` entry for
 `AnimatedSprite` that names `WalkingSprite`.
 
-### Step 5 — `Blink` (rough)
+### Step 5 — `Blink`, started from `on_respawned`
 
-`Respawn`'s blink becomes `Components::Blink`, started from `on_respawned`.
-[The design](#blink-started-from-on_respawned) has the expected shape.
+`Respawn` blinks the node as it brings it back, so only a respawn can blink a
+node. The blink becomes `Components::Blink`, and a game starts it from
+`on_respawned`, which `Respawn` already emits. It comes before step 6, because
+both change what happens as a fall ends. Re-planned at `c5fd993`, where it
+measured:
 
-- Callers: the four `Respawn.new(flash:)`.
-- Docs: `components.md`'s `Respawn` section and a new `Blink` section.
-- Changelog: the unreleased "Falling into a gap" entry says "flashing", and
-  `Blink` gets an `Added` entry.
+| | |
+|---|---|
+| `Respawn.new(flash:)` in games | 4: `examples/pits` and `examples/moving_platforms` at 1.0, and `topdownplatformer`'s hero at 1.0 and its crate at 0.5 |
+| `Respawn.new` in specs | 9 in 5 files: `flash: 0.5` five times, `flash: 0` twice, `flash: -1` once, and once with none |
+| `flashing?` | 5 reads: 4 in `respawn_spec.rb`, 1 in `footing_spec.rb` |
+| `respawn_spec.rb` | 18 examples. 7 are the flash's: 6 under "the flash", and the refusal of a negative `flash:` |
+| Prose naming the flash | `respawn.rb`'s header, `components.md`'s `Respawn` section, the `pits` header, `examples.md`'s `pits` entry, two changelog entries, and all three drive scripts' headers |
+| Other blinks | none. `examples/collision`'s crate, `examples/sound`'s ring and `adventure`'s storm flash a colour, and none hides a node |
+| `Respawn` in 0.4.0 | absent, so its changelog entry changes in place |
+
+**What it resembles.**
+
+- **Reused:** `Node2D#opacity`, which the blink writes as `Respawn` does, and
+  `on_respawned`, which fires once the node stands on its point.
+- **Considered for extending:** `FrameTimes.even(2, interval)` answers the same
+  question, which of two looks shows after t seconds. It gives `Respawn`'s runs
+  only if the caller adds `Respawn::SLACK` to the time. Without it, every
+  change lands a tick late: 6, 6, 6, 6 and 6 ticks where `Respawn` gives 5, 6,
+  6, 6 and 6 *(measured)*. The slack would have to move into `FrameTimes`, and
+  that shifts sprites' frames too, which this step must not. So `Blink` keeps
+  `Respawn`'s line of arithmetic, moved as it is.
+- **New:** nothing. `Blink` is `Respawn`'s flash, moved.
+
+Two sub-steps:
+
+- **5a. `Components::Blink`**, with its spec, a `components.md` section and an
+  `Added` changelog entry. Nothing calls it yet.
+- **5b. `Respawn` loses its flash.** `flash:`, `flash`, `flashing?`, `BLINK`,
+  `SLACK` and `_update` go. The four callers start a `Blink` from
+  `on_respawned` in the same commit. The specs, `components.md`'s `Respawn`
+  section, the `pits` and `moving_platforms` headers, `examples.md`, the drive
+  scripts' headers and the changelog's "Falling into a gap" entry follow.
+
+```ruby
+class Blink < Engine::Component
+  # Seconds one blink shows the node, and seconds it hides it.
+  INTERVAL = 0.1
+
+  # `interval` must be a positive number of seconds, or it raises ArgumentError.
+  def initialize(interval: INTERVAL)
+
+  # Blinks the node's opacity for `seconds`, shown first, then gives back the
+  # opacity it found. A blink under way starts again, and still gives back the
+  # opacity it found first. `seconds` must be positive, or it raises
+  # ArgumentError and a blink under way carries on.
+  def start(seconds)
+
+  # Ends a blink under way and gives back the opacity it found. Does nothing
+  # when none is under way.
+  def stop
+
+  def blinking?
+end
+```
+
+```ruby
+add_component(Components::Respawn.new(flash: 1.0))                        # at c5fd993
+
+blink = add_component(Components::Blink.new)                               # after
+add_component(Components::Respawn.new).on_respawned { blink.start(1.0) }
+```
+
+**Rules:**
+
+1. `start(0.5)` blinks as `Respawn.new(flash: 0.5)` does at `c5fd993`. At 60
+   ticks a second the node shows for 5 ticks, hides for 6, shows for 6, hides
+   for 6, and shows for 7, the last with the opacity it found.
+2. `interval:` sets both spells. At 0.05, the node hides for 3 ticks at a time.
+3. A blink gives back the opacity it found, and `blinking?` turns false: at its
+   end, at `stop`, and when its node leaves the tree. `stop` with no blink
+   under way changes nothing.
+4. A `start` during a blink starts it again, and gives back the opacity found
+   by the first.
+5. A non-positive `interval:` raises `ArgumentError` at construction. A
+   non-positive `seconds` raises at `start`, and a blink under way carries on.
+6. `Respawn.new(flash: 1.0)` raises `ArgumentError`.
+7. A fall that ends in a respawn starts a `Blink` connected to `on_respawned`,
+   in either add order, and the node walks on the tick after it lands.
+8. `Blink#_update` allocates nothing over a whole blink, and a fall that ends
+   in a respawn and a blink allocates nothing.
+
+**Tests:**
+
+- `spec/rgame/engine/components/blink_spec.rb`, new: rules 1–5, and 8 for
+  `Blink` alone. `respawn_spec.rb`'s flash examples move here.
+- `spec/rgame/engine/components/respawn_spec.rb` loses its 7 flash examples
+  and gains rule 6. "Says so once, as the flash starts" checks the point
+  instead.
+- `spec/rgame/engine/components/footing_spec.rb`: the two add-order examples
+  add a `Blink` to each order and check `blinking?`, for rule 7.
+- `spec/rgame/engine/components/footing_allocation_spec.rb`: the fall ending in
+  a respawn gains its `Blink`, for rule 8.
+- `checkpoint_spec.rb` and `platforming_spec.rb` drop `flash:`.
 
 **Verify:** `pits`, `moving_platforms` and `topdownplatformer` report the same
-as on `main`, including `pits`' 590 `sprite` draws in 650 ticks.
+as on `main`: `pits`' 590 `sprite` draws in 650 ticks, `moving_platforms`' 9150
+in 1020, and `topdownplatformer`'s 3273 `rect`s under `--seed 1 --texts --ticks
+1654`. `rake drive:allocations` is green, and the three allocate about what
+they do on `main`.
+
+**Landed.** The branch is `blink`, with the re-plan in a commit of its own and
+one commit per sub-step. `Blink.new(interval: 0.1)` with `start`, `stop` and
+`blinking?`, and a `Respawn.new` that takes nothing, are as sketched. `rake
+spec` passes 4,571 examples, 8 more than `main`: 12 in `blink_spec.rb` and the
+`Blink` example in `components.md`, less 5 in `respawn_spec.rb`, which has 13.
+`rake spec:core` passes 555, and `rake drive:allocations` passes all 44
+projects.
+
+Driven with `--seed 4242 --texts`, and `--seed 1 --texts --ticks 1654` for
+`topdownplatformer`, all three report the same as `main`, line for line, but
+for `topdownplatformer`'s tilemap path. `pits` draws its 590 `sprite`s in 650
+ticks, `moving_platforms` its 9150 in 1020, and `topdownplatformer` its 3273
+`rect`s. Without the slack, 3 of `blink_spec.rb`'s examples fail. A `_detach`
+that keeps the blink fails 2, and a restart that reads the opacity again fails
+1. An Array made in `Blink#_update` fails the allocation example in
+`blink_spec.rb` and the fall with a blink in `footing_allocation_spec.rb`.
+
+- **Rule 6 raises, but does not name `flash:`.** Ruby names an unknown keyword
+  only for a method that takes keywords, and `Respawn#initialize` takes none.
+  So `Respawn.new(flash: 1.0)` raises "wrong number of arguments (given 1,
+  expected 0)". Hard constraint 5 rules out a message written for the old
+  keyword, and the spec pins this one.
+- **The first allocation example measured no blink.** `allocate_nothing`
+  calls its block 5 times to warm up, then about 1,000 times more. A block
+  running one blink to its end finished it while warming up, so every measured
+  call found no blink, and an Array made per update passed. Each call now
+  starts a blink and runs it whole. For step 8: an allocation spec over
+  something that ends starts it again inside the block.
+- **All three projects allocate a little less than on `main`**, on the same
+  share of ticks, and the same in two runs of each side. `pits` allocates 11.8
+  objects a second against 12.6, `moving_platforms` 7.0 against 7.4, and
+  `topdownplatformer` 6.4 against 6.7. Run with a budget of 1, the probe lists
+  the difference in `pits`: on `main`, the first respawn builds the `respawned`
+  signal inside the measured window, since nothing connects to it. Here the
+  game connects at construction.
+- **`Blink#_detach` also covers the `Blink` leaving its node**, which the plan
+  named only for the node leaving the tree. Both give the opacity back, and
+  `blink_spec.rb` pins each.
+- **For step 6: `footing_allocation_spec.rb`'s fall ending in a respawn now
+  carries a `Blink`.** Step 6's allocation criterion measures a fall with it.
+  Nothing here changed `Fall`.
+
+Documented in `docs/api/components.md` under a new `Blink`, with an example
+the doc specs run, and under `Respawn`, rewritten. The `pits` and
+`moving_platforms` headers and their `examples.md` entries name `Blink`.
+`CHANGELOG.md` has an `Added` entry for `Blink`, and its unreleased "Falling
+into a gap" entry has `Respawn` emit `on_respawned` in place of flashing.
 
 ### Step 6 — `Footing`'s look (rough)
 

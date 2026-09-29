@@ -50,11 +50,14 @@ index, not the argument.
   `coyote` seconds, and at once when it lands there from a `Hop`. A node in the
   air never falls. The fall suspends the node and shrinks it into the gap, and
   `on_fell` fires as it starts. `Components::Respawn` then puts the node back
-  on its respawn point, flashing, and a node without one is freed. A respawn
-  point stands on ground: `Respawn` raises for one over a gap. See
-  [docs/api/components.md](docs/api/components.md#footing).
+  on its respawn point and emits `on_respawned`, and a node without one is
+  freed. A respawn point stands on ground: `Respawn` raises for one over a gap.
+  See [docs/api/components.md](docs/api/components.md#footing).
+- **Blinking a node.** `Components::Blink` hides and shows its node in turn
+  for the seconds `start` is given, then gives back the opacity it found. See
+  [docs/api/components.md](docs/api/components.md#blink).
 - **A pits example.** `examples/pits` drops a hero who walks into a chasm and
-  brings them back flashing, hops trenches, and shows coyote time running out
+  brings them back blinking, hops trenches, and shows coyote time running out
   in a bar. See [docs/api/examples.md](docs/api/examples.md#pits).
 - **`Node2D#scale`**, a size a node and everything under it draws at, about its
   origin, applied by `draw` as `opacity` is. Only drawing changes. See

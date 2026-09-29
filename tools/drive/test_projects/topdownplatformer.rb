@@ -20,7 +20,7 @@
 #      frame at (1.0, 1.0) for the presentation and 96 more running toward 0.0.
 #      That is the crate's fall from tick 414 and the pad hero's from tick 617,
 #      24 ticks each in both views. `rect` shows 3273 times, 24 fewer than two
-#      views of every frame, as the crate's flash hides it on its way back;
+#      views of every frame, as the crate's blink hides it on its way back;
 #   4. **the cameras travelling east**: `tilemap`'s camera x spans 0.0 to 960.0,
 #      the map's whole width, and each row's clip holds thousands of distinct
 #      translates;

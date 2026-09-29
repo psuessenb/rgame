@@ -236,6 +236,45 @@ coin.add_component(RGame::Engine::Components::CircleCollider.new(radius: 7, laye
   [`Sprite`](#sprite) is the single-image counterpart: with the same anchor and
   size, the two cover the same pixels.
 
+### `Blink`
+
+**Hides and shows its node in turn for a while, to mark a moment**: coming back
+from a fall, taking a hit. `start(seconds)` blinks the node's
+[`opacity`](scene_graph.md#opacity), then gives back the opacity it found. A game
+starts one from [`Respawn`](#respawn)'s `on_respawned`, or from a hit.
+
+```ruby
+require 'rgame'
+
+hero = RGame::Engine::Node2D.new
+blink = hero.add_component(RGame::Engine::Components::Blink.new)
+hero.enter_tree
+
+blink.start(1.0)
+6.times { hero.update(1.0 / 60) }
+hero.opacity      # => 0 — shown for the first 0.1 s, hidden for the next
+60.times { hero.update(1.0 / 60) }
+hero.opacity      # => 1 — the second has passed, and the opacity it found is back
+blink.blinking?   # => false
+```
+
+- **Construct:** `Blink.new(interval: Blink::INTERVAL)`. `interval` is the
+  seconds one blink shows the node, and the seconds it hides it: 0.1 unless
+  given. Anything but a positive number raises `ArgumentError`.
+- **`start(seconds)`** blinks for `seconds`, shown first. A blink under way
+  starts again, and still gives back the opacity it found first. Anything but a
+  positive number raises `ArgumentError`, and a blink under way carries on.
+- **`stop`** ends a blink under way and gives back the opacity it found. With
+  none under way it does nothing. `blinking?` says whether one is.
+- **Lifecycle:** `_detach` ends a blink and gives the opacity back, so a node
+  that leaves the tree mid-blink is not left hidden.
+- **Phase:** `_update(dt)` advances the blink, so a paused or suspended node's
+  blink waits with it. It allocates nothing.
+
+**Only drawing changes.** The node updates, collides and answers its controls
+through a blink, and a game that keeps a blinking hero safe from harm asks
+`blinking?`. A hidden spell hides the node's children too.
+
 ### `BoxCollider`
 
 **A rectangular collision shape in a scene's
@@ -1692,27 +1731,24 @@ continues the sequence rather than starting it again.
 
 ### `Respawn`
 
-**Where a node comes back after a fall, and the flash that shows it has.** A
-[`Footing`](#footing) whose node has one calls `respawn` at the end of a fall,
-instead of freeing the node.
+**Where a node comes back after a fall.** A [`Footing`](#footing) whose node has
+one calls `respawn` at the end of a fall, instead of freeing the node.
 
 ```ruby
 hero.add_component(RGame::Engine::Components::Footing.new(coyote: 0.1))
-hero.add_component(RGame::Engine::Components::Respawn.new(flash: 1.0))
+blink = hero.add_component(RGame::Engine::Components::Blink.new)
+hero.add_component(RGame::Engine::Components::Respawn.new).on_respawned { blink.start(1.0) }
 ```
 
-- **Construct:** `Respawn.new(flash: 1.0)`, in seconds. It must be 0 or more, or it
-  raises `ArgumentError`. `flash: 0` flashes nothing.
+- **Construct:** `Respawn.new`, which takes nothing.
 - **The point:** `point_x` and `point_y`, in world pixels. The first attach records
   where the node stands. Later attaches, such as a door moving the node to another
   room, keep the point. `set_point(x, y)` moves it and returns the `Respawn`, and a
   [`Checkpoint`](#checkpoint) calls it.
-- **`respawn`** places the node on its point and starts the flash. A game may call
-  it with no fall before it.
-- **Signal:** `on_respawned` fires once the node stands on its point, as the flash
-  starts.
-- **Lifecycle:** `_attach` checks the point, as below. `_detach` stops a flash and
-  gives the opacity back.
+- **`respawn`** places the node on its point. A game may call it with no fall
+  before it.
+- **Signal:** `on_respawned` fires once the node stands on its point.
+- **Lifecycle:** `_attach` checks the point, as below.
 
 **The point stands on ground.** With a [`TileWorld`](#tileworld) on the scene,
 each attach raises `ArgumentError` for a point whose cell is a gap, and so does
@@ -1729,10 +1765,10 @@ hero.add_component(RGame::Engine::Components::Respawn.new.set_point(96.0, 248.0)
 With no `TileWorld`, a `Respawn` checks nothing.
 
 **The node comes back working.** Its controls answer from the tick it lands, and a
-[`CameraFollow`](#camerafollow) cuts to it. The flash only shows where it came back:
-`_update` blinks the node's [`opacity`](scene_graph.md#opacity), shown for
-`Respawn::BLINK` seconds and hidden for as many, until `flash` seconds have passed.
-Then it gives back the opacity it found. `flashing?` says whether one is under way.
+[`CameraFollow`](#camerafollow) cuts to it. A game shows where it came back from
+`on_respawned`. A [`Blink`](#blink), as above, changes only how the node draws,
+and runs from the tick the node lands: the fall resumes the node before it calls
+`respawn`.
 
 ### `ScreenWrap`
 

@@ -11,7 +11,9 @@
 #   - TileMap gap tiles — `pits.tsx` gives its tiles the class `gap`, and a cell
 #     holding one has no floor;
 #   - Components::Footing — the fall into a gap, and the coyote time before it;
-#   - Components::Respawn — the way back to where the hero first stood, flashing;
+#   - Components::Respawn — the way back to where the hero first stood;
+#   - Components::Blink — the blink that shows where they came back, started
+#     from Respawn's `on_respawned`;
 #   - Components::Hop — the jump a node in the air crosses a gap with;
 #   - Node2D#scale — the shrink into the gap, drawn about the hero's feet;
 #   - Components::TileWorld, Components::CharacterBody and
@@ -23,9 +25,10 @@
 # Walk south into the chasm. Once the middle of the hero's feet box is over a
 # gap tile, the hero stops, shrinks toward their feet and comes back on the
 # spot they started from, blinking for a second. They can walk at once: the
-# blink only shows where they came back. Nothing here decides any of that. The
-# map says where the gaps are, `Footing` watches the feet, and `Respawn` holds
-# the spot.
+# blink only shows where they came back. Nothing here decides any of that but
+# the blink, which the hero starts from `Respawn`'s `on_respawned`. The map
+# says where the gaps are, `Footing` watches the feet, and `Respawn` holds the
+# spot.
 #
 # Hop across a trench instead. A hero in the air never falls, so a hop that
 # lands on the far side crosses, and one that lands in the trench falls there.
@@ -94,7 +97,8 @@ module PitsExample
       add_component(Components::PlayerController.new)
       add_component(Components::Hop.new(peak: HOP_PEAK, duration: HOP_DURATION))
       @footing = add_component(Components::Footing.new(coyote: COYOTE))
-      add_component(Components::Respawn.new(flash: 1.0))
+      blink = add_component(Components::Blink.new)
+      add_component(Components::Respawn.new).on_respawned { blink.start(1.0) }
     end
 
     def _control(actions)

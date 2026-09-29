@@ -44,7 +44,7 @@ RSpec.describe 'Top-down platforming' do # rubocop:disable RSpec/DescribeClass -
              parts::CharacterBody.new(speed: 60, blocked_by: %i[tiles npc]),
              parts::Hop.new(peak: 10, duration: 0.5, action: nil),
              parts::Footing.new(coyote: 0.1),
-             parts::Respawn.new(flash: 0.5).set_point(60.0, 96.0)], order, x:, y:)
+             parts::Respawn.new.set_point(60.0, 96.0)], order, x:, y:)
   end
 
   def npc(x, y, order)
@@ -58,7 +58,7 @@ RSpec.describe 'Top-down platforming' do # rubocop:disable RSpec/DescribeClass -
     node_of([parts::BoxCollider.new(width: 16, height: 16, offset_x: -8, offset_y: -16, layer: :crate),
              parts::Pushable.new(blocked_by: %i[tiles hero crate]),
              parts::Footing.new(coyote: 0),
-             parts::Respawn.new(flash: 0.5)], order, x:, y:)
+             parts::Respawn.new], order, x:, y:)
   end
 
   def footing(node) = node.get_component(parts::Footing)

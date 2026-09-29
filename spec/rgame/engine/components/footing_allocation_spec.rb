@@ -67,14 +67,15 @@ RSpec.describe RGame::Engine::Components::Footing do
     expect { 30.times { tick } }.to allocate_nothing
   end
 
-  it 'allocates nothing over a fall that ends in a respawn and its flash' do
-    node.add_component(parts::Respawn.new(flash: 0.5))
-    fall_and_flash = lambda do
+  it 'allocates nothing over a fall that ends in a respawn and a blink' do
+    blink = node.add_component(parts::Blink.new)
+    node.add_component(parts::Respawn.new).on_respawned { blink.start(0.5) }
+    fall_and_blink = lambda do
       node.x = 70.0
       60.times { tick }
     end
-    2.times { fall_and_flash.call }
+    2.times { fall_and_blink.call }
 
-    expect { fall_and_flash.call }.to allocate_nothing
+    expect { fall_and_blink.call }.to allocate_nothing
   end
 end
