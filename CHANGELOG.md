@@ -630,6 +630,13 @@ index, not the argument.
   per-frame method, `each_with_index`, `each_with_object`, `inject` or `reduce`
   with a block, `min_by`, `max_by`, `minmax`, `minmax_by`, `each_slice` and
   `each_cons` are flagged, each with the form that allocates nothing.
+- **`Targeting` picks by a component, not a layer.**
+  `Targeting.new(range:, having:, policy: :nearest)` takes the component class
+  a target's node must hold, and no longer takes `layer:`. It never picks its
+  own node. Where a game passed `layer: :enemy`, it gives each enemy a
+  component of its own, even an empty one, and passes that class as `having:`.
+  `CollisionWorld#nearest` takes `having:` and `except:` beside `layer:`. See
+  [docs/api/components.md](docs/api/components.md#targeting).
 
 ### Removed
 

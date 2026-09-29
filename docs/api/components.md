@@ -488,7 +488,7 @@ shape by answering the same few methods.
 - **Queries:** `query_box(x, y, w, h)` yields every registered collider bucketed in
   a cell the region covers. It skips nodes queued for removal. It is the
   rectangular form of `query_circle`, and a blocked [`Mover`](#mover) asks it each
-  step. `nearest(x, y, r, layer:)` and `cell_empty?(x, y)` complete the set. All of
+  step. `nearest` and `cell_empty?(x, y)` complete the set. All of
   them read the index the most recent `update` built, and allocate nothing.
 - **Staying current mid-step:** `reindex(collider, from_x, from_y, from_w, from_h)`
   re-buckets a collider that moved after the index was built, given the box it
@@ -546,9 +546,12 @@ shape by answering the same few methods.
     the collider's size, so it reads like a range ring. It skips freed nodes'
     colliders, and may yield a collider more than once, which is fine for selecting.
     Filter by `collider.layer` in the block.
-  - `nearest(x, y, r, layer: nil)` returns the closest such collider, optionally
-    limited to one `layer`, or `nil`. Both allocate nothing, so a targeting
-    component can call them every frame.
+  - `nearest(x, y, r, layer: nil, having: nil, except: nil)` returns the closest
+    such collider, or `nil`. `layer` keeps the colliders on that layer. `having`
+    keeps those whose node holds that component class or module, matched by
+    `is_a?`, and a node holding two counts once. `except` leaves out one node,
+    such as the asker's own. Both allocate nothing, so a targeting component can
+    call them every frame.
 - **Cell occupancy (grid games):** `cell_empty?(x, y)` answers whether the cell
   containing the **world** point `(x, y)` is free, for questions like "may a pickup
   spawn on this square?". It takes a point, not a region; pass any coordinate inside
@@ -820,19 +823,19 @@ end
 
 **Holds a [`Pushable`](#pushable) while a button is held, so the node's mover drags
 it**: forwards, backwards and sideways. A [`Targeting`](#targeting) that also reads
-a button, as [`Interactor`](#interactor) is. It picks the nearest node on its
-layer, where an `Interactor` asks each node's [`Interaction`](#interaction).
+a button, as [`Interactor`](#interactor) is. It picks the nearest node holding a
+`Pushable`, whatever its layer, so a fixed crate never hides a movable one behind
+it.
 
 ```ruby
 hero.add_component(RGame::Engine::Components::CharacterBody.new(speed: 60, blocked_by: %i[tiles crate]))
-hero.add_component(RGame::Engine::Components::Grab.new(layer: :crate, range: 24))
+hero.add_component(RGame::Engine::Components::Grab.new(range: 24))
 ```
 
 While `action` is held, it takes hold of the `Pushable` on its `target`'s node, and
 keeps that one until the action is let go, even when another comes nearer. It lets
 go on the tick the action is released, and when the held node is freed or leaves
-the tree. A target with no `Pushable` is not held, and a press with nothing in range
-holds nothing.
+the tree. A press with no `Pushable` in range holds nothing.
 
 It hands the crate to the sibling [`Mover`](#mover) as `grabbed`, and the mover
 does the moving: see "A mover drags what it holds" there. `Grab` hands it over in
@@ -840,8 +843,8 @@ does the moving: see "A mover drags what it holds" there. `Grab` hands it over i
 is in hand for the step that drags it, whatever order the two components were added
 in.
 
-- **Construct:** `Grab.new(range:, layer:, action: :grab, policy: :nearest)`. The
-  range, layer and policy are `Targeting`'s, measured from the node's origin.
+- **Construct:** `Grab.new(range:, action: :grab, policy: :nearest)`. The range
+  and policy are `Targeting`'s, measured from the node's origin.
   `:grab` is in [`InputMap.default`](input.md#defaults-and-rebinding) on Left Shift
   and the pad's Y.
 - **Lifecycle:** `_attach` raises when the node has no `Mover`. `_detach` lets go.
@@ -1776,15 +1779,39 @@ place.
 
 ### `Targeting`
 
-**Picks a node for the owner to aim at.** Each `update`, it queries the scene's
-[`CollisionWorld`](#collisionworld) around the node's world origin and exposes the
-chosen target. It only *selects*; it never moves or fires. The owner reads `target`
-and acts. Every candidate already registers with the broadphase through its
-collider, so targeting keeps no entity list.
+**Picks a node for the owner to aim at.** Each `update`, it asks the scene's
+[`CollisionWorld`](#collisionworld) for the nearest node in range that holds the
+component `having`, and exposes it as `target`. It only *selects*; it never moves
+or fires. The owner reads `target` and acts. Every candidate already registers
+with the broadphase through its collider, so targeting keeps no entity list.
 
-- **Construct:** `Targeting.new(range:, policy: :nearest, layer: nil)`. `range` is
-  the reach in pixels. `layer` restricts candidates, so `:enemy` ignores allies and
-  projectiles. An unknown `policy` raises at construction.
+```ruby
+require 'rgame'
+
+# What a turret may aim at. It holds nothing, because holding it is the message.
+class Hostile < RGame::Engine::Component; end
+
+components = RGame::Engine::Components
+scene = RGame::Engine::Node2D.new.tap { it.scene = it }
+scene.add_component(components::CollisionWorld.new(cell_size: 64))
+rock = scene.add_node(RGame::Engine::Node2D.new(x: 20))
+rock.add_component(components::CircleCollider.new(radius: 8, layer: :enemy))
+ship = scene.add_node(RGame::Engine::Node2D.new(x: 50))
+ship.add_component(components::CircleCollider.new(radius: 8, layer: :enemy))
+ship.add_component(Hostile.new)
+turret = scene.add_node(RGame::Engine::Node2D.new)
+targeting = turret.add_component(components::Targeting.new(range: 100, having: Hostile))
+scene.enter_tree
+
+scene.update(1.0 / 60)
+targeting.target == ship   # => true — the rock is nearer, and holds no Hostile
+```
+
+- **Construct:** `Targeting.new(range:, having:, policy: :nearest)`. `range` is
+  the reach in pixels, from the node's world origin to a collider's centre.
+  `having` is the component class or module a target's node must hold. It is
+  required, and one that is not a Module raises `ArgumentError`, as an unknown
+  `policy` does.
 - **Policies:** `:nearest`, the default and only policy, picks the closest candidate
   in range with one broadphase lookup.
 - **State:** `target` is the chosen **node**, or `nil` when nothing is in range. It
@@ -1793,6 +1820,16 @@ collider, so targeting keeps no entity list.
 - **Lifecycle:** `_attach` looks up the scene's `CollisionWorld`.
 - **Phase:** `_update(dt)` selects the target again. It allocates nothing, so it runs
   every frame.
+
+**It picks by a component, never by a layer.** A layer says what a node collides
+as, and a node has one. What the owner may do to a node is a component on it, and
+a node can hold many. A turret that aims at some nodes and not others gives them a
+component of the game's own, even an empty one, as `Hostile` above. `having`
+matches by `is_a?`, as `get_component` does: a class finds its subclasses, and a
+module such as [`Collider`](#collider) finds every node holding one. A node holding
+two matches is one candidate.
+
+**It never picks its own node**, whatever that node holds.
 
 ### `ThrustController`
 

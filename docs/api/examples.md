@@ -81,7 +81,7 @@ after.
 **Uses:** `Components::Collectable`, `Components::Interactor`,
 `Components::Interaction`, `Components::CollisionWorld`,
 `Components::CircleCollider`, `Components::BoxCollider`,
-`Components::CharacterBody` with `blocked_by: [:interactable]`, `Engine::Text`.
+`Components::CharacterBody` with `blocked_by: [:chest]`, `Engine::Text`.
 
 ### collision_tiles
 
