@@ -1,8 +1,8 @@
 # Single-job components
 
-**Status:** Steps 1 and 2 are implemented. Steps 3 and 4 are detailed. Steps
-5–7 are rough, and each is re-planned before it starts. Step 8 folds the plan
-back and deletes it.
+**Status:** Steps 1–3 are implemented. Step 4 is detailed. Steps 5–7 are
+rough, and each is re-planned before it starts. Step 8 folds the plan back and
+deletes it.
 
 ## Verdict
 
@@ -753,6 +753,49 @@ doors, which read as "collected". No sub-steps: one commit.
 
 **Verify:** `doors` and `adventure` report the same as on `main`. `rake spec`
 and `rake spec:core` are green.
+
+**Landed.** The branch is `collectable-takes-its-node`, in one commit.
+`Collectable.new(by:, sound: nil)` and both doors are as sketched. `rake spec`
+passes 4,539 examples, one fewer than `main`: `collectable_spec.rb` has 16, down
+from 17. `rake spec:core` passes 555, and `rake drive:allocations` passes all 44
+projects.
+
+Driven with `--seed 4242 --texts`, `doors` (900 ticks) and `adventure` (1,640)
+report the same as `main`, line for line. Each run goes through a door: `doors`
+moves the hero five times, and `adventure` crosses from the town to the garden.
+With `_detach`'s disconnect removed, the pooled coin reports 3 collections in
+place of 2. With `queue_free` removed, 3 examples fail.
+
+- **Rule 1 needed no code.** Ruby raises `ArgumentError` for an unknown
+  keyword, as for step 2's `layer:`.
+- **Three of the spec's `free: false` examples used it only to keep a coin.**
+  "Fires once" keeps its check with the coin freed. It still passes with
+  `queue_free` removed, so it pins the edge, not the free. The pooled-node
+  example takes a coin from a `Pool` twice, now the only way a `Collectable` is
+  taken twice. The chest the `Interactor` opens holds no `Collectable`, and a
+  coin inside it keeps the two components in one scene. Two chest examples
+  replace three, and "keeps it with free: false" went.
+- **The header keeps one sentence on a thing touched and kept**, where the plan
+  said it loses the door. It says such a thing connects `on_hit`, so a reader
+  looking for `free:` learns where it went. `components.md` shows a door's
+  `on_hit` in place of the chest.
+- **Three lines the plan did not list used a chest as a square collectable**:
+  `Collectable`'s header, `Collider`'s, and `components.md`'s `Collider`
+  section. They say "a key" now. The `doors` drive script's header gave "no
+  sound" as the reason a door plays nothing, and now says only that it plays
+  nothing.
+- **`adventure` allocates 41 objects fewer, on 2 more ticks**: 1,966 against
+  2,007, on 62 ticks against 60, under a budget of 90 a second. Ticks 1,032 and
+  1,214 each allocate one object, untraced. `doors` allocates 580 against 628,
+  on the same 16 ticks, since a door no longer builds a `Collectable`.
+- **For step 4: tracing inside the allocation probe froze the machine twice.**
+  The probe runs with GC off, and a patch calling `ObjectSpace.dump_all` on
+  every tick grew memory until the machine hung. Trace from the probe's own
+  list of sites, or with one dump at the end of the run.
+
+Documented in `docs/api/components.md` under `Collectable` and `Collider`,
+`tile_maps.md`'s door, and `examples.md`'s `doors` entry. `CHANGELOG.md`'s
+unreleased `Collectable` entry loses "unless `free: false`".
 
 ### Step 4 — `AnimatedSprite` plays what it is given, and `WalkingSprite` walks
 
