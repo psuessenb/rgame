@@ -236,6 +236,44 @@ coin.add_component(RGame::Engine::Components::CircleCollider.new(radius: 7, laye
   [`Sprite`](#sprite) is the single-image counterpart: with the same anchor and
   size, the two cover the same pixels.
 
+### `Blink`
+
+**Hides and shows its node in turn for a while, to mark a moment**: coming back
+from a fall, taking a hit. `start(seconds)` blinks the node's
+[`opacity`](scene_graph.md#opacity), then gives back the opacity it found.
+
+```ruby
+require 'rgame'
+
+hero = RGame::Engine::Node2D.new
+blink = hero.add_component(RGame::Engine::Components::Blink.new)
+hero.enter_tree
+
+blink.start(1.0)
+6.times { hero.update(1.0 / 60) }
+hero.opacity      # => 0 — shown for the first 0.1 s, hidden for the next
+60.times { hero.update(1.0 / 60) }
+hero.opacity      # => 1 — the second has passed, and the opacity it found is back
+blink.blinking?   # => false
+```
+
+- **Construct:** `Blink.new(interval: Blink::INTERVAL)`. `interval` is the
+  seconds one blink shows the node, and the seconds it hides it: 0.1 unless
+  given. Anything but a positive number raises `ArgumentError`.
+- **`start(seconds)`** blinks for `seconds`, shown first. A blink under way
+  starts again, and still gives back the opacity it found first. Anything but a
+  positive number raises `ArgumentError`, and a blink under way carries on.
+- **`stop`** ends a blink under way and gives back the opacity it found. With
+  none under way it does nothing. `blinking?` says whether one is.
+- **Lifecycle:** `_detach` ends a blink and gives the opacity back, so a node
+  that leaves the tree mid-blink is not left hidden.
+- **Phase:** `_update(dt)` advances the blink, so a paused or suspended node's
+  blink waits with it. It allocates nothing.
+
+**Only drawing changes.** The node updates, collides and answers its controls
+through a blink, and a game that keeps a blinking hero safe from harm asks
+`blinking?`. A hidden spell hides the node's children too.
+
 ### `BoxCollider`
 
 **A rectangular collision shape in a scene's
