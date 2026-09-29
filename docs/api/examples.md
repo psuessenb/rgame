@@ -445,7 +445,7 @@ script asks the village, and the village fires the quest's events.
 
 **Uses:** `StateGraph`, `StateMachine`, `Components::FactsDatabase`,
 `Dialogue::Script`, `Engine::Dialogue`, `UI::DialogueBox` and its
-`_draw_portrait` hook, `Components::CollisionWorld#nearest`,
+`_draw_portrait` hook, `Components::Interactor`, `Components::Interaction`,
 `Components::BoxCollider#on_hit`, `Util::SaveFile`.
 
 ### cutscene
