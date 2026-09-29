@@ -1,8 +1,8 @@
 # Single-job components
 
-**Status:** Step 1 is implemented. Steps 2–4 are detailed. Steps 5–7 are
-rough, and each is re-planned before it starts. Step 8 folds the plan back and
-deletes it.
+**Status:** Steps 1 and 2 are implemented. Steps 3 and 4 are detailed. Steps
+5–7 are rough, and each is re-planned before it starts. Step 8 folds the plan
+back and deletes it.
 
 ## Verdict
 
@@ -681,6 +681,53 @@ the rest of its script's list. If the conversation now starts a tick later,
 the step says so, and the script's header follows. `rake spec`,
 `rake spec:core` for the docs' references, and `rake drive:allocations` are
 green.
+
+**Landed.** The branch is `targeting-having`, with one commit per sub-step.
+`Targeting.new(range:, having:, policy: :nearest)` and
+`CollisionWorld#nearest(x, y, r, layer: nil, having: nil, except: nil)` are as
+sketched. `Grab.new(range:, action: :grab, policy: :nearest)` passes
+`Pushable`, and the `Interactor` passes `Interaction`. `rake spec` passes 4,540
+examples, 15 more than `main`: 8 in `targeting_spec.rb`, which has 14, 4 in
+`collision_world_spec.rb`, 2 in `grab_spec.rb`, and the `Targeting` example in
+`components.md`. `rake spec:core` passes 555. `rake drive:allocations` passes
+all 44 projects.
+
+Rule 5's example fails where the scratch spec failed. With `having: Collider`
+in place of `Pushable`, `Grab` targets the fixed crate as `main` did, and the
+example reports `[110.0, 100.0, nil]`: the hero walked, the crate stayed, and
+nothing was held. Driven with `--seed 4242 --texts`, `push_pull`,
+`collectables`, `adventure` and `quests_and_dialogue` report the same as `main`,
+line for line. "Any work going?" shows for 23 frames from tick 143, so the
+`Interactor` starts the conversation on the tick the `nearest` query did, and
+the script's header stands.
+
+- **`get_component` could not be the filter.** Rule 2 makes a node holding two
+  matches one candidate, and `get_component` raises on two. `nearest` asks
+  `node.components.none?(having)`, which matches by `is_a?` through
+  `Module#===` and allocates nothing. `Node2D` needed no new method.
+- **Rules 4 and 6 needed no code for `layer:`.** Ruby raises `ArgumentError`
+  for an unknown keyword, so `Targeting` and `Grab` refuse `layer:` because
+  they no longer name it. `Targeting` checks only that `having` is a Module.
+- **`quests_and_dialogue` allocates one object more over its run**: 1,862
+  against 1,861, on 47 ticks against 44, under a budget of 120 a second. The
+  traces put the new ones at Ruby filling call caches the first time the
+  `Interactor`, `Interaction#perform` and the signal run, where `main` filled
+  them for `nearest`. `adventure` allocates 2,007 against 2,005, on the same 60
+  ticks. `push_pull` and `collectables` allocate the same as `main`.
+- **The changelog's `Grab` entry named no layer**, so it stayed as it was.
+- **Two lines the plan did not list changed.** A comment in `collectables`
+  called a node with an Interaction "an interactable", and now says what it
+  means. The village's `@collision` lost its only reader, and went.
+- **For step 4: a worktree of `main` needs `media/` to compare against.** It is
+  gitignored, and without it `adventure` plays a stand-in track, so the two
+  reports differ in their music lines. Both runs must also draw every tick. One
+  pair of runs each drew 1,639 frames of 1,640 and differed in draw counts. A
+  rerun drew all 1,640 and matched.
+
+Documented in `docs/api/components.md` under `Targeting`, with an example the
+doc specs run, and under `Grab` and `CollisionWorld`. `docs/api/examples.md`
+follows for `collectables` and `quests_and_dialogue`, and `CHANGELOG.md` has a
+`Changed` entry for `Targeting`.
 
 ### Step 3 — `Collectable` takes its node, and doors say what they do
 
