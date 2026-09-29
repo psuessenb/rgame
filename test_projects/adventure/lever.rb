@@ -8,8 +8,8 @@ module Adventure
   # from the chest that a hero in reach of one is out of reach of the other.
   #
   # It draws its state as a word, "lever" or "pulled", so a driven run can say
-  # which press reached it and which did not. A hold searches it and finds
-  # nothing.
+  # which press reached it and which did not. It answers no `search`, so a hold
+  # passes over it to the nearest chest in reach.
   #
   # Like the chest, it keeps its state as a field of its Components::Facts,
   # under the key the room names.
@@ -24,8 +24,7 @@ module Adventure
 
     def initialize(key:, **)
       super(**)
-      add_component(Components::BoxCollider.new(width: WIDTH, height: HEIGHT,
-                                                layer: :interactable))
+      add_component(Components::BoxCollider.new(width: WIDTH, height: HEIGHT))
       add_component(Components::Interaction.new(interact: :open))
       @facts = add_component(Components::Facts.new(key:, state: 'up'))
     end
@@ -38,8 +37,6 @@ module Adventure
       @state = @state == :up ? :down : :up
       @facts[:state] = @state.name
     end
-
-    def search = nil
 
     def _draw(renderer, _view)
       renderer.rect(0, HEIGHT - 6, WIDTH, 6, color: BASE)

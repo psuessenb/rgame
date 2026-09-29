@@ -1,7 +1,7 @@
 # Interaction: the verbs a target answers
 
-**Status:** step 1 is implemented. Step 2 is detailed. Step 3 folds the plan
-back and deletes it.
+**Status:** steps 1 and 2 are implemented. Step 3 folds the plan back and
+deletes it.
 
 This plan takes up "Several verbs on one target" from
 [research/additional_0.5.0_features.md](research/additional_0.5.0_features.md),
@@ -436,6 +436,33 @@ handlers of one chest.
 **Verify:** the adventure's texts match step 1's run. "searched" from tick 318
 and "hat" from 353 show the hold reached `search`, and "pulled" from 644 shows
 the tap still reaches the lever. `rake drive:allocations` passes.
+
+**Landed.** The branch is `adventure-search-verb`, in one commit. The chest, the
+lever and the hero changed as sketched. Driven with `--seed 4242 --texts --ticks
+1640`, the adventure's report is byte-identical to step 1's: "open" from tick
+262, "searched" from 318, "hat" from 353 and "pulled" from 644. The hero has no
+`_control` any more, so "searched" and "hat" can only come through the chest's
+`Interaction`. `rake spec` passes 4525 examples, as on `main`. Step 1's note
+counted 4524 before 1c's documentation example joined the suite.
+`rake drive:allocations` passes all 44 projects. The adventure allocates 82.3
+objects a second on 4.1% of ticks, as at step 1.
+
+- **The chest and the lever lost `:interactable`.** Nothing in the adventure
+  read it after step 1. Both colliders sit on the default layer, which the
+  adventure names nowhere, and the report did not move.
+- **`bag.rb` kept its header.** It names the hero's one Interactor, and there is
+  still one. The parked branch changed it because it had two.
+- **The hero's header lost a sentence.** It said the hero held its Grab and its
+  Interactor by name rather than asking for a `Targeting`. The hero holds
+  neither now.
+- **The run does not show a hold passing over a nearer lever.** The lever stands
+  out of reach of the chest, so no hero has both in reach at once.
+  `interactor_spec.rb` pins it instead: `target_for` passes over a nearer node
+  that does not answer the action.
+- **The `interactor-verbs` branch is deleted.** It was local, and never pushed.
+
+Nothing in `docs/api/`, `lib/` or `examples/` named the adventure's verbs, so no
+page changed.
 
 ### Step 3 — Fold the plan back and delete it
 
