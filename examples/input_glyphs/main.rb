@@ -177,7 +177,7 @@ module InputGlyphsExample
   class Hero < Engine::Node2D
     def initialize(**)
       super
-      add_component(Components::AnimatedSprite.new(sheet: 'hero.json'))
+      add_component(Components::WalkingSprite.new(sheet: 'hero.json'))
       add_component(Components::CharacterBody.new(speed: SPEED))
       add_component(Components::PlayerController.new)
     end

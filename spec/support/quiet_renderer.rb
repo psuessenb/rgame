@@ -29,6 +29,9 @@ class QuietRenderer
   def nine_slice(_id, _x, _y, _width, _height, z: 0, tint: nil) = coerce(z, tint)
   def text(_string, _x, _y, z: 0, color: nil, font: nil, bytes: nil) = coerce(z, color, font, bytes)
   def image(_image, _cx, _cy, scale: 1, z: 0, color: nil) = coerce(z + scale, color)
+  # rubocop:disable Lint/UnusedMethodArgument -- the real renderer's keyword, and this one draws nothing to flip
+  def sprite(_id, _row, _col, _x, _y, flip_x: false, z: 0) = coerce(z, nil)
+  # rubocop:enable Lint/UnusedMethodArgument
 
   def layered(_band) = yield
   def translated(_dx, _dy) = yield

@@ -26,6 +26,12 @@ module RGame
         end
       end
 
+      # Whether the table holds an animation called `name`, a Symbol.
+      def include?(name) = @anims.key?(name)
+
+      # The names of its animations, as Symbols.
+      def names = @anims.keys
+
       # Sheet row of `name` (fixed per animation).
       def row(name)
         @anims.fetch(name).row

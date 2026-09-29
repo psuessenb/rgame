@@ -15,7 +15,7 @@
 #
 # ## Most things in a game are this
 #
-# `examples/walk` uses Components::AnimatedSprite, which carries an AnimationSet,
+# `examples/walk` uses Components::WalkingSprite, which carries an AnimationSet,
 # a current animation name and an elapsed time. Take all of that away and what is
 # left is this: a picture, at a node. A crate, a pickup, a rock and a tree want
 # exactly that and nothing more.

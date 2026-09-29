@@ -36,7 +36,7 @@
 # ## What a viewport cannot see, it does not draw
 #
 # The two walkers start side by side and each appears in both halves. Walk them
-# apart and each half is down to one sprite, because `AnimatedSprite` compares
+# apart and each half is down to one sprite, because `WalkingSprite` compares
 # the node's world box against the view's camera rectangle and skips the draw —
 # `Engine::Culling`, which split-screen is the reason for: with one viewport a
 # skipped draw saved a little, and with one per player it saves that much per
@@ -191,7 +191,7 @@ module SplitScreenExample
     def initialize(tint:, camera:, **)
       super(**)
       @tint = tint
-      add_component(Components::AnimatedSprite.new(sheet: 'hero.json'))
+      add_component(Components::WalkingSprite.new(sheet: 'hero.json'))
       add_component(Components::CharacterBody.new(speed: SPEED))
       add_component(Components::PlayerController.new)
       add_component(Components::CameraFollow.new(

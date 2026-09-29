@@ -30,7 +30,7 @@ every example runs from a fresh clone. Most examples need no art at all.
 A player-controlled sprite: the smallest complete game. It is a plain node with
 three components, and no component knows about the others.
 
-**Uses:** `Node2D`, `Components::AnimatedSprite`, `Components::CharacterBody`,
+**Uses:** `Node2D`, `Components::WalkingSprite`, `Components::CharacterBody`,
 `Components::PlayerController`, `InputMap.default`.
 
 ### sprite
@@ -105,7 +105,7 @@ the camera stay on the ground. A hop at the fence therefore does not clear it,
 because the part that collides never leaves the ground. A hop over a gap in the
 floor is [pits](#pits).
 
-**Uses:** `Components::Hop`, `Node2D#elevation`, `Components::AnimatedSprite`,
+**Uses:** `Components::Hop`, `Node2D#elevation`, `Components::WalkingSprite`,
 `Components::FeetCollider`, `Components::CharacterBody`, `Components::TileWorld`,
 `Components::CameraFollow`, `InputMap.default.merge`.
 
@@ -182,7 +182,7 @@ navigator pulls the route tight, keeping each line straight as long as the hero'
 feet box fits.
 
 **Uses:** `Components::Navigator`, `Components::TileWorld#nav_grid`,
-`Components::AnimatedSprite`, `Components::ActionTrigger`,
+`Components::WalkingSprite`, `Components::ActionTrigger`,
 `Components::CameraFollow`, `Engine::Text.computed` over `I18n.t` with plurals.
 
 ## Structure

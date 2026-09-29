@@ -9,7 +9,7 @@
 # Arrow keys, WASD, a d-pad or a left stick; they all work and none of them are
 # mentioned below. It exercises:
 #   - Node2D — the scene tree, and `_update`/`_draw` as blank hooks;
-#   - Components::AnimatedSprite — directional animation off a sprite sheet;
+#   - Components::WalkingSprite — a walk off a sprite sheet, facing where it heads;
 #   - Components::CharacterBody — an intent in -1..1 becomes a step at a speed;
 #   - Components::PlayerController — input axes become that intent;
 #   - InputMap.default — physical keys become the :move_x / :move_y actions.
@@ -70,7 +70,7 @@ module WalkExample
   # The root. It builds the hero in `initialize`, before anything is in the tree.
   #
   # That matters and is easy to get wrong the other way round: `add_component`
-  # attaches immediately once its node is live, and AnimatedSprite's attach looks
+  # attaches immediately once its node is live, and WalkingSprite's attach looks
   # for a CharacterBody sibling. Build the node whole, then add it — then the
   # order components go on in cannot matter.
   class Root < Engine::Node2D
@@ -90,9 +90,9 @@ module WalkExample
       hero = Hero.new(x: WIDTH / 2, y: (HEIGHT + 22) / 2) # the 16x22 hero, centred
       # The sheet is a path relative to the asset manager's root, resolved on
       # attach — nothing is loaded or registered by hand. hero.json names its own
-      # image and its animations; AnimatedSprite picks between them by reading the
+      # image and its animations; WalkingSprite picks between them by reading the
       # body's intent, so :walk_left and friends are looked up by name.
-      hero.add_component(Components::AnimatedSprite.new(sheet: 'hero.json'))
+      hero.add_component(Components::WalkingSprite.new(sheet: 'hero.json'))
       hero.add_component(Components::CharacterBody.new(speed: SPEED))
       hero.add_component(Components::PlayerController.new)
       hero

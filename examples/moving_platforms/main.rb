@@ -81,7 +81,7 @@ module MovingPlatformsExample
   class Hero < Engine::Node2D
     def initialize(camera:, **)
       super(**)
-      add_component(Components::AnimatedSprite.new(sheet: 'hero.json'))
+      add_component(Components::WalkingSprite.new(sheet: 'hero.json'))
       add_component(Components::FeetCollider.new(width: FEET_WIDTH, height: FEET_HEIGHT))
       add_component(Components::CharacterBody.new(speed: SPEED, blocked_by: [:tiles]))
       add_component(Components::PlayerController.new)

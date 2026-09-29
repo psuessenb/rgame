@@ -10,7 +10,7 @@
 # button hops. The trees and the fence are solid. It exercises:
 #   - Components::Hop — a parabola in time, written to the node's elevation;
 #   - Node2D#elevation — how far a node's picture is drawn above where it stands;
-#   - Components::AnimatedSprite — the picture that rises with it;
+#   - Components::WalkingSprite — the picture that rises with it;
 #   - Components::FeetCollider and Components::CharacterBody — the shape and the
 #     steps that stay on the ground, from `examples/collision_tiles`;
 #   - Components::TileWorld and Components::CameraFollow — the map and a camera
@@ -25,7 +25,7 @@
 #
 # `Hop` writes its height to `node.elevation`, and `elevation` is not part of the
 # transform: `y` does not change, `world_y` does not change, the feet box does not
-# move, and neither does the camera following them. `AnimatedSprite` is the one
+# move, and neither does the camera following them. `WalkingSprite` is the one
 # thing that reads it, and draws the sprite that far above the spot. Watch the red
 # box during a hop — it never leaves the floor, and the shadow sits on it, getting
 # smaller as the hero gets further away from it.
@@ -103,7 +103,7 @@ module JumpTopdownExample
 
     def initialize(camera:, **)
       super(**)
-      add_component(Components::AnimatedSprite.new(sheet: 'hero.json'))
+      add_component(Components::WalkingSprite.new(sheet: 'hero.json'))
       @collider = add_component(Components::FeetCollider.new(
                                   width: FEET_WIDTH, height: FEET_HEIGHT
                                 ))

@@ -296,11 +296,15 @@ set = RGame::Engine::AnimationSet.new(
   walk_right: { row: 1, frames: 3, fps: 6 }
 )
 set.frame(:walk_right, 0.4) # => [1, 2, false] — [row, col, flip_x]
+set.include?(:walk_left)    # => false
+set.names                   # => [:stand, :walk_right]
 ```
 
 Each animation is `{ row:, col: (start column, default 0), frames:, fps:, flip_x: }`.
 `frame(name, elapsed)` advances through `frames` columns from `col` at `fps`, and
-wraps around. A held animation therefore cycles.
+wraps around. A held animation therefore cycles. `include?(name)` says whether the
+table holds `name`, and `names` lists them all. `AnimatedSprite` asks `include?`
+of each name it is told to play, and lists `names` when the answer is no.
 
 ## `Animator` — animation playback state
 

@@ -79,7 +79,7 @@ module TiledWorld
 
     def build_player
       node = Engine::Node2D.new(x: (@map.pixel_width / 2.0) + 8, y: (@map.pixel_height / 2.0) + 32)
-      node.add_component(Components::AnimatedSprite.new(sheet: PLAYER_SHEET))
+      node.add_component(Components::WalkingSprite.new(sheet: PLAYER_SHEET))
       node.add_component(Components::FeetCollider.new(width: 10, height: 8, layer: :hero))
       node.add_component(Components::CharacterBody.new(speed: PLAYER_SPEED,
                                                        blocked_by: BLOCKED_BY))
@@ -89,7 +89,7 @@ module TiledWorld
 
     def build_npc(x, y)
       node = Engine::Node2D.new(x: x, y: y)
-      node.add_component(Components::AnimatedSprite.new(sheet: NPC_SHEET))
+      node.add_component(Components::WalkingSprite.new(sheet: NPC_SHEET))
       node.add_component(Components::FeetCollider.new(width: 14, height: 10, layer: :npc))
       node.add_component(Components::CharacterBody.new(speed: NPC_SPEED,
                                                        blocked_by: BLOCKED_BY))

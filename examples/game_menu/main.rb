@@ -157,7 +157,7 @@ module GameMenuExample
 
     def walker(controller, speed, x, y)
       node = Walker.new(x: x, y: y)
-      node.add_component(Components::AnimatedSprite.new(sheet: SHEET))
+      node.add_component(Components::WalkingSprite.new(sheet: SHEET))
       node.add_component(Components::CharacterBody.new(speed: speed))
       node.add_component(controller)
       node

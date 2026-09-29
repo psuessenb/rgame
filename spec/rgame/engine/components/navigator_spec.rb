@@ -384,7 +384,7 @@ RSpec.describe RGame::Engine::Components::Navigator do
     end
   end
 
-  describe 'beside an AnimatedSprite' do
+  describe 'beside a WalkingSprite' do
     let(:renderer) { instance_double(FakeRenderer, layered: nil, sprite: nil) }
 
     it 'walks down a route that runs mostly down' do
@@ -395,7 +395,7 @@ RSpec.describe RGame::Engine::Components::Navigator do
       scene.context = instance_double(FakeGame, assets: instance_double(FakeAssets, sheet: sheet))
       mount(Array.new(8, '.' * 8))
       navigator = hero_at(2, 0)
-      sprite = navigator.node.add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: :hero))
+      sprite = navigator.node.add_component(RGame::Engine::Components::WalkingSprite.new(sheet: :hero))
       scene.enter_tree
       go_to_cell(navigator, 3, 6)
       5.times { scene.update(dt) }

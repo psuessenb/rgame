@@ -8,7 +8,7 @@ knows its owning `node`, and the node's tick drives it. Components live in
 components. [Systems & shared resources](systems.md) covers components that serve
 a whole scene or program.
 
-`examples/walk` shows the smallest character in one file: `AnimatedSprite`,
+`examples/walk` shows the smallest character in one file: `WalkingSprite`,
 `CharacterBody` and `PlayerController`.
 
 ## When what you want is not a component
@@ -86,7 +86,7 @@ raises naming both. A plain `nil` would stay silent until the first frame called
 method on it. When it raises, the cause is nearly always add order; see
 [Where to add a component](#where-to-add-a-component) below. It also raises,
 naming each one, when *several* siblings match `klass`, such as two
-[`Mover`](#mover)s under one [`AnimatedSprite`](#animatedsprite). It never quietly
+[`Mover`](#mover)s under one [`WalkingSprite`](#walkingsprite). It never quietly
 takes whichever came first.
 
 **A node holds at most one component per slot.** The slot defaults to the
@@ -122,7 +122,7 @@ depends on whether the node has a class of its own:
   ```ruby
   def build_player
     node = RGame::Engine::Node2D.new(x: spawn_x, y: spawn_y)
-    node.add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: PLAYER_SHEET))
+    node.add_component(RGame::Engine::Components::WalkingSprite.new(sheet: PLAYER_SHEET))
     node.add_component(RGame::Engine::Components::FeetCollider.new(width: 10, height: 8))
     node.add_component(RGame::Engine::Components::CharacterBody.new(
                          speed: PLAYER_SPEED, blocked_by: [:tiles]
@@ -135,7 +135,7 @@ depends on whether the node has a class of its own:
 **Both shapes work for the same reason.** The node is not in the tree yet, so
 `add_component` only appends. No `_attach` fires until the whole set is present
 and the node enters. **Add order is therefore free.** `build_player` above adds an
-`AnimatedSprite` *before* the `CharacterBody` it faces by, and that works.
+`WalkingSprite` *before* the `CharacterBody` it faces by, and that works.
 
 ### Adding from `_enter_tree`, and when you must
 
@@ -187,32 +187,44 @@ name, so listeners filter. The same component serves "fire" in a shooter or
 
 ### `AnimatedSprite`
 
-**Draws a sprite-sheet animation, chosen from its [`Mover`](#mover) sibling's
-[heading](#mover).** It plays `walk_left`, `walk_right`, `walk_up` or `walk_down`
-while moving, and `stand` when still. The heading's larger axis picks the
-direction, and a tie goes horizontal. A keyboard diagonal therefore walks sideways,
-while a stick held mostly down walks down, as does a route segment running mostly
-down. Any mover works. A [`CharacterBody`](#characterbody) faces its intent. A
-[`PathFollow`](#pathfollow) or [`Navigator`](#navigator) faces the segment it
-walks. A [`Velocity`](#velocity) faces where it flies. The component owns an
-`RGame::Engine::Animator` over the pure `AnimationSet` built from the sheet's
-animation table.
+**Draws a sprite-sheet animation: the one it is given, until `play` names
+another.** It needs no sibling, so a spinning coin is this and a collider.
+[`WalkingSprite`](#walkingsprite) is the one that picks a walk from a
+[`Mover`](#mover). The component owns an `RGame::Engine::Animator` over the pure
+`AnimationSet` built from the sheet's animation table.
 
-- **Construct:** `AnimatedSprite.new(sheet:, z: 0, anchor: :bottom)`. `sheet`
-  is the asset's relative path. `z` orders this component against the node's
-  other drawing, inside the node's own slot, as for [`Sprite`](#sprite). `anchor`
-  places the frame against the node's origin, with the same three values as
-  [`Sprite`](#sprite). The default stands the character on the origin, which is
-  where a [`FeetCollider`](#feetcollider) puts its box. An unknown anchor raises
+```ruby
+coin.add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: 'coin.json', animation: :spin,
+                                                                 anchor: :center))
+coin.add_component(RGame::Engine::Components::CircleCollider.new(radius: 7, layer: :pickup))
+```
+
+- **Construct:** `AnimatedSprite.new(sheet:, animation:, z: 0, anchor: :bottom)`.
+  `sheet` is the asset's relative path. `animation` is the Symbol it plays first.
+  `z` orders this component against the node's other drawing, inside the node's
+  own slot, as for [`Sprite`](#sprite). `anchor` places the frame against the
+  node's origin, with the same three values as [`Sprite`](#sprite). The default
+  stands the character on the origin, which is where a
+  [`FeetCollider`](#feetcollider) puts its box. An unknown anchor raises
   `ArgumentError`.
+- **State:** `animation` is the one playing now. `play(name)` plays `name` from
+  its first frame. Naming the animation already playing carries on, so a caller
+  may name it every tick. Once attached, a name the sheet lacks raises
+  `ArgumentError`, listing the sheet's animations. Before that, `play` takes any
+  name, and attach checks it.
+- **Hook:** a subclass overrides `_choose_animation` to return the animation to
+  play this update, or `nil` to carry on. `_update` calls it before it advances
+  the frame. The choice then draws on the same tick, whatever order the node's
+  components were added in.
 - **Lifecycle:** `_attach` resolves the sheet from the game's asset manager
   (`node.root.context.assets.sheet(sheet)`) and builds its animation set. It
-  **sizes the node** to the sheet's frame (`node.width` and `height`), which the
-  anchor and culling measure from. It then looks up the mover sibling
-  it faces by. A node with **two** movers raises here, naming both: both write the
-  position, so no facing is defined. The renderer resolves the same path when
-  drawing, so nothing is registered or passed in by hand.
-- **Phase:** `_update(dt)` selects and advances the animation.
+  raises `ArgumentError` when the sheet has no animation named `animation`,
+  listing the ones it has. It **sizes the node** to the sheet's frame
+  (`node.width` and `height`), which the anchor and culling measure from. The
+  renderer resolves the same path when drawing, so nothing is registered or
+  passed in by hand.
+- **Phase:** `_update(dt)` plays what `_choose_animation` returns, then advances
+  the animation.
   `_draw(renderer, view)` renders the current frame via `renderer.sprite`, placed
   by the anchor, with no angle. The traversal already placed the renderer on the
   node, and a [`WorldView`](scene_graph.md#view-transforms-and-the-camera)
@@ -311,7 +323,7 @@ for `Velocity` and `PathFollow` too. `blocked_by:`, `on_blocked`, `on_unblocked`
 and the `apply_move` seam are documented there, and work the same way here.
 
 ```ruby
-add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
+add_component(RGame::Engine::Components::WalkingSprite.new(sheet: 'hero.json'))
 add_component(RGame::Engine::Components::FeetCollider.new(width: 12, height: 6))
 add_component(RGame::Engine::Components::CharacterBody.new(speed: 80, blocked_by: [:tiles]))
 add_component(RGame::Engine::Components::PlayerController.new)
@@ -332,8 +344,8 @@ add_component(RGame::Engine::Components::PlayerController.new)
 - **Seam:** a body that resolves a step differently, such as a platformer's with
   gravity and a jump, overrides [`apply_move`](#mover). It inherits the intent, the
   speed and the standing-still check.
-- **Examples:** `examples/walk` uses this, a `PlayerController` and an
-  `AnimatedSprite`, and nothing else. `examples/collision_tiles` adds a feet box and
+- **Examples:** `examples/walk` uses this, a `PlayerController` and a
+  `WalkingSprite`, and nothing else. `examples/collision_tiles` adds a feet box and
   `blocked_by: [:tiles]`, and draws the box over the sprite so you can see what
   collides. A crowd adds more names: walkers that each declare
   `%i[tiles hero npc]` are stopped by the map and by one another.
@@ -750,7 +762,7 @@ shape, so one component carries the feet box for both jobs.
 only as the rectangle a step may not push past.
 
 ```ruby
-add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
+add_component(RGame::Engine::Components::WalkingSprite.new(sheet: 'hero.json'))
 feet = add_component(RGame::Engine::Components::FeetCollider.new(
   width: 12, height: 6, layer: :hero
 ))
@@ -1283,7 +1295,7 @@ another.
   a mover with nothing declared.
 - **Heading:** `heading_x` and `heading_y` give the step's direction, each axis in
   -1..1, and `0, 0` when the mover is not trying to move.
-  [`AnimatedSprite`](#animatedsprite) faces by it. It is a facing, not a velocity: a
+  [`WalkingSprite`](#walkingsprite) faces by it. It is a facing, not a velocity: a
   mover pressed into a wall still heads into it. A [`CharacterBody`](#characterbody)
   answers its intent. A [`Velocity`](#velocity) answers its velocity, scaled so the
   larger axis is ±1. A [`PathFollow`](#pathfollow) answers the unit direction of its
@@ -1308,7 +1320,7 @@ travel, and walks it.
 ```ruby
 # `actors` is places['actors'], as TileMapLayer.mount returned it, in a scene with a TileWorld mounted.
 hero = RGame::Engine::Node2D.new(x: 40, y: 40)
-hero.add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
+hero.add_component(RGame::Engine::Components::WalkingSprite.new(sheet: 'hero.json'))
 hero.add_component(RGame::Engine::Components::FeetCollider.new(width: 12, height: 6))
 navigator = hero.add_component(RGame::Engine::Components::Navigator.new(speed: 80, blocked_by: [:tiles]))
 actors.add_node(hero)
@@ -2046,6 +2058,35 @@ add_component(RGame::Engine::Components::BoxCollider.new(width: 8, height: 8, la
 velocity = add_component(RGame::Engine::Components::Velocity.new(vx: 400, blocked_by: %i[tiles]))
 velocity.on_blocked { queue_free }
 ```
+
+### `WalkingSprite`
+
+**An [`AnimatedSprite`](#animatedsprite) that walks, picking its animation from
+its [`Mover`](#mover) sibling's [heading](#mover).** It plays `walk_left`,
+`walk_right`, `walk_up` or `walk_down` while moving, and `stand` when still. The
+heading's larger axis picks the direction, and a tie goes horizontal. A keyboard
+diagonal therefore walks sideways, while a stick held mostly down walks down, as
+does a route segment running mostly down. Any mover works. A
+[`CharacterBody`](#characterbody) faces its intent. A [`PathFollow`](#pathfollow)
+or [`Navigator`](#navigator) faces the segment it walks. A
+[`Velocity`](#velocity) faces where it flies.
+
+```ruby
+hero.add_component(RGame::Engine::Components::WalkingSprite.new(sheet: 'hero.json'))
+hero.add_component(RGame::Engine::Components::CharacterBody.new(speed: 80))
+hero.add_component(RGame::Engine::Components::PlayerController.new)
+```
+
+- **Construct:** `WalkingSprite.new(sheet:, z: 0, anchor: :bottom)`. The three
+  keywords are an `AnimatedSprite`'s, and it starts on `stand`.
+- **Lifecycle:** `_attach` does what an `AnimatedSprite`'s does, then looks up
+  the mover it faces by. It raises when the node has no mover, and when it has
+  **two**, naming both: both write the position, so no facing is defined. It
+  raises `ArgumentError` for a sheet missing one of the five animations too, not
+  on the first step that way.
+- **Phase:** its `_choose_animation` reads the mover's heading. It picks on every
+  update, so a `play` from elsewhere lasts until the next one. The rest is an
+  `AnimatedSprite`'s.
 
 ### `WanderController`
 

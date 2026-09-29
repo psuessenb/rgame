@@ -8,8 +8,8 @@ module RGame
       # each update, at a fixed speed and with no inertia (unlike Velocity, which integrates
       # a velocity the controller sets, and ThrustController, which accelerates one).
       #
-      # The intent doubles as the mover's heading, which is what AnimatedSprite faces by, so
-      # a character is just CharacterBody + a controller + AnimatedSprite.
+      # The intent doubles as the mover's heading, which is what WalkingSprite faces by, so
+      # a character is just CharacterBody + a controller + WalkingSprite.
       #
       # What may stop a step — `blocked_by:`, `on_blocked` / `on_unblocked`, and the
       # `apply_move` seam — is Mover's, and shared with every other component that moves a

@@ -59,7 +59,7 @@
 # frame collided could not stand with their head overlapping the fence behind
 # them — which is what standing close to it looks like from this angle.
 #
-# `FeetCollider` puts it under the node's origin, and `AnimatedSprite` stands the
+# `FeetCollider` puts it under the node's origin, and `WalkingSprite` stands the
 # picture on that same spot. So the box follows the art: re-export the hero at a
 # different size and the feet stay at the feet. Note what the `Hero` does *not*
 # pass — a sprite size, an offset, or the box to anybody else. One component
@@ -168,7 +168,7 @@ module CollisionTilesExample
     def initialize(camera:, **)
       super(**)
       @lives = LIVES
-      add_component(Components::AnimatedSprite.new(sheet: 'hero.json'))
+      add_component(Components::WalkingSprite.new(sheet: 'hero.json'))
       # The two lines that differ from `examples/walk`: a shape, and a body told
       # what that shape may not pass through. Everything about the intent — the
       # controller writing it, the sprite reading it back as a facing, the speed it

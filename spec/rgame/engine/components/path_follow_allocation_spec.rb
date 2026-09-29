@@ -21,7 +21,7 @@ RSpec.describe RGame::Engine::Components::PathFollow do
     expect { follow._update(dt) }.to allocate_nothing
   end
 
-  # What an AnimatedSprite reads beside every step.
+  # What a WalkingSprite reads beside every step.
   it 'reads its heading without allocating' do
     follow._update(1.0 / 60.0)
     expect { follow.heading_x + follow.heading_y }.to allocate_nothing

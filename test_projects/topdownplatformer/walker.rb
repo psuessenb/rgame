@@ -14,7 +14,7 @@ module TopDownPlatformer
     # @placeable
     def initialize(**)
       super
-      add_component(Components::AnimatedSprite.new(sheet: 'hero.json'))
+      add_component(Components::WalkingSprite.new(sheet: 'hero.json'))
       add_component(Components::FeetCollider.new(width: Hero::FEET_WIDTH, height: Hero::FEET_HEIGHT,
                                                  layer: :npc))
       add_component(Components::CharacterBody.new(speed: SPEED, blocked_by: %i[tiles gaps hero]))

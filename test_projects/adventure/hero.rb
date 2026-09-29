@@ -50,7 +50,7 @@ module Adventure
 
     def initialize(camera:, **)
       super(**)
-      add_component(Components::AnimatedSprite.new(sheet: 'hero.json'))
+      add_component(Components::WalkingSprite.new(sheet: 'hero.json'))
       add_component(Components::FeetCollider.new(
                       width: FEET_WIDTH, height: FEET_HEIGHT, layer: :hero
                     ))

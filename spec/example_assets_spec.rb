@@ -23,12 +23,11 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
 
     let(:descriptor) { JSON.parse(File.read(File.join(assets, 'hero.json')), symbolize_names: true) }
 
-    # The names are not ours to choose: Components::AnimatedSprite picks one of
-    # these five from the body's movement intent and looks it up by name, and
-    # AnimationSet#row uses `fetch`. A sheet missing one is a crash the moment a
-    # player walks that way.
+    # The names are not ours to choose: Components::WalkingSprite picks one of
+    # these five from the body's movement intent and looks it up by name. A sheet
+    # missing one raises as the walker attaches, in every example that walks.
     %i[stand walk_up walk_down walk_left walk_right].each do |name|
-      it "declares #{name}, which AnimatedSprite resolves by name" do
+      it "declares #{name}, which WalkingSprite plays by name" do
         expect { animations.row(name) }.not_to raise_error
       end
     end

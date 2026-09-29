@@ -572,7 +572,7 @@ on a plain node.** Nothing connects them by hand:
 require 'rgame'
 
 node = RGame::Engine::Node2D.new(x: 240, y: 320)
-node.add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
+node.add_component(RGame::Engine::Components::WalkingSprite.new(sheet: 'hero.json'))
 node.add_component(RGame::Engine::Components::FeetCollider.new(width: 10, height: 8, layer: :hero))
 node.add_component(RGame::Engine::Components::CharacterBody.new(speed: 60, blocked_by: %i[tiles hero npc]))
 node.add_component(RGame::Engine::Components::PlayerController.new)
@@ -580,7 +580,7 @@ node.add_component(RGame::Engine::Components::PlayerController.new)
 
 Each line does one job:
 
-- The [sprite](components.md#animatedsprite) stands the picture on the node's
+- The [sprite](components.md#walkingsprite) stands the picture on the node's
   origin, and reads the body's intent back as a facing.
 - The [`FeetCollider`](components.md#feetcollider) puts a small box under the
   origin, where the sprite stands. It is the node's **only** shape.
