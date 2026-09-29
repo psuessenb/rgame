@@ -55,6 +55,11 @@ and `Game/NoEngineIvar` keeps a game off it. The rules, and what the guards
 cannot see, are in
 [write-ruby-code](.claude/skills/write-ruby-code/SKILL.md).
 
+### What a node offers is a component, not a layer
+
+**A component asking "may I do X to that node?" checks for a component on the
+node, never for its layer**: a node has one layer, and can offer many things.
+
 ## Before building: find the thing it resembles
 
 Reuse is the easy half, and this project already does it well — a new component
