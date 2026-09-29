@@ -1,22 +1,20 @@
 # frozen_string_literal: true
 
 RSpec.describe RGame::Engine::Components::AnimatedSprite do
-  # Distinct rows so the drawn row tells which animation was selected; 1 frame each so
-  # the column stays put and a single draw reveals the choice.
+  # Distinct rows, so the drawn row tells which animation plays. `spin` and
+  # `roll` have four frames of a quarter second each, so the drawn column tells
+  # how far in it is.
   let(:animations) do
     {
       stand: { row: 0, frames: 1, fps: 1 },
-      walk_right: { row: 1, frames: 1, fps: 1 },
-      walk_left: { row: 2, frames: 1, fps: 1 },
-      walk_up: { row: 3, frames: 1, fps: 1 },
-      walk_down: { row: 4, frames: 1, fps: 1 }
+      spin: { row: 1, frames: 4, fps: 4 },
+      roll: { row: 2, frames: 4, fps: 4 }
     }
   end
   # A scene holding the node, so the node's world position is its own and the
-  # frame standing on it is in view.
+  # frame standing on it is in view. The node has no Mover.
   let(:node) { RGame::Engine::Node2D.new.add_node(RGame::Engine::Node2D.new(x: 50.0, y: 70.0)) }
-  let(:body) { RGame::Engine::Components::CharacterBody.new(speed: 50.0) }
-  let(:sprite) { described_class.new(sheet: :hero, z: 10) }
+  let(:sprite) { described_class.new(sheet: :hero, animation: :stand, z: 10) }
   let(:renderer) { instance_double(FakeRenderer, layered: nil, translated: nil) }
 
   before do
@@ -24,10 +22,6 @@ RSpec.describe RGame::Engine::Components::AnimatedSprite do
     sheet = instance_double(FakeSheet, animations: animations, frame_width: 16, frame_height: 32)
     assets = instance_double(FakeAssets, sheet: sheet)
     scene.context = instance_double(FakeGame, assets: assets)
-    node.add_component(body)
-    node.add_component(sprite)
-    scene.enter_tree
-    scene.update(0.0) # resolves node.world_x/world_y; no intent yet, so the body stays put
     allow(renderer).to receive(:sprite)
     # Every node opens a layer for its own drawing; this double has to yield or
     # nothing inside it runs.
@@ -37,115 +31,115 @@ RSpec.describe RGame::Engine::Components::AnimatedSprite do
 
   def scene = node.parent
 
-  # Drive one frame for the given intent, then draw.
-  def step(intent_x, intent_y)
-    body.set_intent(intent_x, intent_y)
-    sprite._update(0.0)
-    sprite._draw(renderer, screen_view)
+  # Adds `component` to the node, enters the tree, and resolves the node's
+  # world position.
+  def mount(component = sprite)
+    node.add_component(component)
+    scene.enter_tree
+    scene.update(0.0)
+    component
+  end
+
+  # Advances the sprite by `dt` and draws it.
+  def step(dt = 0.0, component = sprite)
+    component._update(dt)
+    component._draw(renderer, screen_view)
   end
 
   describe '#_attach' do
     it 'sizes the node to the resolved sheet frame' do
+      mount
       expect([node.width, node.height]).to eq([16, 32])
     end
   end
 
-  describe '#update selects the animation from the body intent' do
-    it 'faces right while moving right' do
-      step(1.0, 0.0)
-      expect(renderer).to have_received(:sprite).with(:hero, 1, any_args)
+  describe 'animation:' do
+    it 'draws that animation on a node with no Mover' do
+      spinning = mount(described_class.new(sheet: :hero, animation: :spin))
+      step(0.0, spinning)
+      expect(renderer).to have_received(:sprite).with(:hero, 1, 0, any_args)
     end
 
-    it 'faces left while moving left' do
-      step(-1.0, 0.0)
-      expect(renderer).to have_received(:sprite).with(:hero, 2, any_args)
+    it 'raises at attach for a name the sheet lacks, listing the ones it has' do
+      expect { mount(described_class.new(sheet: :hero, animation: :fly)) }
+        .to raise_error(ArgumentError, /:hero has no animation :fly\. It has :stand, :spin, :roll/)
     end
 
-    it 'faces up while moving up' do
-      step(0.0, -1.0)
-      expect(renderer).to have_received(:sprite).with(:hero, 3, any_args)
-    end
-
-    it 'faces down while moving down' do
-      step(0.0, 1.0)
-      expect(renderer).to have_received(:sprite).with(:hero, 4, any_args)
-    end
-
-    it 'stands still when there is no intent' do
-      step(0.0, 0.0)
-      expect(renderer).to have_received(:sprite).with(:hero, 0, any_args)
-    end
-
-    it 'lets horizontal win on a diagonal' do
-      step(1.0, 1.0) # walk_right, not walk_down
-      expect(renderer).to have_received(:sprite).with(:hero, 1, any_args)
-    end
-
-    # A stick, or a route segment, rarely points straight down: the larger axis decides.
-    it 'faces down while moving mostly down' do
-      step(-0.3, 0.9)
-      expect(renderer).to have_received(:sprite).with(:hero, 4, any_args)
-    end
-
-    it 'faces left while moving mostly left' do
-      step(-0.9, -0.3)
-      expect(renderer).to have_received(:sprite).with(:hero, 2, any_args)
+    it 'raises at attach for a name played before it' do
+      waiting = described_class.new(sheet: :hero, animation: :spin)
+      waiting.play(:fly)
+      expect { mount(waiting) }.to raise_error(ArgumentError, /has no animation :fly/)
     end
   end
 
-  # Any mover is a facing source, and a PathFollow is the one with no intent to read: it faces
-  # the road it is on.
-  describe 'beside a PathFollow' do
-    # A walker on a 100 px rightward road, taking one step of `dt` and drawing it.
-    def walk_and_draw(dt)
-      follow = RGame::Engine::Components::PathFollow.new(path: RGame::Engine::Path.new([[0.0, 50.0], [100.0, 50.0]]),
-                                                         speed: 50.0)
-      walker_sprite = described_class.new(sheet: :hero)
-      walker = scene.add_node(RGame::Engine::Node2D.new)
-      walker.add_component(follow)
-      walker.add_component(walker_sprite)
-      scene.update(dt)
-      walker_sprite._draw(renderer, screen_view)
+  describe '#play' do
+    let(:sprite) { described_class.new(sheet: :hero, animation: :spin) }
+
+    before do
+      mount
+      step(0.5) # two quarters into spin: column 2
     end
 
-    it 'walks right along a rightward segment' do
-      walk_and_draw(0.5)
-      expect(renderer).to have_received(:sprite).with(:hero, 1, any_args)
+    it 'starts another animation from its first frame' do
+      sprite.play(:roll)
+      step
+      expect(sprite.animation).to eq(:roll)
+      expect(renderer).to have_received(:sprite).with(:hero, 2, 0, any_args)
     end
 
-    it 'stands once the road is walked' do
-      walk_and_draw(10.0)
-      expect(renderer).to have_received(:sprite).with(:hero, 0, any_args)
+    it 'carries on with the animation already playing' do
+      sprite.play(:spin)
+      step(0.25)
+      expect(renderer).to have_received(:sprite).with(:hero, 1, 3, any_args)
+    end
+
+    it 'raises for a name the sheet lacks, listing the ones it has, and keeps playing' do
+      expect { sprite.play(:fly) }.to raise_error(ArgumentError, /has no animation :fly\. It has :stand, :spin, :roll/)
+      expect(sprite.animation).to eq(:spin)
     end
   end
 
-  # Two movers both write the position, so there is no telling which way the node faces.
-  it 'refuses a node with two movers, naming both' do
-    crowded = RGame::Engine::Node2D.new
-    crowded.context = scene.context
-    crowded.add_component(RGame::Engine::Components::CharacterBody.new(speed: 50.0))
-    crowded.add_component(RGame::Engine::Components::PathFollow.new(speed: 50.0))
-    crowded.add_component(described_class.new(sheet: :hero))
-    expect { crowded.enter_tree }
-      .to raise_error(ArgumentError, /AnimatedSprite reads one .*Mover .* has 2: .*CharacterBody, .*PathFollow/)
+  describe '#_choose_animation' do
+    # A sprite told what to play through the hook, as a subclass is.
+    let(:chooser) do
+      Class.new(described_class) do
+        attr_accessor :choice
+
+        def _choose_animation = choice
+      end
+    end
+
+    it 'plays what it returns, and draws it on the same tick' do
+      choosing = mount(chooser.new(sheet: :hero, animation: :stand))
+      choosing.choice = :spin
+      step(0.25, choosing)
+      expect(renderer).to have_received(:sprite).with(:hero, 1, 1, any_args)
+    end
+
+    it 'carries on when it returns nil' do
+      choosing = mount(chooser.new(sheet: :hero, animation: :roll))
+      step(0.5, choosing)
+      expect(renderer).to have_received(:sprite).with(:hero, 2, 2, any_args)
+    end
   end
 
   describe '#draw' do
+    before { mount }
+
     it 'draws the frame standing on the node origin, with the configured layer and no flip' do
-      body.set_intent(0.0, 0.0)
       scene.draw(renderer, screen_view)
-      expect(renderer).to have_received(:sprite).with(:hero, 0, anything, -8, -32, flip_x: false, z: 10)
+      expect(renderer).to have_received(:sprite).with(:hero, 0, 0, -8, -32, flip_x: false, z: 10)
     end
 
     it 'draws the picture lifted by the node elevation' do
       node.elevation = 6
-      step(0.0, 0.0)
-      expect(renderer).to have_received(:sprite).with(:hero, 0, anything, -8, -38, flip_x: false, z: 10)
+      step
+      expect(renderer).to have_received(:sprite).with(:hero, 0, 0, -8, -38, flip_x: false, z: 10)
     end
 
     it 'culls against the lifted box rather than the spot the node stands on' do
       node.elevation = 80 # the 32-tall frame now spans y -42..-10, above a view starting at 0
-      step(0.0, 0.0)
+      step
       expect(renderer).not_to have_received(:sprite)
     end
   end
@@ -160,14 +154,13 @@ RSpec.describe RGame::Engine::Components::AnimatedSprite do
     end
 
     def corner_drawn(anchor, elevation: 0)
-      walker = placed_node(elevation: elevation)
+      standing = placed_node(elevation: elevation)
       frames = FakeRenderer.new
       frames.register_sheet(:hero, FakeSheet.new(animations: animations, frame_width: 16, frame_height: 32))
-      walker.add_component(RGame::Engine::Components::CharacterBody.new(speed: 50.0))
-      walker.add_component(described_class.new(sheet: :hero, anchor: anchor))
-      walker.parent.enter_tree
-      walker.parent.update(0.0)
-      walker.parent.draw(frames, screen_view)
+      standing.add_component(described_class.new(sheet: :hero, animation: :stand, anchor: anchor))
+      standing.parent.enter_tree
+      standing.parent.update(0.0)
+      standing.parent.draw(frames, screen_view)
       frames.calls_to(:image_at).last.args.drop(1)
     end
 
@@ -206,7 +199,7 @@ RSpec.describe RGame::Engine::Components::AnimatedSprite do
     end
 
     it 'raises at construction for an unknown anchor, naming the three' do
-      expect { described_class.new(sheet: :hero, anchor: :feet) }
+      expect { described_class.new(sheet: :hero, animation: :stand, anchor: :feet) }
         .to raise_error(ArgumentError, /:center, :bottom, :top_left.*:feet/)
     end
   end

@@ -3,14 +3,13 @@
 module RGame
   module Engine
     module Components
-      # Draws a sprite-sheet animation for a walking actor, picking the animation from its
-      # Mover sibling's heading: walk_left/right/up/down while moving, stand when still. The
-      # larger axis of the heading picks the direction and a tie goes horizontal, so a
-      # keyboard diagonal walks sideways and a route running mostly downhill walks down.
-      # Any mover will do — a CharacterBody faces its intent, a PathFollow the road it is
-      # on — and a node with two movers raises at attach, since there would be no telling
-      # which way it faces. Owns its Animator + the pure AnimationSet built from the sheet's
-      # animation table.
+      # Draws a sprite-sheet animation: the one it is given, until `play` names
+      # another. It needs no sibling, so a spinning coin is this and a collider.
+      #
+      # **A subclass chooses through `_choose_animation`**, which `_update`
+      # calls before it advances the frame. The choice and its first frame then
+      # land on the same tick, whatever order the node's components were added
+      # in. WalkingSprite chooses a walk from its node's Mover this way.
       #
       # Like Sprite, it places its frame against the node's origin by `anchor:` (see
       # Engine::Anchor). The default, `:bottom`, stands the character on the origin,
@@ -30,23 +29,43 @@ module RGame
       class AnimatedSprite < Engine::Component
         include Engine::Culling
 
-        def initialize(sheet:, z: 0, anchor: :bottom)
+        hook :_choose_animation
+
+        # `animation` is the one it plays first. Attach raises ArgumentError when
+        # the sheet has no animation of that name, listing the ones it has.
+        def initialize(sheet:, animation:, z: 0, anchor: :bottom)
           super()
           @rgame_sheet = sheet
+          @rgame_animation = animation
           @rgame_layer = z
           @rgame_anchor = Engine::Anchor.check!(anchor)
         end
 
+        # The animation playing now.
+        sealed_reader :animation
+
+        # Plays `name` from its first frame, or carries on when `name` is already
+        # playing. Once attached, raises ArgumentError for a name the sheet lacks.
+        def play(name)
+          return if name == @rgame_animation
+
+          check_animation(name) if @rgame_animator
+          @rgame_animation = name
+          @rgame_animator&.play(name)
+        end
+
         def _attach
           sheet = context.assets.sheet(@rgame_sheet)
-          @rgame_animator = Engine::Animator.new(Engine::AnimationSet.new(sheet.animations))
+          @rgame_animations = Engine::AnimationSet.new(sheet.animations)
+          check_animation(@rgame_animation)
+          @rgame_animator = Engine::Animator.new(@rgame_animations, initial: @rgame_animation)
           node.width = sheet.frame_width
           node.height = sheet.frame_height
-          @rgame_mover = require_sibling(Mover)
         end
 
         def _update(dt)
-          @rgame_animator.play(walk_animation(@rgame_mover.heading_x, @rgame_mover.heading_y))
+          chosen = _choose_animation
+          play(chosen) if chosen
           @rgame_animator.update(dt)
         end
 
@@ -62,13 +81,18 @@ module RGame
                           flip_x: @rgame_animator.flip_x, z: @rgame_layer)
         end
 
+        # The animation to play this update, or nil to carry on. A subclass
+        # answers from its node's state, and the frame it picks draws on the
+        # same tick.
+        def _choose_animation = nil
+
         private
 
-        def walk_animation(heading_x, heading_y)
-          if heading_x.zero? && heading_y.zero? then :stand
-          elsif heading_x.abs >= heading_y.abs then heading_x.negative? ? :walk_left : :walk_right
-          else heading_y.negative? ? :walk_up : :walk_down
-          end
+        def check_animation(name)
+          return if @rgame_animations.include?(name)
+
+          raise ArgumentError, "#{self.class}: the sheet #{@rgame_sheet.inspect} has no animation " \
+                               "#{name.inspect}. It has #{@rgame_animations.names.map(&:inspect).join(', ')}."
         end
       end
     end

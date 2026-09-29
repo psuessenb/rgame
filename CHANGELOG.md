@@ -637,6 +637,13 @@ index, not the argument.
   component of its own, even an empty one, and passes that class as `having:`.
   `CollisionWorld#nearest` takes `having:` and `except:` beside `layer:`. See
   [docs/api/components.md](docs/api/components.md#targeting).
+- **`AnimatedSprite` plays the animation it is given, and `WalkingSprite`
+  walks.** `AnimatedSprite.new(sheet:, animation:)` needs no `Mover`,
+  `play(name)` switches animation, and a subclass chooses one each update in
+  `_choose_animation`. Where a game wrote `AnimatedSprite.new(sheet:)` for a
+  walker, it writes `WalkingSprite.new(sheet:)`. That faces its mover's heading
+  as before, and raises at attach for a sheet missing a walk. See
+  [docs/api/components.md](docs/api/components.md#animatedsprite).
 
 ### Removed
 

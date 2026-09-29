@@ -71,7 +71,7 @@ module CutsceneExample
   class Hero < Engine::Node2D
     def initialize(camera:, **)
       super(**)
-      add_component(Components::AnimatedSprite.new(sheet: 'hero.json'))
+      add_component(Components::WalkingSprite.new(sheet: 'hero.json'))
       add_component(Components::FeetCollider.new(width: 12, height: 6))
       add_component(Components::CharacterBody.new(speed: SPEED, blocked_by: [:tiles]))
       add_component(Components::PlayerController.new)
@@ -89,7 +89,7 @@ module CutsceneExample
 
     def initialize(camera:)
       super(x: 552, y: 128)
-      add_component(Components::AnimatedSprite.new(sheet: 'hero.json'))
+      add_component(Components::WalkingSprite.new(sheet: 'hero.json'))
       add_component(Components::CameraFollow.new(camera: camera))
       @walk = add_component(Components::PathFollow.new(speed: 40.0))
     end

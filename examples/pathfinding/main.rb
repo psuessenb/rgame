@@ -15,7 +15,7 @@
 #     solidity the collision uses, and asked whether a tile can be stood on;
 #   - Components::TileWorld#cell_x and #cell_centre_x — every tile's position
 #     and size asked of the world, so nothing here knows a tile is 16 pixels;
-#   - Components::AnimatedSprite — facing the way the route goes, with nobody
+#   - Components::WalkingSprite — facing the way the route goes, with nobody
 #     pressing a direction;
 #   - Components::ActionTrigger — the cursor's held-key repeat;
 #   - Components::CameraFollow — on the cursor rather than on the hero;
@@ -113,7 +113,7 @@ module PathfindingExample
 
     def initialize(**)
       super
-      add_component(Components::AnimatedSprite.new(sheet: 'hero.json'))
+      add_component(Components::WalkingSprite.new(sheet: 'hero.json'))
       @collider = add_component(Components::FeetCollider.new(
                                   width: FEET_WIDTH, height: FEET_HEIGHT
                                 ))

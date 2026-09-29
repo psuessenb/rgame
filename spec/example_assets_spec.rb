@@ -23,12 +23,11 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
 
     let(:descriptor) { JSON.parse(File.read(File.join(assets, 'hero.json')), symbolize_names: true) }
 
-    # The names are not ours to choose: Components::AnimatedSprite picks one of
-    # these five from the body's movement intent and looks it up by name, and
-    # AnimationSet#row uses `fetch`. A sheet missing one is a crash the moment a
-    # player walks that way.
+    # The names are not ours to choose: Components::WalkingSprite picks one of
+    # these five from the body's movement intent and looks it up by name. A sheet
+    # missing one raises as the walker attaches, in every example that walks.
     %i[stand walk_up walk_down walk_left walk_right].each do |name|
-      it "declares #{name}, which AnimatedSprite resolves by name" do
+      it "declares #{name}, which WalkingSprite plays by name" do
         expect { animations.row(name) }.not_to raise_error
       end
     end
@@ -65,6 +64,23 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
 
       expect(columns * descriptor[:frame_width]).to be <= width
       expect(rows * descriptor[:frame_height]).to be <= height
+    end
+  end
+
+  describe 'coin.json' do
+    let(:descriptor) { JSON.parse(File.read(File.join(assets, 'coin.json')), symbolize_names: true) }
+
+    # An AnimatedSprite raises at attach for a name its sheet lacks, so a
+    # renamed animation would stop examples/collectables before its first frame.
+    it 'declares spin, which examples/collectables plays' do
+      expect(RGame::Engine::AnimationSet.new(descriptor[:animations]).include?(:spin)).to be(true)
+    end
+
+    it 'fills coin.png with the frames of spin, and nothing else' do
+      spin = descriptor[:animations][:spin]
+
+      expect([spin[:frames] * descriptor[:frame_width], (spin[:row] + 1) * descriptor[:frame_height]])
+        .to eq(png_size(File.join(assets, descriptor[:image])))
     end
   end
 

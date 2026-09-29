@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative 'frame_times'
+
 module RGame
   module Engine
     # Pure animation math: given an atlas's animation table and an elapsed time,
@@ -14,14 +16,21 @@ module RGame
     #   fps     – frames per second
     #   flip_x  – draw mirrored horizontally
     class AnimationSet
-      Anim = Struct.new(:row, :first_col, :frames, :frame_secs, :flip_x)
+      Anim = Struct.new(:row, :first_col, :times, :flip_x)
       private_constant :Anim
 
       def initialize(animations)
         @anims = animations.each_with_object({}) do |(name, a), table|
-          table[name.to_sym] = Anim.new(a[:row], a[:col] || 0, a[:frames], 1.0 / a[:fps], a[:flip_x] || false)
+          table[name.to_sym] = Anim.new(a[:row], a[:col] || 0, FrameTimes.even(a[:frames], 1.0 / a[:fps]),
+                                        a[:flip_x] || false)
         end
       end
+
+      # Whether the table holds an animation called `name`, a Symbol.
+      def include?(name) = @anims.key?(name)
+
+      # The names of its animations, as Symbols.
+      def names = @anims.keys
 
       # Sheet row of `name` (fixed per animation).
       def row(name)
@@ -31,7 +40,7 @@ module RGame
       # Sheet column of `name` at `elapsed` seconds — the only part that animates.
       def col(name, elapsed)
         anim = @anims.fetch(name)
-        anim.first_col + ((elapsed / anim.frame_secs).floor % anim.frames)
+        anim.first_col + anim.times.index_at(elapsed)
       end
 
       # Whether `name` draws mirrored (fixed per animation).

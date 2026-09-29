@@ -10,6 +10,7 @@
 # Stand by the chest and press E — or the pad's X — to open it, and it spills
 # three more. It exercises:
 #   - Components::Collectable — a coin that collects itself on contact;
+#   - Components::AnimatedSprite — the coin's spin, with no Mover beside it;
 #   - Components::Interactor — the nearest thing in reach, and the press;
 #   - Components::Interaction — what the chest does when it is pressed;
 #   - Components::CollisionWorld — the broadphase both of them read;
@@ -78,7 +79,6 @@ module CollectablesExample
   CELL_SIZE = 64
 
   BACKDROP   = Color.new(28, 30, 38)
-  COIN       = Color.new(240, 200, 96)
   CHEST      = Color.new(150, 104, 56)
   CHEST_OPEN = Color.new(86, 70, 52)
   PROMPT     = Color.new(240, 236, 224)
@@ -88,15 +88,20 @@ module CollectablesExample
   CHEST_SIZE = 28
   REACH = 44.0
 
-  # A coin: a shape, and a Collectable that takes it.
+  # A coin: a picture that spins, a shape, and a Collectable that takes it.
   #
-  # The component does everything. `by: :hero` is the layer whose colliders count,
-  # `sound:` is played through the tree's AudioOut, and the node is freed by
-  # default — so the whole of "a coin disappears when you walk into it" is the one
+  # The AnimatedSprite plays `spin` from coin.json and needs nothing beside it,
+  # since a coin chooses no animation. `anchor: :center` puts the middle of the
+  # frame on the origin, where the circle is centred.
+  #
+  # The Collectable does everything else. `by: :hero` is the layer whose colliders
+  # count, `sound:` is played through the tree's AudioOut, and the node is freed —
+  # so the whole of "a coin disappears when you walk into it" is the one
   # `add_component` below, and `on_collected` is the game's half.
   class Coin < Engine::Node2D
     def initialize(**)
       super
+      add_component(Components::AnimatedSprite.new(sheet: 'coin.json', animation: :spin, anchor: :center))
       add_component(Components::CircleCollider.new(radius: COIN_RADIUS, layer: :pickup))
       add_component(Components::Collectable.new(by: :hero, sound: 'blip.ogg'))
     end
@@ -104,8 +109,6 @@ module CollectablesExample
     # The Collectable, so the room can connect its counter to it. `add_component`
     # returns what it was given, which is the usual way to hold one by name.
     def collectable = get_component(Components::Collectable)
-
-    def _draw(renderer, _view) = renderer.circle(0, 0, COIN_RADIUS, color: COIN)
   end
 
   # A chest: a shape on the `:chest` layer, a lid, and an Interaction.
@@ -147,7 +150,7 @@ module CollectablesExample
   class Hero < Engine::Node2D
     def initialize(**)
       super
-      add_component(Components::AnimatedSprite.new(sheet: 'hero.json'))
+      add_component(Components::WalkingSprite.new(sheet: 'hero.json'))
       add_component(Components::CharacterBody.new(speed: SPEED,
                                                   blocked_by: [:chest]))
       add_component(Components::PlayerController.new)

@@ -328,7 +328,7 @@ RSpec.shared_examples 'a mover' do
     end
   end
 
-  # What an AnimatedSprite faces by. Compared by sign, because how long the heading is along
+  # What a WalkingSprite faces by. Compared by sign, because how long the heading is along
   # each axis is each mover's own business; which way it points is not.
   describe 'its heading' do
     def heading_signs(mover) = [mover.heading_x <=> 0, mover.heading_y <=> 0]

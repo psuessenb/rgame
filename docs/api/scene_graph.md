@@ -39,7 +39,7 @@ class Hero < RGame::Engine::Node2D
 
   def initialize(**)
     super
-    add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
+    add_component(RGame::Engine::Components::WalkingSprite.new(sheet: 'hero.json'))
     add_component(RGame::Engine::Components::CharacterBody.new(speed: 80))
     add_component(RGame::Engine::Components::Hop.new(peak: 18, duration: 0.5))
   end
