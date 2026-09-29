@@ -1,5 +1,12 @@
 # frozen_string_literal: true
 
+# What a turret may aim at: a component of the game's own, with nothing in it. Targeting
+# matches it by `is_a?`, so a real class stands in rather than a double.
+class SpecHostile < RGame::Engine::Component; end
+
+# A kind of hostile, so a Targeting asking for the base class finds it too.
+class SpecBoss < SpecHostile; end
+
 RSpec.describe RGame::Engine::Components::Targeting do
   # Targeting queries the scene's CollisionWorld, so build the same arrangement the game
   # has: a scene boundary carrying the world, enemy nodes whose CircleColliders register
@@ -12,19 +19,24 @@ RSpec.describe RGame::Engine::Components::Targeting do
     scene.enter_tree
   end
 
-  # An enemy at (x, y): a live node carrying a CircleCollider on the given layer.
-  def enemy(x, y, layer: :enemy)
+  def circle(layer = :enemy) = RGame::Engine::Components::CircleCollider.new(radius: 10, layer:)
+
+  # A node at (x, y) holding a CircleCollider, and each of `components`.
+  def node_at(x, y, *components)
     node = RGame::Engine::Node2D.new(x: x, y: y)
-    node.add_component(RGame::Engine::Components::CircleCollider.new(radius: 10, layer: layer))
+    components.each { node.add_component(it) }
     scene.add_node(node)
     node
   end
 
-  # A turret at (x, y); returns its Targeting component.
-  def turret(x, y, range: 100, **)
-    node = RGame::Engine::Node2D.new(x: x, y: y)
-    targeting = node.add_component(described_class.new(range: range, **))
-    scene.add_node(node)
+  # An enemy at (x, y): a collider, and the SpecHostile a turret aims at.
+  def enemy(x, y) = node_at(x, y, circle, SpecHostile.new)
+
+  # A turret at (x, y); returns its Targeting component. `own` are components the turret
+  # itself holds.
+  def turret(x, y, *own, range: 100, having: SpecHostile)
+    targeting = described_class.new(range:, having:)
+    node_at(x, y, *own, targeting)
     targeting
   end
 
@@ -35,8 +47,22 @@ RSpec.describe RGame::Engine::Components::Targeting do
 
   describe 'construction' do
     it 'raises on an unknown policy' do
-      expect { described_class.new(range: 100, policy: :bogus) }
+      expect { described_class.new(range: 100, having: SpecHostile, policy: :bogus) }
         .to raise_error(ArgumentError, /unknown targeting policy/)
+    end
+
+    it 'requires having:' do
+      expect { described_class.new(range: 100) }.to raise_error(ArgumentError, /having/)
+    end
+
+    it 'raises for a having: that is not a Module' do
+      expect { described_class.new(range: 100, having: :enemy) }
+        .to raise_error(ArgumentError, /having is the component class a target holds, not :enemy/)
+    end
+
+    it 'takes no layer:, which says what a node collides as rather than what it offers' do
+      expect { described_class.new(range: 100, having: SpecHostile, layer: :enemy) }
+        .to raise_error(ArgumentError, /unknown keyword: :layer/)
     end
   end
 
@@ -56,10 +82,10 @@ RSpec.describe RGame::Engine::Components::Targeting do
       expect(targeting.target).to be_nil
     end
 
-    it 'ignores colliders outside the targeted layer' do
-      enemy(120, 100, layer: :ally) # closer, but not an enemy
-      real = enemy(150, 100, layer: :enemy)
-      targeting = turret(100, 100, layer: :enemy)
+    it 'passes over a nearer node that holds no having:, whatever its layer' do
+      node_at(120, 100, circle(:enemy)) # closer, on the enemies' layer, but no SpecHostile
+      real = enemy(150, 100)
+      targeting = turret(100, 100)
       tick
       expect(targeting.target).to be(real)
     end
@@ -74,12 +100,53 @@ RSpec.describe RGame::Engine::Components::Targeting do
       tick
       expect(targeting.target).to be_nil
     end
+  end
 
-    it 'selects without allocating per update' do
-      enemy(150, 100)
+  describe 'having:, matched by is_a?' do
+    it 'finds a subclass of the class it names' do
+      boss = node_at(150, 100, circle, SpecBoss.new)
       targeting = turret(100, 100)
-      tick # resolve positions + build the broadphase index
-      expect { targeting._update(1.0 / 60) }.to allocate_nothing
+      tick
+      expect(targeting.target).to be(boss)
     end
+
+    it 'finds every node holding a module it names' do
+      plain = node_at(150, 100, circle(:scenery))
+      targeting = turret(100, 100, having: RGame::Engine::Components::Collider)
+      tick
+      expect(targeting.target).to be(plain)
+    end
+
+    it 'counts a node holding two matches as one candidate, not a raise' do
+      twice = node_at(150, 100, circle, SpecHostile.new, SpecBoss.new)
+      targeting = turret(100, 100)
+      tick
+      expect(targeting.target).to be(twice)
+    end
+  end
+
+  describe 'its own node' do
+    it 'is never the target, though it holds having: and is nearest' do
+      other = enemy(150, 100)
+      targeting = turret(100, 100, circle, SpecHostile.new)
+      tick
+      expect(targeting.target).to be(other)
+    end
+
+    it 'leaves nil when nothing else is in range' do
+      targeting = turret(100, 100, circle, SpecHostile.new)
+      tick
+      expect(targeting.target).to be_nil
+    end
+  end
+
+  # Reaches each filter: the turret's own collider, a nearer node without SpecHostile,
+  # and the enemy that is picked.
+  it 'selects without allocating per update' do
+    node_at(120, 100, circle)
+    enemy(150, 100)
+    targeting = turret(100, 100, circle, SpecHostile.new)
+    tick # resolve positions + build the broadphase index
+    expect { targeting._update(1.0 / 60) }.to allocate_nothing
   end
 end

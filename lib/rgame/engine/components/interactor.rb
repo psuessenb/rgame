@@ -36,7 +36,7 @@ module RGame
         # Interaction may answer. Raises ArgumentError for an empty list, a name
         # that is not a Symbol, or a name given twice.
         def initialize(range:, actions: [:interact], policy: :nearest)
-          super(range:, policy:)
+          super(range:, policy:, having: Interaction)
           unless actions.is_a?(Array) && !actions.empty? && actions.all?(Symbol) && actions.uniq.size == actions.size
             raise ArgumentError, "actions is a list of distinct action names, not #{actions.inspect}"
           end

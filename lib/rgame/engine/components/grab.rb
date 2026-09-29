@@ -7,13 +7,14 @@ module RGame
       # along: forwards, backwards and sideways.
       #
       #   hero.add_component(CharacterBody.new(speed: 60, blocked_by: %i[tiles crate]))
-      #   hero.add_component(Grab.new(layer: :crate, range: 24))
+      #   hero.add_component(Grab.new(range: 24))
       #
-      # "What is nearest in range on this layer" is the question Targeting answers, so this
-      # is a Targeting plus a held button. While `action` is held it holds the Pushable on
-      # its #target's node, and keeps that one until the action is let go, even if
-      # something else comes nearer. The tick the action is released, it lets go. A target
-      # with no Pushable is not held.
+      # "What is nearest in range with a Pushable" is the question Targeting answers, so
+      # this is a Targeting plus a held button. While `action` is held it holds the
+      # Pushable on its #target's node, and keeps that one until the action is let go,
+      # even if something else comes nearer. The tick the action is released, it lets go.
+      # A node with no Pushable is never a target, whatever its layer, so a fixed crate
+      # does not hide a movable one behind it.
       #
       # It hands the crate to the sibling Mover in `_control`, and the mover moves it in
       # `_update`. Every `_control` in the tree runs before any `_update`, so the crate is
@@ -21,14 +22,13 @@ module RGame
       # were added in. Mover's header says how the step moves both.
       #
       # `action` is read from the actions of whoever owns the node, as an Interactor's
-      # actions are, so two players each hold their own crate. It picks what is nearest on
-      # its layer, where an Interactor asks each candidate's Interaction.
+      # actions are, so two players each hold their own crate.
       #
       # Like Interactor it is a Targeting, so a node holding both, or both of these,
       # answers `get_component(Targeting)` with a raise. Hold each by name.
       class Grab < Targeting
-        def initialize(range:, layer:, action: :grab, policy: :nearest)
-          super(range:, layer:, policy:)
+        def initialize(range:, action: :grab, policy: :nearest)
+          super(range:, policy:, having: Pushable)
           @rgame_action = action
           @rgame_held = nil
         end

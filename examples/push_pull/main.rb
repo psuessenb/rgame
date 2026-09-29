@@ -119,7 +119,7 @@ module PushPullExample
       add_component(Components::CharacterBody.new(speed: SPEED, blocked_by: %i[wall crate],
                                                   pushes: [:crate]))
       add_component(Components::PlayerController.new)
-      @grab = add_component(Components::Grab.new(layer: :crate, range: REACH))
+      @grab = add_component(Components::Grab.new(range: REACH))
     end
 
     # The crate in hand, or nil.

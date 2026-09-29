@@ -3,28 +3,41 @@
 module RGame
   module Engine
     module Components
-      # Picks a node for the owning node to aim at: each update it queries the scene's
-      # CollisionWorld around the node's world origin and exposes the chosen target via
-      # #target (the candidate's node, or nil). The owner reads it to act — Targeting only
-      # selects, it never moves or shoots.
+      # Picks a node for the owning node to aim at. Each update it asks the scene's
+      # CollisionWorld for a collider around its node's world origin, and #target is that
+      # collider's node, or nil. The owner reads it to act: Targeting only selects, and
+      # never moves or shoots.
       #
-      # The CollisionWorld it queries is the same broadphase every collider registers with,
-      # so targeting needs no candidate list of its own. The `layer` restricts candidates
-      # (pass :enemy to pick only colliders on that layer, not allies or projectiles).
+      #   turret.add_component(Targeting.new(range: 120, having: Hostile))
       #
-      # Policies (how to choose among the candidates in range):
-      #   - :nearest — the closest candidate (the default; one broadphase nearest-lookup).
-      # More policies (e.g. furthest-along-path) arrive with the state they need.
+      # **It picks by a component on the target, never by its layer.** A layer says what
+      # a node collides as, and a node has one. What the owner may do to it is a component,
+      # and a node can hold many. `having` matches by `is_a?`, as `get_component` does, so
+      # a module such as Collider matches every node holding one. A turret that aims at
+      # some nodes and not others gives them a component of the game's own, even an empty
+      # one. It never picks its own node.
+      #
+      # The CollisionWorld is the broadphase every collider registers with, so targeting
+      # keeps no candidate list of its own.
+      #
+      # Policies say how to choose among the candidates in range:
+      #   - :nearest, the closest candidate, and the default.
+      # More policies, such as furthest along a path, arrive with the state they need.
       class Targeting < Engine::Component
         POLICIES = %i[nearest].freeze
 
-        def initialize(range:, policy: :nearest, layer: nil)
+        # `having` is the component class, or module, a target's node must hold. Raises
+        # ArgumentError for an unknown policy, and for a `having` that is not a Module.
+        def initialize(range:, having:, policy: :nearest)
           super()
           raise ArgumentError, "unknown targeting policy #{policy.inspect}" unless POLICIES.include?(policy)
+          unless having.is_a?(Module)
+            raise ArgumentError, "having is the component class a target holds, not #{having.inspect}"
+          end
 
           @rgame_range = range
           @rgame_policy = policy
-          @rgame_layer = layer
+          @rgame_having = having
           @rgame_target = nil
         end
 
@@ -43,7 +56,8 @@ module RGame
 
         def pick
           case @rgame_policy
-          when :nearest then @rgame_world.nearest(node.world_x, node.world_y, @rgame_range, layer: @rgame_layer)
+          when :nearest
+            @rgame_world.nearest(node.world_x, node.world_y, @rgame_range, having: @rgame_having, except: node)
           end
         end
       end

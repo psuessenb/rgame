@@ -108,14 +108,19 @@ module RGame
         end
 
         # The registered collider nearest to (x, y) within range `r`, or nil when none
-        # qualifies. Restrict to a single `layer:` (the common case: a turret targeting only
-        # :enemy). Dup-safe — it keeps the running minimum, so #query_circle's possible
-        # multi-cell repeats don't matter. Allocation-free.
-        def nearest(x, y, r, layer: nil)
+        # qualifies. `layer` keeps only the colliders on that layer. `having` keeps only
+        # those whose node holds that component class or module, matched by `is_a?`. A node
+        # holding two such components is one candidate. `except` leaves out one node, such
+        # as the asker's own. Dup-safe — it keeps the running minimum, so #query_circle's
+        # possible multi-cell repeats don't matter. Allocation-free.
+        def nearest(x, y, r, layer: nil, having: nil, except: nil)
           best = nil
           best_d2 = nil
           query_circle(x, y, r) do |collider|
+            candidate = collider.node
             next if layer && collider.layer != layer
+            next if candidate.equal?(except)
+            next if having && candidate.components.none?(having)
 
             dx = collider.cx - x
             dy = collider.cy - y

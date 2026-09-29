@@ -39,7 +39,7 @@ RSpec.describe RGame::Engine::Components::Grab do
     node.input_owner = player
     node.add_component(components::BoxCollider.new(width: 16, height: 16, layer: :hero))
     node.add_component(components::CharacterBody.new(speed: 60.0, blocked_by:))
-    node.add_component(described_class.new(layer: :crate, range: 32))
+    node.add_component(described_class.new(range: 32))
     scene.add_node(node)
   end
 
@@ -182,6 +182,19 @@ RSpec.describe RGame::Engine::Components::Grab do
       expect([hero.x, crate.x]).to eq([90.0, 116.0])
     end
 
+    # At 78e99d0 Grab picked by layer first, so the fixed crate, 11.3 px from the hero's
+    # origin, was its target and it held nothing.
+    it 'does not let a nearer crate with no Pushable hide one that has it' do
+      hero = hero_at(100.0, 100.0)
+      crate_at(100.0, 84.0, pushable: false)
+      movable = crate_at(116.0, 100.0)
+      hold_grab
+      tick
+      walk(hero, 0, 1)
+      tick(10)
+      expect([hero.y, movable.y, grab(hero).holding]).to eq([110.0, 110.0, movable])
+    end
+
     it 'lets go of a crate that is freed' do
       hero = hero_at(100.0, 100.0)
       crate = crate_at(116.0, 100.0)
@@ -208,9 +221,13 @@ RSpec.describe RGame::Engine::Components::Grab do
       .to eq([106.0, 160.0, near_left, near_right])
   end
 
+  it 'takes no layer:, since what it may hold is a Pushable' do
+    expect { described_class.new(layer: :crate, range: 24) }.to raise_error(ArgumentError, /unknown keyword: :layer/)
+  end
+
   it 'needs a Mover on its node' do
     node = RGame::Engine::Node2D.new
-    node.add_component(described_class.new(layer: :crate, range: 32))
+    node.add_component(described_class.new(range: 32))
     expect { scene.add_node(node) }.to raise_error(/needs a RGame::Engine::Components::Mover/)
   end
 

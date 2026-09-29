@@ -62,7 +62,7 @@ module Adventure
                       camera: camera, offset_y: CAMERA_OFFSET_Y
                     ))
       add_component(Components::Interactor.new(range: REACH, actions: %i[interact search]))
-      add_component(Components::Grab.new(range: GRIP, layer: :crate))
+      add_component(Components::Grab.new(range: GRIP))
       @carried = []
       @worn = {}
       @revision = 0
