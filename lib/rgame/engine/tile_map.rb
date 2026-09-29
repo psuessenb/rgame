@@ -3,6 +3,7 @@
 require_relative '../util'
 require_relative 'properties'
 require_relative 'map_object'
+require_relative 'frame_times'
 
 module RGame
   module Engine
@@ -159,7 +160,8 @@ module RGame
         @gap = @tile_classes.map { it == GAP }.freeze
         @tile_properties = tile_properties.dup.freeze
         @tile_offsets = (tile_offsets || Array.new(@tile_table.size, NO_OFFSET)).map(&:freeze).freeze
-        @frames = frames.map { it&.map { |pair| pair.dup.freeze }&.freeze }.freeze
+        @frames = frames.map { it&.map(&:first)&.freeze }.freeze
+        @frame_times = frames.map { it && FrameTimes.new(it.map(&:last)) }.freeze
         @animated_tiles = @frames.each_index.select { @frames[it] }.freeze
         @objects = objects.dup.freeze
         @properties = properties
@@ -257,10 +259,9 @@ module RGame
       # The tile showing for `tile` after `elapsed` seconds of its animation,
       # which loops. A tile that does not animate answers itself.
       def frame_tile(tile, elapsed)
-        frames = @frames[tile] or return tile
+        times = @frame_times[tile] or return tile
 
-        into = elapsed % frames.last.last
-        (frames.find { |_shown, ends| into < ends } || frames.last).first
+        @frames[tile][times.index_at(elapsed)]
       end
 
       # Solid if any layer has a solid tile at (col, row). Out of bounds is not
