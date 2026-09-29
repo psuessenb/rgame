@@ -1,6 +1,6 @@
 # Single-job components
 
-**Status:** planned, nothing implemented. Steps 1–4 are detailed. Steps 5–7 are
+**Status:** Step 1 is implemented. Steps 2–4 are detailed. Steps 5–7 are
 rough, and each is re-planned before it starts. Step 8 folds the plan back and
 deletes it.
 
@@ -586,6 +586,17 @@ node, never for its layer**: a node has one layer, and can offer many things.
 **Tests:** none. No code changes.
 
 **Verify:** `git diff --stat main` lists CLAUDE.md alone.
+
+**Landed.** The branch is `component-not-layer`, in one commit. The subsection
+follows "A name says which mechanism it is", worded as sketched. At that
+commit, `git diff --stat main` lists `CLAUDE.md` alone, with 5 lines added. No
+spec reads CLAUDE.md. `rake spec` passes 4,525 examples, as at planning.
+
+- **The Verify line holds for the commit, not the branch.** This note adds the
+  plan to the branch's diff, in a commit of its own.
+- **No skill states the rule.** Nothing under `.claude/skills/` weighs a layer
+  against a component, so CLAUDE.md holds the rule alone until step 7 links
+  it.
 
 ### Step 2 — `Targeting#having`, and a `Grab` that picks by `Pushable`
 
