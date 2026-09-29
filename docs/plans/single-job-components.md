@@ -1,8 +1,7 @@
 # Single-job components
 
-**Status:** Steps 1–4 are implemented, and step 5 is re-planned. Steps 6 and 7
-are rough, and each is re-planned before it starts. Step 8 folds the plan back
-and deletes it.
+**Status:** Steps 1–5 are implemented. Steps 6 and 7 are rough, and each is
+re-planned before it starts. Step 8 folds the plan back and deletes it.
 
 ## Verdict
 
@@ -1039,6 +1038,54 @@ as on `main`: `pits`' 590 `sprite` draws in 650 ticks, `moving_platforms`' 9150
 in 1020, and `topdownplatformer`'s 3273 `rect`s under `--seed 1 --texts --ticks
 1654`. `rake drive:allocations` is green, and the three allocate about what
 they do on `main`.
+
+**Landed.** The branch is `blink`, with the re-plan in a commit of its own and
+one commit per sub-step. `Blink.new(interval: 0.1)` with `start`, `stop` and
+`blinking?`, and a `Respawn.new` that takes nothing, are as sketched. `rake
+spec` passes 4,571 examples, 8 more than `main`: 12 in `blink_spec.rb` and the
+`Blink` example in `components.md`, less 5 in `respawn_spec.rb`, which has 13.
+`rake spec:core` passes 555, and `rake drive:allocations` passes all 44
+projects.
+
+Driven with `--seed 4242 --texts`, and `--seed 1 --texts --ticks 1654` for
+`topdownplatformer`, all three report the same as `main`, line for line, but
+for `topdownplatformer`'s tilemap path. `pits` draws its 590 `sprite`s in 650
+ticks, `moving_platforms` its 9150 in 1020, and `topdownplatformer` its 3273
+`rect`s. Without the slack, 3 of `blink_spec.rb`'s examples fail. A `_detach`
+that keeps the blink fails 2, and a restart that reads the opacity again fails
+1. An Array made in `Blink#_update` fails the allocation example in
+`blink_spec.rb` and the fall with a blink in `footing_allocation_spec.rb`.
+
+- **Rule 6 raises, but does not name `flash:`.** Ruby names an unknown keyword
+  only for a method that takes keywords, and `Respawn#initialize` takes none.
+  So `Respawn.new(flash: 1.0)` raises "wrong number of arguments (given 1,
+  expected 0)". Hard constraint 5 rules out a message written for the old
+  keyword, and the spec pins this one.
+- **The first allocation example measured no blink.** `allocate_nothing`
+  calls its block 5 times to warm up, then about 1,000 times more. A block
+  running one blink to its end finished it while warming up, so every measured
+  call found no blink, and an Array made per update passed. Each call now
+  starts a blink and runs it whole. For step 8: an allocation spec over
+  something that ends starts it again inside the block.
+- **All three projects allocate a little less than on `main`**, on the same
+  share of ticks, and the same in two runs of each side. `pits` allocates 11.8
+  objects a second against 12.6, `moving_platforms` 7.0 against 7.4, and
+  `topdownplatformer` 6.4 against 6.7. Run with a budget of 1, the probe lists
+  the difference in `pits`: on `main`, the first respawn builds the `respawned`
+  signal inside the measured window, since nothing connects to it. Here the
+  game connects at construction.
+- **`Blink#_detach` also covers the `Blink` leaving its node**, which the plan
+  named only for the node leaving the tree. Both give the opacity back, and
+  `blink_spec.rb` pins each.
+- **For step 6: `footing_allocation_spec.rb`'s fall ending in a respawn now
+  carries a `Blink`.** Step 6's allocation criterion measures a fall with it.
+  Nothing here changed `Fall`.
+
+Documented in `docs/api/components.md` under a new `Blink`, with an example
+the doc specs run, and under `Respawn`, rewritten. The `pits` and
+`moving_platforms` headers and their `examples.md` entries name `Blink`.
+`CHANGELOG.md` has an `Added` entry for `Blink`, and its unreleased "Falling
+into a gap" entry has `Respawn` emit `on_respawned` in place of flashing.
 
 ### Step 6 — `Footing`'s look (rough)
 
