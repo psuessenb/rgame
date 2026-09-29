@@ -36,6 +36,12 @@ RSpec.describe RGame::Engine::Components::Collectable do
     [node, collectable]
   end
 
+  describe 'construction' do
+    it 'takes no free:, since being taken is its whole job' do
+      expect { described_class.new(by: :hero, free: false) }.to raise_error(ArgumentError, /unknown keyword: :free/)
+    end
+  end
+
   describe 'the layer it names' do
     it 'fires on a collider of that layer' do
       seen = []
@@ -59,9 +65,9 @@ RSpec.describe RGame::Engine::Components::Collectable do
       expect(seen).to be_empty
     end
 
-    it 'fires once, because a contact is an edge' do
+    it 'fires once for a taker that stays on it' do
       seen = []
-      _, collectable = coin(100, 100, by: :hero, free: false)
+      _, collectable = coin(100, 100, by: :hero)
       collectable.on_collected { |other| seen << other }
       hero(100, 100)
 
@@ -83,22 +89,13 @@ RSpec.describe RGame::Engine::Components::Collectable do
   end
 
   describe 'what happens to the node' do
-    it 'frees it by default' do
+    it 'frees it' do
       node, = coin(100, 100, by: :hero)
       hero(100, 100)
 
       tick
 
       expect(node.freed?).to be(true)
-    end
-
-    it 'keeps it with free: false' do
-      node, = coin(100, 100, by: :hero, free: false)
-      hero(100, 100)
-
-      tick
-
-      expect(node.freed?).to be(false)
     end
 
     it 'emits before freeing, so a listener still has the node' do
@@ -181,21 +178,26 @@ RSpec.describe RGame::Engine::Components::Collectable do
     end
   end
 
-  # Rule 7. A pooled node leaves the tree and comes back, which attaches its
-  # components again — so a Collectable that only ever connected would collect
-  # one more listener each time round.
-  describe 'a node that leaves the tree and returns' do
-    it 'fires once per visit, not once per attach' do
+  # A pooled coin leaves the tree when it is taken and comes back when it is
+  # spawned, which attaches its components again — so a Collectable that only
+  # ever connected would collect one more listener each time round.
+  describe 'a pooled coin taken twice' do
+    it 'fires once each time, not once per attach' do
       seen = []
-      node, collectable = coin(100, 100, by: :hero, free: false)
+      collectable = described_class.new(by: :hero)
       collectable.on_collected { |other| seen << other }
+      pool = scene.add_component(RGame::Engine::Components::Pool.new do
+        node = RGame::Engine::Node2D.new(x: 100, y: 100)
+        node.add_component(RGame::Engine::Components::CircleCollider.new(radius: 8, layer: :pickup))
+        node.add_component(collectable)
+        node
+      end)
       taker = hero(100, 100)
+      pool.spawn
       tick
-
-      scene.remove_node(node)
-      scene.add_node(node)
       taker.x = 400
       tick
+      pool.spawn
       taker.x = 100
       tick
 
@@ -203,12 +205,12 @@ RSpec.describe RGame::Engine::Components::Collectable do
     end
   end
 
-  # The caller CLAUDE.md asks for: the one that uses both of this step's
-  # components at once. Nothing else in the suite mounts an Interactor and a
-  # Collectable in one scene, and that is the case the two were designed for.
+  # The caller CLAUDE.md asks for: a scene holding an Interactor and a
+  # Collectable at once. A press opens the chest, and a touch takes the coin
+  # inside it.
   # rubocop:disable RSpec/MultipleMemoizedHelpers -- the scene's audio, root and
-  # broadphase, plus the two nodes and the input this case needs on top of them
-  describe 'a hero who walks onto a chest and opens it' do
+  # broadphase, plus the three nodes and the input this case needs on top of them
+  describe 'a hero who walks onto a chest with a coin inside' do
     let(:controls) { RGame::Util::Controls }
     let(:backend) { FakeInputBackend.new }
     let(:players) do
@@ -217,17 +219,20 @@ RSpec.describe RGame::Engine::Components::Collectable do
 
     let(:log) { [] }
 
-    # A chest that reports being reached and stays put, with a coin inside that
-    # is taken by touch.
+    # A chest opened with a press, and the coin inside it, taken by touch.
     let(:chest) do
       record = log
       node = RGame::Engine::Node2D.new(x: 160, y: 100)
       node.define_singleton_method(:open) { record << :opened }
-      node.add_component(RGame::Engine::Components::BoxCollider.new(width: 20, height: 20,
-                                                                    layer: :interactable))
-      node.add_component(described_class.new(by: :hero, free: false))
-          .on_collected { log << :reached }
+      node.add_component(RGame::Engine::Components::BoxCollider.new(width: 20, height: 20, layer: :chest))
       node.add_component(RGame::Engine::Components::Interaction.new(interact: :open))
+      scene.add_node(node)
+    end
+
+    let(:treasure) do
+      node = RGame::Engine::Node2D.new(x: 160, y: 100)
+      node.add_component(RGame::Engine::Components::CircleCollider.new(radius: 6, layer: :pickup))
+      node.add_component(described_class.new(by: :hero, sound: :blip)).on_collected { log << :coin }
       scene.add_node(node)
     end
 
@@ -246,20 +251,19 @@ RSpec.describe RGame::Engine::Components::Collectable do
 
     before do
       chest
+      treasure
       walker
     end
 
-    it 'reaches it by touch and opens it with a press' do
+    it 'takes the coin on touch, and frees only the coin' do
       step
       walker.x = 160
       step
-      backend.hold(controls::KEY_E)
-      step
 
-      expect(log).to eq(%i[reached opened])
+      expect([log, treasure.freed?, chest.freed?]).to eq([[:coin], true, false])
     end
 
-    it 'opens it again without reaching it again' do
+    it 'takes the coin once, and opens the chest on each press' do
       walker.x = 160
       step
       backend.hold(controls::KEY_E)
@@ -269,20 +273,7 @@ RSpec.describe RGame::Engine::Components::Collectable do
       backend.hold(controls::KEY_E)
       step
 
-      expect(log).to eq(%i[reached opened opened])
-    end
-
-    it 'takes the coin inside it on touch, and frees only the coin' do
-      taken = []
-      node = RGame::Engine::Node2D.new(x: 160, y: 100)
-      node.add_component(RGame::Engine::Components::CircleCollider.new(radius: 6, layer: :pickup))
-      node.add_component(described_class.new(by: :hero, sound: :blip)).on_collected { taken << :coin }
-      scene.add_node(node)
-
-      walker.x = 160
-      step
-
-      expect([taken, node.freed?, chest.freed?]).to eq([[:coin], true, false])
+      expect(log).to eq(%i[coin opened opened])
     end
   end
   # rubocop:enable RSpec/MultipleMemoizedHelpers

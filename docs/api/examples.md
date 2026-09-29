@@ -165,13 +165,13 @@ slides it there. The push is the example's own rule, written against
 A gate between the town and a garden, and a pair of warp pads. Each room is a
 `Scene::Room` built over its map, and mounting the map builds its doors: a
 `Door` or a `Warp` for each object of that class. A door is a box with a
-`Collectable` that asks the rooms for a move, to the room and the entrance its
-properties name. The garden is built as the hero walks in and the town freed,
-since nobody is left in it. A pad moves the hero within the garden, which only
-places it again.
+collider whose `on_hit` asks the rooms for a move, to the room and the entrance
+its properties name. The garden is built as the hero walks in and the town
+freed, since nobody is left in it. A pad moves the hero within the garden, which
+only places it again.
 
 **Uses:** `Scene::Rooms`, `Scene::Room`, `Scene::Fade`, `TileMap#object_named`,
-`Components::Collectable` with `free: false`, `Components::TileWorld`,
+`Components::BoxCollider#on_hit`, `Components::TileWorld`,
 `TileMapLayer.mount` with map-built nodes, `Engine::Text`.
 
 ### pathfinding

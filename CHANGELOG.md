@@ -213,7 +213,7 @@ index, not the argument.
   the pad's X. See [docs/api/components.md](docs/api/components.md#interaction).
 - **Things that pick themselves up.** `Components::Collectable` acts on the
   step a collider on the layer it names touches it — emit `collected`, play a
-  sound, and free the node unless `free: false`. See
+  sound, and free the node. See
   [docs/api/components.md](docs/api/components.md#collectable) and the
   `collectables` example.
 - **A mover pushes what it walks into.** `pushes:` on every mover names collider

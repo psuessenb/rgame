@@ -420,13 +420,11 @@ it: emit `collected`, play `sound`, and free the node.
 ```ruby
 coin.add_component(RGame::Engine::Components::Collectable.new(by: :hero, sound: :blip))
     .on_collected { |_other| purse.add(:coin) }
-
-chest.add_component(RGame::Engine::Components::Collectable.new(by: :hero, free: false))
 ```
 
-- **Construct:** `Collectable.new(by:, sound: nil, free: true)`. `by` is the
-  layer whose colliders take this; every other layer is ignored. `sound` is a
-  sound id, or `nil` for a silent pickup. `free: false` keeps the node.
+- **Construct:** `Collectable.new(by:, sound: nil)`. `by` is the layer whose
+  colliders take this; every other layer is ignored. `sound` is a sound id, or
+  `nil` for a silent pickup.
 - **Signal:** `on_collected(other)` fires with the collider that took it, before
   the node is freed, so a listener can still read its node. `on_hit` is an edge,
   so standing on a coin takes it once.
@@ -441,10 +439,13 @@ chest.add_component(RGame::Engine::Components::Collectable.new(by: :hero, free: 
 what it may pick up. What a coin is worth belongs to the coin, and a game adds
 one by adding a node.
 
-**`free: false` is the chest**: it reports the touch and stays, and whatever
-listens decides what opening means. Pair it with an
-[`Interaction`](#interaction) for something reached by touch and opened with a
-press.
+**It always takes the node.** Something touched and kept, such as a door,
+connects its collider's `on_hit` instead, and says there what a touch does:
+
+```ruby
+door.add_component(RGame::Engine::Components::BoxCollider.new(width: 16, height: 32, layer: :door))
+    .on_hit { |other| enter(other.node) if other.layer == :hero }
+```
 
 ### `Collider`
 
@@ -457,7 +458,7 @@ def _attach = @collider = require_sibling(RGame::Engine::Components::Collider)
 
 It declares nothing. Both colliders already answer the same broadphase,
 narrowphase and contact protocol; this is the module they include so a component
-can name it. A coin is round and a chest is not, so
+can name it. A coin is round and a key is not, so
 [`Collectable`](#collectable) asks for this rather than for either shape.
 
 A node carrying both matches twice and `require_sibling` raises, which is the

@@ -474,8 +474,7 @@ class Door < RGame::Engine::Node2D
     @entrance = entrance
     add_component(RGame::Engine::Components::BoxCollider.new(width:, height:, offset_x: -width / 2.0,
                                                              offset_y: -height, layer: :door))
-    add_component(RGame::Engine::Components::Collectable.new(by: :hero, free: false))
-      .on_collected { |other| @rooms.move(other.node, to: destination, entrance: @entrance) }
+      .on_hit { |other| @rooms.move(other.node, to: destination, entrance: @entrance) if other.layer == :hero }
   end
 
   def _enter_tree = @rooms = system!(RGame::Engine::Scene::Rooms)
