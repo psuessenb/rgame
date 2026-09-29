@@ -76,12 +76,14 @@ that answers `interact` with its `open`. The hero's `Interactor`, a `Targeting`
 plus a button, finds the chest and presses it. Opening it spills three more
 coins, which are the same coin as the ones the room started with. The prompt is
 drawn over `interactor.target`, so it appears before the press rather than
-after.
+after. Each coin spins: an `AnimatedSprite` plays one animation from
+`coin.json`, with no `Mover` on the coin.
 
-**Uses:** `Components::Collectable`, `Components::Interactor`,
-`Components::Interaction`, `Components::CollisionWorld`,
-`Components::CircleCollider`, `Components::BoxCollider`,
-`Components::CharacterBody` with `blocked_by: [:chest]`, `Engine::Text`.
+**Uses:** `Components::Collectable`, `Components::AnimatedSprite`,
+`Components::Interactor`, `Components::Interaction`,
+`Components::CollisionWorld`, `Components::CircleCollider`,
+`Components::BoxCollider`, `Components::CharacterBody` with
+`blocked_by: [:chest]`, `Engine::Text`.
 
 ### collision_tiles
 

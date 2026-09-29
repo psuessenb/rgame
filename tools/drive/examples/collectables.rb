@@ -15,9 +15,12 @@
 #   - **"Press E" from tick 117**, and for 21 frames only: the prompt is drawn
 #     from `interactor.target`, which fills when the walk brings the chest into
 #     reach, and the room stops drawing it the moment the chest is open.
-#   - **1287 `circle` calls.** That is the coin count integrated over the run,
-#     and it is the one number that says the chest spilled: six coins fall to
-#     four by tick 137, rise to seven, and fall to five.
+#   - **1527 `sprite` calls**, 240 for the hero and 1287 for the coins. The
+#     second is the coin count integrated over the run, and it is the one
+#     number that says the chest spilled: six coins fall to four by tick 137,
+#     rise to seven, and fall to five.
+#   - **Columns 0..7 on the `sprite` line.** The hero's walk has six columns,
+#     so 6 and 7 are the coins' `spin`, and the coins turn.
 #
 # `idle 2` sits between arriving and pressing because an Interactor acts on the
 # target the last update chose. The walk right is 130 ticks for 224 pixels of

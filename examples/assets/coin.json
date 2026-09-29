@@ -1,0 +1,8 @@
+{
+  "image": "coin.png",
+  "frame_width": 16,
+  "frame_height": 16,
+  "animations": {
+    "spin": { "row": 0, "frames": 8, "fps": 12 }
+  }
+}

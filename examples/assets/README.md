@@ -1,7 +1,7 @@
 # Example assets
 
-Everything the examples draw and play. Twenty-five files besides this one, about
-148 KB in total — of which the music is 93 KB, and the reason for `tools/shrink_ogg.c`.
+Everything the examples draw and play. Twenty-seven files besides this one, about
+146 KB in total — of which the music is 93 KB, and the reason for `tools/shrink_ogg.c`.
 
 ## Why these files and not the ones in `media/`
 
@@ -186,6 +186,19 @@ A sprite-sheet descriptor over `tileset.png`: 16x16 frames and no animations,
 so `renderer.sprite('tiles.json', row, col, x, y)` draws any one Tiny Town tile.
 `examples/moving_platforms` draws its raft's planks from row 6, columns 0, 1
 and 3.
+
+### `coin.png` + `coin.json` — ours
+
+A gold coin turning on its vertical axis, in eight 16x16 frames side by side.
+`tools/draw_coin.rb` draws them rather than by hand, so they can be drawn again.
+Run it and it writes the same bytes. The frames cover half a turn, from face on
+to edge on and back, since a plain coin's back looks like its face. Each has a
+dark outline and a highlight on the left of the face.
+
+`coin.json` makes the row one animation, `spin`, at 12 fps, so a half turn
+takes two thirds of a second. `examples/collectables` plays it with an
+`AnimatedSprite`, and `spec/example_assets_spec.rb` holds the descriptor to the
+image.
 
 ### `ui.png` + `ui.json` — Kenney, *UI Pack - Pixel Adventure*
 

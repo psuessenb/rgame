@@ -67,6 +67,23 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
     end
   end
 
+  describe 'coin.json' do
+    let(:descriptor) { JSON.parse(File.read(File.join(assets, 'coin.json')), symbolize_names: true) }
+
+    # An AnimatedSprite raises at attach for a name its sheet lacks, so a
+    # renamed animation would stop examples/collectables before its first frame.
+    it 'declares spin, which examples/collectables plays' do
+      expect(RGame::Engine::AnimationSet.new(descriptor[:animations]).include?(:spin)).to be(true)
+    end
+
+    it 'fills coin.png with the frames of spin, and nothing else' do
+      spin = descriptor[:animations][:spin]
+
+      expect([spin[:frames] * descriptor[:frame_width], (spin[:row] + 1) * descriptor[:frame_height]])
+        .to eq(png_size(File.join(assets, descriptor[:image])))
+    end
+  end
+
   describe 'ui.json' do
     subject(:elements) { descriptor[:nine_slices] }
 
