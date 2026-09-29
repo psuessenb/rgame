@@ -5,7 +5,8 @@ RSpec.describe RGame::Engine::Components::Interactor do
   # targets whose Interactions answer actions, and a hero carrying the component
   # under test. A tick rebuilds the index (update) and then reads the press
   # (control), in that order, because a press acts on the target the last update
-  # chose. The numbered rules are the plan's, in docs/plans/interaction-verbs.md.
+  # chose. The numbered rules are the interaction-verbs plan's, which
+  # `git show 6526120:docs/plans/interaction-verbs.md` keeps.
   let(:controls) { RGame::Util::Controls }
   let(:scene) { RGame::Engine::Node2D.new.tap { it.scene = it } }
   let(:backend) { FakeInputBackend.new }

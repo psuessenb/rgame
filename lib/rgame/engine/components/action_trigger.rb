@@ -4,9 +4,9 @@ module RGame
   module Engine
     module Components
       # Maps held input actions to an `on_triggered(action)` signal, rate-limited by a
-      # per-action cooldown. One instance covers several actions (the engine allows
-      # only one component of a class per node), so it emits the action name and lets
-      # listeners filter — reusable for "fire" here, or "jump"/"fire" in a platformer.
+      # per-action cooldown. One instance covers several actions and emits the action
+      # name, so listeners filter — "fire" here, or "jump" and "fire" in a platformer.
+      # Two triggers on one node would each need a slot of its own, named with `as:`.
       #
       #   trigger = node.add_component(ActionTrigger.new(fire: 0.22, dash: 0.5))
       #   trigger.on_triggered { |action| fire if action == :fire }

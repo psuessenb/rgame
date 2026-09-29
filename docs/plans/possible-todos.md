@@ -672,9 +672,9 @@ big to load at once. `Rooms#hold` is the seam a nearness policy calls.
 
 ---
 
-## Loose ends from cutscenes and interacting
+## Loose ends from cutscenes
 
-Four things the v0.5.0 roadmap found and left, each small:
+Three things the v0.5.0 roadmap found and left, each small:
 
 - **Nothing refuses a skip action without `hold:`.** `Components::Cutscene`'s
   `skip:` names an action the game should declare with `hold:`, so a tap does
@@ -689,11 +689,6 @@ Four things the v0.5.0 roadmap found and left, each small:
   the tick a cutscene with a camera starts is not seen, so the cutscene gives
   back the split rather than that solo. Nothing does that today. **Trigger:**
   a game that solos and starts a cutscene in the same tick.
-- **`Interactor` takes one action.** One component per class per node, so a
-  target that answers a tap and a hold reads the second action in the node's
-  own `_control`, off `interactor.target`. The adventure's hero searches a
-  chest that way. **Trigger:** a second game
-  with several verbs on one target.
 
 ---
 
@@ -944,3 +939,25 @@ and is fixed when the app is created. `docs/api/images.md` has it under
   `examples/smooth_art` draws no tile map or nine-slice panel for want of such
   art. **Trigger:** a smooth tileset whose seams show, which is also the art
   that example is missing.
+
+---
+
+## Loose ends from interaction verbs
+
+`Components::Interaction` maps the actions a node answers to its own methods,
+and an `Interactor` presses the nearest node that answers each action. Both are
+in `docs/api/components.md`. Two things the interaction-verbs plan left:
+
+- **A slot the component names itself.** A component takes its class's slot
+  unless `add_component` is given `as:`. One `Interaction` per verb, in slots
+  of their own, lost to one per node for three reasons. The verb is written
+  twice, in the constructor and in `as:`. `get_component(Interaction)` raises
+  on two. And two Interactions for one verb go unnoticed. A component that
+  names its own slot, here after its verb, would answer all three. Every `as:`
+  in the repository is a purpose its owner chose, such as a timer's `:spawn`,
+  so that hook would have one caller. **Trigger:** a second component whose
+  natural slot is a value it is built with.
+- **A verb a target cannot answer right now.** A searched chest still answers
+  `search`, and its handler finds nothing. An `Interaction` cannot say a verb is
+  unavailable, so a prompt drawn per verb would still offer the search.
+  **Trigger:** a game that draws a prompt per verb.
