@@ -66,8 +66,9 @@
 # `release` has none: it runs for seconds, and killing it halfway through
 # publishing would leave some gems up and some not.
 #
-# A change confined to plans or to the agent skills runs nothing at all. None
-# of it ships in the gem and no spec reads it, so there is nothing to verify.
+# A change confined to plans, to the agent skills or to CLAUDE.md runs nothing
+# at all. None of it ships in the gem and no spec reads it, so there is nothing
+# to verify.
 name: CI
 
 on:
@@ -76,10 +77,12 @@ on:
     paths-ignore:
       - 'docs/plans/**'
       - '.claude/**'
+      - 'CLAUDE.md'
   pull_request:
     paths-ignore:
       - 'docs/plans/**'
       - '.claude/**'
+      - 'CLAUDE.md'
   workflow_dispatch:
 
 # A second push to the same branch makes the first run's answer worthless — on
