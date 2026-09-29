@@ -17,7 +17,7 @@
 #   - TileMap#object_named — the entrance a door names, read off the map;
 #   - TileMapLayer.mount — a Door or a Warp built from each object of that
 #     class on the map, set up by the object's properties;
-#   - Components::Collectable with `free: false` — a door touched and kept.
+#   - BoxCollider#on_hit — a door that moves the hero who touches it, and stays.
 #
 # ## The map says where the doors are
 #
@@ -112,7 +112,7 @@ module DoorsExample
       @party = party
       add_component(Components::BoxCollider.new(width:, height:, offset_x: -width / 2.0, offset_y: -height,
                                                 layer: :door))
-      add_component(Components::Collectable.new(by: :hero, free: false)).on_collected { move(it.node) }
+        .on_hit { |other| move(other.node) if other.layer == :hero }
     end
 
     def _enter_tree = @rooms = system!(Engine::Scene::Rooms)

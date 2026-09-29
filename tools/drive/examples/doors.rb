@@ -24,7 +24,7 @@
 #   - **135 `faded` calls**: 15 for the reveal as the hero first arrives, the
 #     cover being complete from the start, and 30 for each of the four moves
 #     after it, a quarter of a second of cover and a quarter of reveal;
-#   - **no audio.** A door touched plays nothing, since it was given no sound.
+#   - **no audio.** A door plays no sound when touched.
 #
 # Each move stops the hero from the request until its reveal ends, so every
 # hold that reaches a door is followed by an idle long enough for the cover and

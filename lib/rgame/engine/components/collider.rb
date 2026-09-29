@@ -16,7 +16,7 @@ module RGame
       #   def _attach = @collider = require_sibling(Collider)
       #
       # Without it `require_sibling` takes a class, and naming either one would
-      # rule the other out — a coin is round and a chest is not, and Collectable
+      # rule the other out — a coin is round and a key is not, and Collectable
       # has no opinion about which.
       #
       # A node carrying both matches twice and `require_sibling` raises, which

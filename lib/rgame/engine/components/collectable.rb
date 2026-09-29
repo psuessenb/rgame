@@ -8,19 +8,17 @@ module RGame
       #   coin.add_component(Collectable.new(by: :hero, sound: :blip))
       #       .on_collected { |_other| purse.add(:coin) }
       #
-      #   chest.add_component(Collectable.new(by: :hero, free: false))
-      #
       # It listens to its own node's collider and acts on the step a collider on
       # the `by` layer starts overlapping it: emit `collected`, play `sound`
-      # through the tree's AudioOut if it was given one, and free the node unless
-      # `free: false`. `on_hit` is an edge, so standing on a coin takes it once.
+      # through the tree's AudioOut if it was given one, and free the node.
+      # `on_hit` is an edge, so standing on a coin takes it once.
       #
       # **The collectable does the collecting**, rather than the hero holding a
       # list of what it may pick up. What a coin is worth belongs to the coin,
       # and a game adds one by adding a node — nothing elsewhere changes.
       #
-      # `free: false` is the chest: it reports the touch and stays, and whatever
-      # listens decides what opening means. That is also the shape a door takes.
+      # **It always takes the node.** Something touched and kept, such as a door,
+      # connects its collider's `on_hit` instead, and says there what a touch does.
       #
       # `sound:` is a declaration that this makes a noise, so it is looked up
       # with `system!` and a scene with no AudioOut raises rather than going
@@ -29,7 +27,7 @@ module RGame
       # happens on the pickup rather than on attach because a pickup is rare,
       # and nothing here runs per frame.
       #
-      # The shape may be either collider, because a coin is round and a chest is
+      # The shape may be either collider, because a coin is round and a key is
       # not — see Collider. A node carrying both raises, since there is no
       # telling which was meant.
       #
@@ -46,13 +44,11 @@ module RGame
         signal :collected, :other
 
         # `by` is the layer whose colliders take this; every other layer is
-        # ignored. `sound` is a sound id, or nil for a silent pickup. `free:
-        # false` keeps the node, for something that is opened rather than taken.
-        def initialize(by:, sound: nil, free: true)
+        # ignored. `sound` is a sound id, or nil for a silent pickup.
+        def initialize(by:, sound: nil)
           super()
           @rgame_by = by
           @rgame_sound = sound
-          @rgame_free = free
         end
 
         def _attach
@@ -71,7 +67,7 @@ module RGame
         def take(other)
           collected_signal.emit(other)
           node.system!(AudioOut).play_sound(@rgame_sound) if @rgame_sound
-          node.queue_free if @rgame_free
+          node.queue_free
         end
       end
     end
