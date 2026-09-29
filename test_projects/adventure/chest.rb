@@ -1,13 +1,14 @@
 # frozen_string_literal: true
 
 module Adventure
-  # Something to press. It carries a collider on the `:interactable` layer and
-  # nothing else — no input, no range, no knowledge of a hero.
+  # Something to press. It carries a collider and an Interaction, and nothing
+  # else — no input, no range, no knowledge of a hero.
   #
-  # A Hero's Interactor finds it by that layer and calls `open`; the same hero's
-  # own `_control` calls `search` while the button is held. Which of the two
-  # happened is the input map's answer, not this class's: `interact` is a tap and
-  # `search` is a hold, both on E and the pad's X.
+  # Its Interaction answers `interact` with `open`, so a Hero's Interactor calls
+  # it on a tap. The same hero's own `_control` calls `search` on the Interactor's
+  # target while the button is held. Which of the two happened is the input
+  # map's answer, not this class's: `interact` is a tap and `search` is a hold,
+  # both on E and the pad's X.
   #
   # It draws its state as a word so a driven run can tell a tap from a hold. A
   # test project draws Strings; an example would draw a translation key.
@@ -31,6 +32,7 @@ module Adventure
       super(**)
       add_component(Components::BoxCollider.new(width: SIZE, height: SIZE,
                                                 layer: :interactable))
+      add_component(Components::Interaction.new(interact: :open))
       @facts = add_component(Components::Facts.new(key:, state: 'closed'))
     end
 

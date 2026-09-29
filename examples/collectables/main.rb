@@ -10,7 +10,8 @@
 # Stand by the chest and press E — or the pad's X — to open it, and it spills
 # three more. It exercises:
 #   - Components::Collectable — a coin that collects itself on contact;
-#   - Components::Interactor — the nearest thing in range, and the press;
+#   - Components::Interactor — the nearest thing in reach, and the press;
+#   - Components::Interaction — what the chest does when it is pressed;
 #   - Components::CollisionWorld — the broadphase both of them read;
 #   - Engine::Text — the counter, a key with a variable, rendered again only
 #     when the count changes.
@@ -25,7 +26,9 @@
 # The two components answer different questions on purpose. `Collectable` is
 # "something touched me", which is a contact and needs no button. `Interactor`
 # is "what would I act on", which is a range query plus a press — and it is a
-# `Targeting`, the same component a turret uses to pick what to shoot.
+# `Targeting`, the same component a turret uses to pick what to shoot. What the
+# press does belongs to the chest: its `Interaction` answers the `interact`
+# action with its own `open` method.
 #
 # The chest also *stops* the hero, through the `blocked_by: [:interactable]` on
 # its CharacterBody — one declaration on the mover, and nothing on the chest. So
@@ -34,9 +37,10 @@
 #
 # ## The prompt is drawn from `target`, not from a contact
 #
-# `interactor.target` is the nearest node in range on the layer, refreshed every
-# update and nil when there is nothing. That is what the prompt is drawn over,
-# and it is why the prompt appears before the press rather than after it.
+# `interactor.target` is the nearest node in reach whose Interaction answers
+# `interact`, refreshed every update and nil when there is nothing. That is what
+# the prompt is drawn over, and it is why the prompt appears before the press
+# rather than after it.
 #
 # This example labels the prompt with a fixed key rather than with the button
 # the player's own device would press. `examples/input_glyphs` shows how to ask
@@ -103,11 +107,11 @@ module CollectablesExample
     def _draw(renderer, _view) = renderer.circle(0, 0, COIN_RADIUS, color: COIN)
   end
 
-  # A chest: a shape on the `:interactable` layer, and a lid.
+  # A chest: a shape on the `:interactable` layer, a lid, and an Interaction.
   #
-  # It carries no component of its own for the opening — an Interactor on the hero
-  # finds it by layer and emits it, and `open` is an ordinary method that whatever
-  # listened calls. Nothing here reads input.
+  # `Interaction.new(interact: :open)` is the whole of "a press opens it": the
+  # hero's Interactor finds the nearest node answering `interact`, and calls its
+  # `open`. Nothing here reads input.
   class Chest < Engine::Node2D
     SPILL = [[-40, 0], [0, -44], [40, 0]].freeze
 
@@ -115,6 +119,7 @@ module CollectablesExample
       super
       add_component(Components::BoxCollider.new(width: CHEST_SIZE, height: CHEST_SIZE,
                                                 layer: :interactable))
+      add_component(Components::Interaction.new(interact: :open))
       @open = false
     end
 
@@ -147,14 +152,11 @@ module CollectablesExample
       add_component(Components::PlayerController.new)
       add_component(Components::BoxCollider.new(width: 16, height: 22, offset_x: -8, offset_y: -22,
                                                 layer: :hero))
-      @interactor = add_component(Components::Interactor.new(range: REACH,
-                                                             layer: :interactable))
+      @interactor = add_component(Components::Interactor.new(range: REACH))
     end
 
     # What the hero would act on, or nil. The room draws the prompt over it.
     def target = @interactor.target
-
-    def on_interacted(&) = @interactor.on_interacted(&)
 
     # The 16x22 hero stands on its origin, so it reaches 8px to either side and
     # 22px above.
@@ -181,7 +183,6 @@ module CollectablesExample
       COINS.each { |x, y| spill(x, y) }
       add_node(Chest.new(x: 300, y: 236))
       @hero = add_node(Hero.new(x: 68, y: 262))
-      @hero.on_interacted(&:open)
     end
 
     # One coin, counted when it is taken. Called for the coins the room starts

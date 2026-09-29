@@ -3,8 +3,8 @@
 module Adventure
   # A second thing to press, which a hero pulls with the tap that opens the chest.
   #
-  # It carries a collider on the `:interactable` layer, as the chest does, so a
-  # hero's Interactor finds whichever of the two is nearer. It stands far enough
+  # Its Interaction answers `interact`, as the chest's does, so a hero's
+  # Interactor finds whichever of the two is nearer. It stands far enough
   # from the chest that a hero in reach of one is out of reach of the other.
   #
   # It draws its state as a word, "lever" or "pulled", so a driven run can say
@@ -26,6 +26,7 @@ module Adventure
       super(**)
       add_component(Components::BoxCollider.new(width: WIDTH, height: HEIGHT,
                                                 layer: :interactable))
+      add_component(Components::Interaction.new(interact: :open))
       @facts = add_component(Components::Facts.new(key:, state: 'up'))
     end
 

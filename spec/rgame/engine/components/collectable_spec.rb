@@ -220,11 +220,14 @@ RSpec.describe RGame::Engine::Components::Collectable do
     # A chest that reports being reached and stays put, with a coin inside that
     # is taken by touch.
     let(:chest) do
+      record = log
       node = RGame::Engine::Node2D.new(x: 160, y: 100)
+      node.define_singleton_method(:open) { record << :opened }
       node.add_component(RGame::Engine::Components::BoxCollider.new(width: 20, height: 20,
                                                                     layer: :interactable))
       node.add_component(described_class.new(by: :hero, free: false))
           .on_collected { log << :reached }
+      node.add_component(RGame::Engine::Components::Interaction.new(interact: :open))
       scene.add_node(node)
     end
 
@@ -232,7 +235,6 @@ RSpec.describe RGame::Engine::Components::Collectable do
       node = RGame::Engine::Node2D.new(x: 100, y: 100)
       node.add_component(RGame::Engine::Components::BoxCollider.new(width: 16, height: 16, layer: :hero))
       node.add_component(RGame::Engine::Components::Interactor.new(range: 56))
-          .on_interacted { log << :opened }
       scene.add_node(node)
     end
 
