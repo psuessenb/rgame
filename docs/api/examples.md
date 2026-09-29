@@ -114,13 +114,13 @@ floor is [pits](#pits).
 ### pits
 
 Falling into a gap, hopping across one, and coming back. A walk into the chasm
-drops the hero, who shrinks toward their feet and comes back flashing on the
+drops the hero, who shrinks toward their feet and comes back blinking on the
 spot they started from, able to walk at once. A hop crosses a trench, because a
 node in the air never falls. A hop pressed just after walking off an edge still
 counts, and a bar shows that coyote time running out. C turns it off.
 
-**Uses:** `Components::Footing`, `Components::Respawn`, `Components::Hop`,
-`Node2D#scale`, `TileMap#gap_tile?`, `Components::TileWorld`,
+**Uses:** `Components::Footing`, `Components::Respawn`, `Components::Blink`,
+`Components::Hop`, `Node2D#scale`, `TileMap#gap_tile?`, `Components::TileWorld`,
 `Components::CharacterBody`, `Components::FeetCollider`.
 
 ### moving_platforms
@@ -133,8 +133,8 @@ its route are a polyline object of the class `Raft` on the map, which builds it,
 and it draws its planks from a sheet over Tiny Town's tiles.
 
 **Uses:** `Components::Platform`, `Components::PathFollow` with `loop: true`,
-`Components::Footing`, `Components::Respawn`, `Components::Hop`,
-`Components::CameraFollow`, `TileMapLayer.mount` with a map-built node and its
+`Components::Footing`, `Components::Respawn`, `Components::Blink`,
+`Components::Hop`, `Components::CameraFollow`, `TileMapLayer.mount` with a map-built node and its
 `route:`.
 
 ### push_pull

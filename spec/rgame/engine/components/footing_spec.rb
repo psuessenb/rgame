@@ -25,7 +25,9 @@ RSpec.describe RGame::Engine::Components::Footing do
     built = { body: parts::CharacterBody.new(speed: 60),
               hop: parts::Hop.new(peak: 10, duration: 0.5, action: nil),
               footing: described_class.new(**),
-              respawn: parts::Respawn.new(flash: 0.5) }
+              respawn: parts::Respawn.new,
+              blink: parts::Blink.new }
+    built[:respawn].on_respawned { built[:blink].start(0.5) } if order.include?(:blink)
     order.each { node.add_component(built[it]) }
     world.add_node(node)
     root.enter_tree
@@ -228,8 +230,8 @@ RSpec.describe RGame::Engine::Components::Footing do
       expect([world.children, node.scale, node.suspended?, footing(node).falling?]).to eq([[], 1, false, false])
     end
 
-    [%i[body hop footing respawn], %i[respawn footing hop body]].each do |order|
-      it "brings a node with a Respawn back on its point, flashing and walking, added as #{order.join(', ')}" do
+    [%i[body hop footing respawn blink], %i[blink respawn footing hop body]].each do |order|
+      it "brings a node with a Respawn back on its point, blinking and walking, added as #{order.join(', ')}" do
         node = hero(order: order, coyote: 0, fall: 0.5)
         walk_off(node)
         took = (1..40).find { tick.then { !footing(node).falling? } }
@@ -237,7 +239,7 @@ RSpec.describe RGame::Engine::Components::Footing do
         ticks(1)
 
         expect([took, state]).to match([be_between(29, 31), [40.0, 27.0, 1, false, [node]]])
-        expect([node.get_component(parts::Respawn).flashing?, node.world_x]).to eq([true, 41.0])
+        expect([node.get_component(parts::Blink).blinking?, node.world_x]).to eq([true, 41.0])
       end
 
       # The game's choice at each fall: it takes a life in on_fell, and removes the

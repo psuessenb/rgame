@@ -11,7 +11,7 @@
 #   - **`sprite` drawn 9150 times in 1020 ticks.** 8160 are the raft's eight
 #     planks every frame, from `tiles.json` at row 6, columns 0, 1 and 3,
 #     placed from −32 to 16 about its centre. The other 990 are the hero, less
-#     the 30 frames the respawn's flash hides them;
+#     the 30 frames the respawn's blink hides them;
 #   - **`scaled` 1044 times**: once a frame at (1.0, 1.0) for the presentation,
 #     and 24 more from about 1 toward 0.0, the one fall;
 #   - **`tilemap`'s camera x spanning 0.0 to 305.3**, and translates reaching
