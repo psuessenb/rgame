@@ -1,7 +1,7 @@
 # Interaction: the verbs a target answers
 
-**Status:** planned, nothing implemented. Steps 1 and 2 are detailed. Step 3
-folds the plan back and deletes it.
+**Status:** step 1 is implemented. Step 2 is detailed. Step 3 folds the plan
+back and deletes it.
 
 This plan takes up "Several verbs on one target" from
 [research/additional_0.5.0_features.md](research/additional_0.5.0_features.md),
@@ -371,6 +371,49 @@ its own as the second verb.
   it drew at `117a423`: "open" from tick 262, "searched" from 318, "hat" from
   353 and "pulled" from 644.
 - `rake drive:allocations` passes.
+
+**Landed.** The branch is `interaction-component`, with one commit per sub-step.
+`Interaction` has `new(**handlers)`, `actions`, `answers?` and
+`perform(action, by:)`. The `Interactor` has `new(range:, actions: [:interact],
+policy: :nearest)`, `actions`, `target` and `target_for`, as sketched. Both
+driven reports are byte-identical to `main`'s. `rake spec` passes 4524 examples:
+19 in `interaction_spec.rb`, and 22 in `interactor_spec.rb`, up from 13.
+`rake spec:core` passes 555, and `docs:coverage` finds no undocumented name.
+`rake drive:allocations` passes all 44 projects.
+
+- **The `Interactor` costs 6 µs a tick more than the prototype said.** In the
+  measured arrangement, in one session, `main`'s layer-based `_update` takes
+  21.8–22.6 µs and the landed one 28.0–29.2 µs, with one action or two. Both
+  allocate nothing. The prototype had put the gap at 0.3–3 µs, against a 26 µs
+  baseline taken in another run.
+- **The adventure allocates 52 objects more over its run**: 82.3 a second on
+  4.1% of ticks, against 80.2 on 3.9% at `main`, under a budget of 90. The trace
+  puts the difference at attach. The chest and the lever are built again with
+  each room, and each `Interaction#_attach` runs `require_sibling` and reads its
+  handlers' parameters. A handler's first press allocates 5 objects while Ruby
+  caches the call, and every later press allocates 0 *(measured)*.
+- **The collectables Verify line was stale before this step.** The drive
+  script's header said "Press E" from tick 121 for 17 frames. `main` draws it
+  from tick 117 for 21 frames: the chest comes into reach ten ticks before it
+  stops the hero. 1b corrects the header. The acceptance check is `main`'s own
+  report.
+- **Rule 6 held only without `as:`.** A second `Interaction` in a slot of its
+  own would have made `get_component(Interaction)` raise at the Interactor's
+  first update. `Interaction#_attach` now counts its node's Interactions and
+  raises there.
+- **Attach refuses a handler that needs an argument other than `by:`**, naming
+  the method. The sketch would have raised `ArgumentError` on the first press.
+- **The `Interactor` checks its `actions:`.** An empty list, a name that is not a
+  Symbol, or a name given twice raises at construction. A name given twice would
+  have performed twice per press. `target_for` raises for an action it does not
+  read, where the sketch returned nil.
+- **For step 2:** the adventure's chest and lever still sit on `:interactable`,
+  and nothing in the adventure reads that layer any more. The collectables hero
+  still reads it through `blocked_by:`.
+
+Documented in `docs/api/components.md` under `Interaction` and `Interactor`,
+with a complete example the doc specs run, and in `CHANGELOG.md`'s Unreleased
+entry.
 
 ### Step 2 — The adventure searches through its Interaction
 
