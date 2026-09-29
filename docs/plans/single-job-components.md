@@ -1,8 +1,7 @@
 # Single-job components
 
-**Status:** Steps 1–3 are implemented. Step 4 is detailed. Steps 5–7 are
-rough, and each is re-planned before it starts. Step 8 folds the plan back and
-deletes it.
+**Status:** Steps 1–4 are implemented. Steps 5–7 are rough, and each is
+re-planned before it starts. Step 8 folds the plan back and deletes it.
 
 ## Verdict
 
@@ -869,6 +868,68 @@ The shapes are in [the design](#animatedsprite-plays-walkingsprite-walks).
 drew a `circle`, and the coin's frame moves on as it spins. Everything else
 in its script's header holds, "Coins: 0" through "Coins: 4" at the same ticks
 included, and the header says what changed.
+
+**Landed.** The branch is `walking-sprite`, with one commit per sub-step.
+`AnimatedSprite.new(sheet:, animation:, z: 0, anchor: :bottom)` with
+`animation`, `play` and `_choose_animation`, and
+`WalkingSprite.new(sheet:, z: 0, anchor: :bottom)`, are as sketched.
+`FrameTimes` differs, below. `rake spec` passes 4,563 examples, 24 more than
+`main`: 8 in `frame_times_spec.rb`, 13 in `walking_sprite_spec.rb`, 4 in
+`animated_sprite_allocation_spec.rb` and 2 for `coin.json`, less 3 in
+`animated_sprite_spec.rb`, which has 18. `rake spec:core` passes 555, and
+`rake drive:allocations` passes all 44 projects.
+
+Driven with `--seed 4242 --texts`, and `--seed 1` for `topdownplatformer`,
+every walker reports the same as `main`, line for line: the 13 examples, the
+`cutscene_skip` script, `adventure`, `topdownplatformer`, and `tiled_world`
+under all six of its scripts. `collectables` differs as named. Its 1,287
+`circle` draws are 1,287 `coin.json` sprites, and the `sprite` line's columns
+run 0 to 7 where the hero's walk reaches 5. The texts, their ticks and the 4
+sounds are unchanged. An even `FrameTimes` that searched ends made by
+multiplying, instead of dividing, failed rule 1 at 6 fps, as the plan
+predicted. The allocation spec fails all 4 examples with an Array made in
+`_draw`, and only the turning walker's with one made in `play`.
+
+- **`FrameTimes.new` takes each frame's end, not its duration.** `TileMap`
+  holds ends that `from_tiled` works out from whole milliseconds, and adding
+  the seconds up moves one: 0.1 + 0.25 + 0.05 is 0.39999999999999997, not 0.4.
+  `length` went, since nothing asks for it.
+- **`FrameTimes.even` returns a class of its own.** As a subclass it built two
+  Arrays of ends it never read, once per animation each time a walker
+  attached. `drive:allocations` showed it: `doors` rose from 45.5 to 47.9
+  objects a second, and `adventure` from 80.9 to 84.1. The fix is folded into
+  4a's commit. With it, `doors` allocates 46.3 and `adventure` 82.0, on the
+  same share of ticks as `main`: one `Even` an animation, for each hero a door
+  moves. `collectables` allocates 29.3 against 22.7. Run with a budget of 1,
+  the probe lists where: the three coins the chest spills, each resolving
+  `coin.json` and building an `AnimationSet` and an `Even` as its sprite
+  attaches.
+- **4b carried the docs.** `toolbox.md` builds a walker in a headless example,
+  so `rake spec` failed without it, and `spec:core`'s coverage would fail on
+  `WalkingSprite`, `play` and `animation`. Every page in `docs/api/` and every
+  example header moved into 4b, and 4c is the coin and the changelog.
+- **`AnimationSet` gained `include?` and `names`**, which the sprite checks a
+  name with and lists in its error. `internals.md` documents both.
+- **`WalkingSprite` checks its sheet for all five animations at attach.** Rule
+  3 alone would raise on the first step that way, minutes into a game.
+  `play` before attach takes any name, and attach checks it, which the plan
+  left open.
+- **`culling_spec.rb` built a `CharacterBody` only because the sprite needed
+  one**, and no longer does. `QuietRenderer` gained `sprite`, for the
+  allocation spec.
+- **For step 5: two traps in comparing reports.** `topdownplatformer` differs
+  from a worktree of `main` in its tilemap id alone: an absolute path, cut to 20
+  characters before any path can be replaced. And `asteroids`' allocations vary
+  between runs, from 6.2 to 31.5 objects a second on `main`, so compare it over
+  several runs or not at all.
+
+Documented in `docs/api/components.md` under `AnimatedSprite`, rewritten, and
+a new `WalkingSprite`, and in `internals.md` under `AnimationSet`. `toolbox.md`,
+`scene_graph.md` and `examples.md` name `WalkingSprite` for their walkers, and
+`examples.md`'s `collectables` entry names the spinning coin.
+`examples/assets/README.md` records `coin.png` and `coin.json`, drawn by
+`tools/draw_coin.rb`. `CHANGELOG.md` has a `Changed` entry for
+`AnimatedSprite` that names `WalkingSprite`.
 
 ### Step 5 — `Blink` (rough)
 
