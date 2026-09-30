@@ -1,14 +1,12 @@
 # Possible todos
 
 Work that has a reason to exist but no reason to happen yet. Nothing here is
-scheduled, and nothing here is a promise — this file exists so that ideas with
-real thought behind them are not lost to a deleted plan or a finished
-conversation.
+scheduled, and nothing here is a promise.
 
 Each entry says what the thing is, why it is not being done now, and what would
-make it worth doing. **An entry with no trigger is a wish, not a todo**; if the
-answer to "what would make this worth starting" is "nothing in particular", the
-entry should be deleted rather than kept.
+make it worth doing. **An entry with no trigger is a wish, not a todo**: delete
+it. A trigger names what would make this entry worth starting. "A game that
+needs it" names nothing, since it would fire for every entry here.
 
 ---
 

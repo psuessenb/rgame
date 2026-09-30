@@ -318,6 +318,9 @@ updates it where an earlier step did not. The rules are in
 
 - **Read the code first.** Every strong section in these plans came from
   reading the file and counting, and the weak ones came from remembering.
+- **Read [`possible-todos.md`](../../../docs/plans/possible-todos.md)**, and
+  list in the first question round each entry whose trigger has fired, or that
+  this plan would fire.
 - **Ask for the requirement in the user's own words** and keep it verbatim in
   the folder if it arrives that way. One plan here began as a five-bullet
   requirement file that the design answered point by point.
