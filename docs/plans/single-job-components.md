@@ -1,7 +1,8 @@
 # Single-job components
 
-**Status:** Steps 1–5 are implemented. Steps 6 and 7 are rough, and each is
-re-planned before it starts. Step 8 folds the plan back and deletes it.
+**Status:** Steps 1–5 are implemented. Step 6 is re-planned at `91b7269` and
+ready. Step 7 is rough, and is re-planned before it starts. Step 8 folds the
+plan back and deletes it.
 
 ## Verdict
 
@@ -24,10 +25,13 @@ two select nodes by layer. One of them, `Grab`, does both:
   t seconds". Each keeps its own clock.
 - **`Respawn`**'s flash becomes `Components::Blink`, started from
   `on_respawned`, as the user proposed.
-- **`Footing`**'s shrink cannot leave that way. A falling node is suspended, so
-  nothing on it updates, a listener's component included. Step 6 decides
-  between a look object the fall drives and leaving `Footing` as it is, against
-  criteria stated there.
+- **`Footing`** splits in three. It keeps what the node stands on and when that
+  drops it, coyote time included. A `Fall` takes the node out of play and
+  brings it back, and anything can start one: a gap, a cutscene, a trapdoor. A
+  `FallLook` on the node, such as `Shrink`, says what the fall looks like. The
+  falling node is suspended, so nothing on it updates, and the `Fall` runs the
+  look from beside it. Each piece is added by the game, with no default in its
+  place (decisions 10 and 11).
 
 `Mover` answers two questions too, and stays as it is. Splitting it would make
 the order of adds matter, so it is the named exception.
@@ -78,8 +82,8 @@ component is built to it rather than fixed afterwards.
 1. The engine layer stays pure Ruby and headless. Nothing here names a Core
    class.
 2. The per-frame paths allocate nothing: `Targeting#_update`, `Grab#_control`,
-   `AnimatedSprite#_update` and `#_draw`, `Blink#_update`, and whatever step 6
-   gives a fall.
+   `AnimatedSprite#_update` and `#_draw`, `Blink#_update`, and a fall from its
+   start to its end, `Shrink` included.
 3. A split moves work between components. It does not change what a game
    draws. Every driven example and test project reports the same as on `main`,
    unless a step names the difference.
@@ -118,6 +122,19 @@ Taken in conversation on 2026-09-29, and not up for re-litigation here:
 9. **The example of an animation with no `Mover` is a spinning coin in
    `examples/collectables`**, on a sheet authored here. See step 4c.
 
+Taken in conversation on 2026-09-30, while re-planning step 6:
+
+10. **`Footing` splits into `Footing`, `Fall` and a `FallLook`, designed as if
+    the task were set today.** In the user's words: "What we want is a
+    component-split that gets the job done, not one that preserves as much as
+    possible from the current design." So step 6 no longer keeps the five
+    `Footing.new` calls as they are, and the look may answer more than two
+    methods. See [the design](#footing-finds-the-floor-a-fall-takes-the-node-out-of-play).
+11. **The look is explicit.** A `Fall` shows the `FallLook` its node holds, and
+    a node with none shows nothing as it falls. No default stands in for a
+    missing look: "It should be explicit, not have some implicit fallback." A
+    default would hide the look a game swaps out.
+
 ## Open questions
 
 1. ~~**`examples/quests_and_dialogue` starts a conversation by layer.**~~
@@ -138,6 +155,18 @@ Taken in conversation on 2026-09-29, and not up for re-litigation here:
    registry is a later plan's question. Blocks nothing before step 7. Decide by
    the time step 7 is re-planned. A yes inserts rough steps before it, and a
    no, or no answer, moves it to `possible-todos.md` at step 8.
+5. **A falling node can still be pushed.** Suspension stops a node's own
+   components, not another node's mover. A hero walking into a crate pushed it
+   from x 65 to 75 over the 10 ticks after it dropped *(measured at
+   `91b7269`)*. Neither `Mover#pushable` nor `Pushable#push` asks whether the
+   crate is suspended. The defect predates this plan, and the split neither
+   causes nor cures it. **Lean:** a `Mover` pushes no suspended node, so a
+   falling crate stops a hero as a fixed one does. That holds for a node a
+   cutscene suspends too, which is why it is not the `Fall`'s job.
+   `topdownplatformer`'s script holds right until about tick 416, and its
+   crate drops on 414, so the fix may change that report. Blocks nothing in
+   step 6. Decide before step 8, which otherwise moves it to
+   `possible-todos.md`.
 
 ## What was measured before planning
 
@@ -179,6 +208,10 @@ The review read all 43 files.
 | `AnimatedSprite` | draw a sheet's animation | pick a walk from a `Mover`'s heading | raises without a `Mover` it needs only for the second |
 | `Respawn` | bring the node back to its point | blink it | its header: "and the flash that shows it has" |
 | `Footing` | find the floor, and drop the node into a gap | shrink it as it falls | `fall:` must be positive, so the shrink cannot be turned off |
+
+Step 6's re-plan found a third job in `Footing`: the fall itself, which takes
+the node out of play and brings it back. `topdownplatformer`'s walker adds a
+`Footing` only to ride the ring, and carries a fall it can never take.
 
 `Collectable`'s `sound:` is not a second job. A game varies a pickup's sound
 only by which one, and a keyword holds that. A game varies a blink or a shrink
@@ -431,29 +464,160 @@ add_component(Components::Respawn.new).on_respawned { blink.start(1.0) }
 `Respawn` keeps its point, `set_point`, `respawn` and `on_respawned`, and
 loses `flash:`, `flashing?`, `BLINK` and its `_update`.
 
-### `Footing`'s look cannot leave through a signal
+### `Footing` finds the floor; a `Fall` takes the node out of play
 
-**A falling node is suspended, and a suspended node stops its own components.**
-`Node2D#update` returns at once for it. A component that listened to `on_fell`
-and shrank the node would stop the moment it started. That is why the fall
-runs from `Engine::Fall`, a node `Footing` lends to the falling node's parent.
+Re-planned at `91b7269`, for decision 10. Three components, one question each:
 
-The shrink can still leave `Footing`, as an object the `Fall` drives:
+| Component | Answers | A game changes it for |
+|---|---|---|
+| `Footing` | what the node stands on, and when standing on nothing drops it | a longer grace, a platform to ride |
+| `Fall` | how long the node is out of play, and what happens then | a longer fall, a fall from a cutscene or a trapdoor |
+| a `FallLook`, such as `Shrink` | what the fall looks like | a splash, a burn, a sink |
+
+**Riding stays in `Footing`.** Boarding tells the platform what the node stands
+on, and `Platform` does the carrying.
+
+**A falling node is suspended, and a suspended node stops its own
+components.** `Node2D#update` returns at once for it (`node2d.rb:529`). So a
+look on the node cannot count the fall's time itself. The `Fall` runs it from a
+node lent to the falling node's parent, as `Engine::Fall` runs the shrink at
+`91b7269`. A suspended node still draws, so a look may draw what it likes in
+`_draw`.
+
+**Each piece finds the next by its class, as the fall finds `Respawn` today.**
+`Footing` starts the node's `Fall` as the node loses its footing. The `Fall`
+shows the node's `FallLook`, and ends with its `Respawn`. Each looks the next
+one up when it needs it. So no add order matters, nothing is wired by hand,
+and a game removes a piece to switch it off:
+
+- a node with no `Fall` stands over the gap, riding what it rode;
+- a fall with no look shows nothing while the node holds still;
+- a fall with no `Respawn` frees the node.
+
+Nothing stands in for a missing piece (decision 11).
+
+**A falling node rides nothing.** A `Footing` never drops a node that stands on
+a platform, but a cutscene can start a fall there. So `Fall#start` has the
+node's `Footing`, if it has one, leave its platform, as `Footing#drop` does at
+`91b7269`. It is the one call from `Fall` back to `Footing`.
 
 ```ruby
-# What a fall looks like. The Fall calls `show` each tick of the fall with how
-# far through it is, from 0 to 1, and `finish` once it ends, landed or cut short.
-module Footing::Shrink
-  def self.show(node, progress) ...   # scale from 1 toward 0, eased :in
-  def self.finish(node) ...           # scale back to 1
-end
+# What its node stands on: the ground, a Components::Platform it rides, or a
+# gap. It watches the centre of the node's BoxCollider box against the scene's
+# TileWorld. A node that stands over a gap for more than `coyote` seconds, out
+# of the air, loses its footing, and its Fall starts, if it has one.
+class Footing < Engine::Component
+  SLACK = 1e-9
 
-Footing.new(coyote: 0.1, fall: 0.4, look: Footing::Shrink)   # the default look
+  sealed_reader :coyote
+
+  # The Components::Platform the node rides, or nil.
+  sealed_reader :platform
+
+  # `coyote` is in seconds, 0 or more, or it raises ArgumentError.
+  def initialize(coyote: 0.1)
+
+  def coyote=(seconds)
+  def standing?
+
+  # Seconds of coyote time left: `coyote` while standing, counting down off
+  # the floor, and 0 in the air and once the node has lost its footing.
+  def coyote_left
+end
 ```
 
-Whether that is better or worse is step 6's question, with its criteria stated
-there. The duration stays in `Footing`: `fall:` is how long the node is out
-of play, which is a rule of the game, not a look.
+```ruby
+# Takes its node out of play for `duration` seconds, then brings it back. It
+# suspends the node and shows its FallLook, if it has one. At the end it hands
+# the node to its Respawn, or frees a node with none.
+#
+# A Footing starts it as the node walks into a gap, and a game or a cutscene
+# can start one anywhere. It answers on_finished and finish, so a cutscene's
+# `hold` step waits on it.
+class Fall < Engine::Component
+  # Fired as the fall starts, which is where a game takes a life.
+  signal :fell
+
+  # Fired once the fall has ended: the node stands on its respawn point, or
+  # is freed.
+  signal :finished
+
+  sealed_reader :duration
+
+  # `duration` must be a positive number of seconds, or it raises ArgumentError.
+  def initialize(duration: 0.4)
+
+  # Starts a fall, and returns self. Does nothing during a fall. Raises for a
+  # node outside the tree.
+  def start
+
+  # Ends a fall under way as its end would: the node comes back or is freed.
+  # Does nothing when none is under way.
+  def finish
+
+  def falling?
+end
+```
+
+```ruby
+# What a fall looks like. Its node's Fall calls #start as the fall starts,
+# #show every tick with how far through the fall it is, from 0 to 1, and
+# #finish once as it ends, however it ends. The node is suspended all the
+# while, so a look never counts time itself. It may draw in `_draw`, which a
+# suspended node still runs.
+class FallLook < Engine::Component
+  def start; end
+  def show(progress); end
+  def finish; end
+end
+
+# Shrinks its node toward its origin, where it stands, easing in, and gives
+# back the scale it found.
+class Shrink < FallLook
+  def start = @rgame_found = node.scale
+  def show(progress) = node.scale = @rgame_found * (1 - (progress * progress))
+  def finish = node.scale = @rgame_found
+end
+```
+
+`FallLook`'s three methods are plain names, not hooks. The `Fall` calls them
+through an interface, as a `Menu` calls its navigation's.
+
+```ruby
+add_component(Components::Footing.new(coyote: COYOTE))                    # at 91b7269
+blink = add_component(Components::Blink.new)
+add_component(Components::Respawn.new).on_respawned { blink.start(1.0) }
+
+add_component(Components::Footing.new(coyote: COYOTE))                    # after
+add_component(Components::Fall.new)
+add_component(Components::Shrink.new)
+blink = add_component(Components::Blink.new)
+add_component(Components::Respawn.new).on_respawned { blink.start(1.0) }
+```
+
+```ruby
+TRAPDOOR = Engine::Cutscene::Script.build do
+  run { |c| c.open_trapdoor }
+  hold { |c| c.hero.get_component(Components::Fall).start }   # a skip respawns the hero
+end
+```
+
+What a game can do, before and after:
+
+| | At `91b7269` | After |
+|---|---|---|
+| A hero that falls and comes back blinking | 3 components | 5 |
+| A different look | impossible | its own `FallLook` in place of `Shrink` |
+| A look that draws, such as a splash | impossible | `_draw` on the look |
+| Riding with no fall, as the walker does | carries a fall it never takes | `Footing` alone |
+| A fall from a cutscene or a trapdoor | impossible: `Footing#drop` is private | `Fall#start` |
+| Hovering over gaps while still riding | impossible | no `Fall` |
+| A node at scale 2 | falls from 0.999 and comes back at 1 *(measured)* | falls from 2 and comes back at 2 |
+| Taking a life | `Footing#on_fell` | `Fall#on_fell` |
+
+**The cost is two lines on every node that falls.** A missing one shows on the
+first fall and nowhere else. Without a `Fall` the node stands over the gap.
+Without a look it holds still, then comes back.
 
 ### The `build-components` skill
 
@@ -468,7 +632,12 @@ to hold, each line subject to write-skill's cut:
   - a header whose first sentence joins two jobs with "and" (`Respawn`'s);
   - one value that several readers ask different questions of (`layer`);
   - a look built into a mechanic (the flash, the shrink);
-  - a sibling required for only one of its jobs (`AnimatedSprite`'s `Mover`).
+  - a sibling required for only one of its jobs (`AnimatedSprite`'s `Mover`);
+  - a node that holds a component for one of its jobs (the walker's `Footing`
+    rides, and never falls).
+- **No default for a missing sibling.** A component uses the sibling that does
+  a job, and does nothing in its place when there is none (`Fall` and
+  `FallLook`, decision 11).
 - **The counterweight.** Some things are not a second job:
   - feedback a game varies only by value (`sound:`);
   - an input action as a default (`Hop`'s `action:`);
@@ -479,8 +648,8 @@ to hold, each line subject to write-skill's cut:
   - a signal, when it runs on a node that updates (`Blink`);
   - a hook, when the choice must land in the same update as what it drives
     (`WalkingSprite`);
-  - an object the owner drives, when the node is suspended (`Footing`'s look,
-    if step 6 lands it).
+  - a sibling the owner drives, when the node is suspended (`FallLook`, run by
+    `Fall`).
 
   The shape to avoid is a sibling writing into another in the same phase.
 - **Layers against components.** It links CLAUDE.md's rule, and adds that a
@@ -523,9 +692,37 @@ to hold, each line subject to write-skill's cut:
   blink, and blinking code in `Respawn` again.
 - **`Footing` emits the fall's progress each tick, and a listener draws the
   look.** A listener is a block, so it runs while the node is suspended, and
-  this is the user's signal approach. But with no listener the node would
-  freeze and then vanish. Every caller would have to wire the shrink to keep
-  today's fall, which is a rule to remember.
+  this is the user's signal approach. But a block cannot draw. It keeps no
+  state but what it closes over, so giving back the scale it found takes a
+  variable of the game's. A `FallLook` is a component: it draws, keeps its own
+  state, and the `Fall` finds it with no wiring.
+- **The look handed to the `Fall`, `Fall.new(look: Shrink)`.** It was step 6's
+  first sketch, on `Footing`. It needs no base class, and no add order touches
+  it. But the look sits outside the tree, so it cannot draw a splash. Swapping
+  it means building the `Fall` again. A component is how this engine already
+  says what a node has.
+- **A default `Shrink` for a node with no look.** Every falling node would
+  need one line fewer. Decision 11 refuses it: what a `Fall` shows would depend
+  on whether a sibling exists. That is why `AnimatedSprite` does not walk by
+  default.
+- **The look as a subclass of `Fall`, through hooks,** as `WalkingSprite`
+  subclasses `AnimatedSprite`. A node would need one component, not two. But
+  the class a game adds would do both jobs again. `WalkingSprite` needs a hook
+  because its choice must land in the same update as the frame. Here the `Fall`
+  calls the look itself, so no order needs protecting.
+- **Looks that run through a suspension**, flagged on their class. A look could
+  then count its own time, as `Blink` does. But a suspend would stop only part
+  of a node, chosen by a flag every component carries. And a look's time is
+  the fall's: its progress is how far the fall has run.
+- **A fall that stops the node's movers instead of suspending it.** The look
+  could then run on the node. But every mover, controller and `Hop` would have
+  to ask whether its node is falling. `suspend` exists to spare them that
+  rule.
+- **The game wires `Footing` to `Fall`,** as it starts a `Blink` from
+  `on_respawned`. It is the plainest composition. But a `Fall` is what a gap
+  under a `Footing` is for, and a missing wire leaves the node standing on
+  air. A lookup by class needs no wire, as the fall's lookup of `Respawn`
+  needs none.
 
 ## What this does not deliver
 
@@ -539,6 +736,12 @@ to hold, each line subject to write-skill's cut:
   `FrameTimes` makes each one change, and nothing asks for either.
 - **A connection that ends with its node.** `Collectable` and `Checkpoint`
   still disconnect from their collider by hand. `possible-todos.md` holds it.
+- **A `FallLook` that plays a sheet's animation.** `AnimatedSprite` advances in
+  its node's update, which a fall suspends. A look that shows frames draws them
+  itself, from `progress`.
+- **A look alone, outside a fall.** A cutscene reuses the whole `Fall`, and
+  nothing but a `Fall` runs a `FallLook`.
+- **A crate that cannot be pushed while it falls.** Open question 5.
 
 ## Roadmap
 
@@ -546,7 +749,7 @@ to hold, each line subject to write-skill's cut:
 1 the rule ─→ 2 Grab by Pushable ─┐
               3 Collectable ──────┤
               4 AnimatedSprite ───┼─→ 7 build-components ─→ 8 fold back
-              5 Blink ─→ 6 Footing's look ┘
+              5 Blink ─→ 6 Fall ──┘
 ```
 
 Steps 3, 4 and 5 depend on nothing before them. Step 6 follows 5, because
@@ -566,6 +769,7 @@ Worth landing even if the plan stops early:
 | 3 | two doors that are "collected" |
 | 4 | a sprite animation that cannot exist without a `Mover` |
 | 5 | a blink that only a respawn can start |
+| 6 | a fall that only a gap can start, a look no game can change, and a node at scale 2 that comes back at 1 |
 
 ### Step 1 — The rule, in CLAUDE.md
 
@@ -1087,21 +1291,148 @@ the doc specs run, and under `Respawn`, rewritten. The `pits` and
 `CHANGELOG.md` has an `Added` entry for `Blink`, and its unreleased "Falling
 into a gap" entry has `Respawn` emit `on_respawned` in place of flashing.
 
-### Step 6 — `Footing`'s look (rough)
+### Step 6 — `Components::Fall`, `FallLook` and `Shrink`, out of `Footing`
 
-Decide whether the shrink leaves `Footing` as a look object the `Fall` drives,
-sketched in [the design](#footings-look-cannot-leave-through-a-signal).
-Re-planned once step 5 has landed. It goes ahead only if all four hold:
+`Footing` finds the floor, decides the drop and runs the fall. No game can
+change its shrink or turn it off, and nothing but a gap can start a fall. The
+fall leaves as a `Fall`, and its look as a `FallLook`, per
+[the design](#footing-finds-the-floor-a-fall-takes-the-node-out-of-play). It
+follows step 5, because both change how a fall ends. Re-planned at `91b7269`,
+for decisions 10 and 11, where it measured:
 
-- the five `Footing.new` calls stay as they are;
-- the look answers two methods, `show` and `finish`, and the `Fall` calls
-  nothing else on it;
+| | |
+|---|---|
+| `Footing.new` in games | 5. 4 are on nodes that fall: the `pits` and `moving_platforms` heroes, and `topdownplatformer`'s hero and crate. 1 is on a node that never does: `topdownplatformer`'s walker, `blocked_by: :gaps` |
+| `Footing.new` in specs | 11 in 7 files |
+| `fall:` | 9 times in `footing_spec.rb`, once each in `footing_allocation_spec.rb`, `checkpoint_spec.rb` and `components.md` |
+| `on_fell` | 1 connection in a game, `topdownplatformer`'s hero. 3 in `footing_spec.rb`. Prose: 4 lines in `components.md`, 2 in `checkpoint.rb`, 1 each in `footing.rb`, `respawn.rb` and the `pits` header |
+| `falling?` | 18 reads in 4 spec files: `footing_spec.rb` 11, `platforming_spec.rb` 5, `platform_spec.rb` and `wander_controller_spec.rb` 1 each |
+| `footing_spec.rb` | 42 examples. 11 are the fall's: 10 under "the fall", and the refusal of a `fall:` that is not positive |
+| `footing_allocation_spec.rb` | 5 examples, 2 of them falls |
+| `Engine::Fall` | named by `footing.rb` alone, and `@api private` |
+| A node at scale 2 | falls from 0.999 and comes back at 1 *(measured)*. `Engine::Fall` tweens from 1.0 (`fall.rb:20`) and sets 1 at the end (`fall.rb:52`) |
+| Drive reports on `main` | `pits`, `--seed 4242 --texts --ticks 650`: 590 `sprite`, 698 `scaled`. `moving_platforms`, `--seed 4242 --texts --ticks 1020`: 9150 `sprite`, 1044 `scaled`. `topdownplatformer`, `--seed 1 --texts --ticks 1654`: 3273 `rect`, 1750 `scaled` |
+| Prose naming the fall | the headers of `footing.rb`, `respawn.rb` and `checkpoint.rb`; `components.md`'s `Footing`, `Respawn` and `Checkpoint` sections; `tile_maps.md`'s gaps; `scene_graph.md`'s `scale`; `examples.md`'s `pits` and `moving_platforms` entries; the `pits`, `moving_platforms` and `jump_topdown` headers; the changelog's unreleased "Falling into a gap" entry |
+| `Footing` in 0.4.0 | absent, so its changelog entry changes in place |
+
+**What it resembles.**
+
+- **Reused:** `Node2D#suspend`, and `Engine::Fall`'s node lent to the falling
+  node's parent, which becomes the `Fall`'s clock. An `Engine::Tween` counts
+  the fall's progress, as it counts the shrink at `91b7269`. `Respawn#respawn`
+  ends it. A cutscene's `hold` waits on anything answering `on_finished` and
+  `finish` (`cutscene.rb:290`), as `Components::Tween`, `PathFollow` and
+  `ScreenFade` do.
+- **Considered for extending:** `Blink` is the nearest sibling, a look that
+  marks a moment and gives back what it found. `Shrink` takes the give-back,
+  but not the clock: a `Blink` runs from its node's update, which a fall
+  suspends. `Components::Tween` is a one-shot with `on_finished`, as a `Fall`
+  is, and rides its own node's update for the same reason.
+- **New:** `FallLook`, a component another component runs. `Pushable` and
+  `Platform` come nearest: each moves only when another component calls it.
+
+Two sub-steps:
+
+- **6a. `Fall`, `FallLook` and `Shrink`**, with their specs and
+  `components.md` sections. `Fall`'s clock is `Engine::Fall`, copied and
+  renamed `Fall::Clock`. Nothing starts a `Fall` yet, and `Footing` falls as at
+  `91b7269`.
+- **6b. `Footing` loses its fall.** `fall:`, `falling?`, `on_fell`,
+  `fall_ended` and `Engine::Fall` go, and `Footing` starts the node's `Fall`
+  instead. The four falling nodes add a `Fall` and a `Shrink` in the same
+  commit, and `topdownplatformer`'s hero connects `on_fell` to its `Fall`. The
+  specs, the prose in the table above and the changelog entry follow.
+
+The sketches are [in the design](#footing-finds-the-floor-a-fall-takes-the-node-out-of-play).
+The one class they leave out:
+
+```ruby
+class Fall < Engine::Component
+  # Moves the fall on by `dt` seconds: shows the look, and ends the fall once
+  # `duration` has run. The Clock calls it.
+  #
+  # @api private
+  def advance(dt)
+
+  # The node a Fall lends to its node's parent for each fall. It updates while
+  # the falling node is suspended, and pauses when the parent does.
+  #
+  # @api private
+  class Clock < Engine::Node2D
+    def initialize(fall)
+    def _update(dt)
+  end
+end
+```
+
+**Rules:**
+
+1. A node with a `Footing`, a `Fall` and a `Shrink` falls as a `Footing` does
+   at `91b7269`, tick for tick. The drop, each tick's scale and the respawn
+   come on the same ticks, and the node walks on the tick after it lands.
+2. A `Footing` with no `Fall` never suspends its node. The node stands over
+   the gap and rides what it rode, and `coyote_left` reads 0 once the coyote
+   time has run out. A `Fall` added then starts on the node's next update.
+3. `Fall#start` works with no `Footing`, wherever the node stands. It
+   suspends the node, shows its look, and ends with its `Respawn`, or frees
+   it. During a fall it does nothing and returns self. It raises for a node
+   outside the tree.
+4. A `hold` step on `fall.start` ends as the fall ends. A skip calls `finish`:
+   the node stands on its respawn point, or is freed, and `on_finished` fires
+   once.
+5. `on_fell` fires once as a fall starts, before the look's first `show`.
+   `on_finished` fires once, after the respawn or the free. A `Respawn`
+   removed in `on_fell` frees the node.
+6. `Shrink` scales the node from the scale it found toward 0, eased in. It
+   gives that scale back at the fall's end, at `finish`, and when the node
+   leaves the tree mid-fall. A node at scale 2 comes back at 2.
+7. A fall with no `FallLook` changes nothing drawn. The node holds still at
+   its scale for `duration` seconds, then comes back. Two `FallLook`s on one
+   node raise as the fall starts.
+8. A fall started on a platform leaves it. The platform carries the node no
+   further, and the node comes back where its `Respawn` puts it.
+9. A node taken from its parent mid-fall comes out resumed, at the scale its
+   look found, and `on_finished` does not fire. That holds in every add order
+   of its `Footing`, `Fall` and `Shrink`.
+10. A fall pauses with the world around its node, and leaves no trace in the
+    parent once it ends.
+11. `Fall.new(duration: 0)` raises `ArgumentError`. So does
+    `Footing.new(fall: 0.4)`, naming `fall`.
+12. A fall allocates nothing, from the drop to the respawn and its blink,
+    `Shrink` included. A `Footing` over a gap with no `Fall` allocates
+    nothing either.
+
+**Tests:**
+
+- `spec/rgame/engine/components/fall_spec.rb`, new: rules 3–5, 7 and 9–11
+  for a `Fall` started by hand. `footing_spec.rb`'s 10 fall examples move
+  here, onto a node with a `Footing`, a `Fall` and a `Shrink`, for rule 1.
+- `spec/rgame/engine/components/shrink_spec.rb`, new: rule 6, called by hand
+  and under a `Fall`.
+- `footing_spec.rb` loses the fall's 11 examples and gains rule 2 and
+  `Footing`'s half of rule 11. Its add-order examples put a `Fall` and a
+  `Shrink` before the rest and after.
+- `spec/rgame/engine/components/fall_allocation_spec.rb`, new:
+  `footing_allocation_spec.rb`'s 2 falls move here, with a `Shrink`, for rule
+  12. `footing_allocation_spec.rb` gains the node over a gap with no `Fall`.
+- `cutscene_spec.rb`: a `hold` on a `Fall`, watched to its end and skipped,
+  for rule 4.
+- `platforming_spec.rb`: the heroes and the crate gain a `Fall` and a
+  `Shrink`, and a fall started on the shuttle checks rule 8.
+- `checkpoint_spec.rb`, `platform_spec.rb` and `wander_controller_spec.rb`
+  read `falling?` from a `Fall`, or check the node is not suspended where it
+  has none.
+
+**Verify:**
+
 - `pits`, `moving_platforms` and `topdownplatformer` report the same as on
-  `main`, their `scaled` counts included;
-- a fall still allocates nothing, per `footing_allocation_spec`.
-
-Otherwise `Footing` stays as it is. The skill then records why: the look of a
-suspended node belongs to what runs beside it.
+  `main`, with the flags above: `pits`' 590 `sprite` and 698 `scaled`,
+  `moving_platforms`' 9150 `sprite` and 1044 `scaled`, and
+  `topdownplatformer`'s 3273 `rect` and 1750 `scaled`.
+- `rake drive:allocations` is green, and the three allocate about what they
+  do on `main`.
+- `git grep -nE 'Engine::Fall\b|fall: [0-9]|Footing#on_fell'` lists nothing
+  outside `docs/plans/`.
 
 ### Step 7 — The `build-components` skill (rough)
 
@@ -1132,7 +1463,8 @@ pointer would repeat both.
 - Check `components.md`, `examples.md` and the other pages against the landed
   code, per [write-docs](../../.claude/skills/write-docs/SKILL.md).
 - Move each open question still open to `possible-todos.md`, with its trigger.
-  That is `TileWorld`'s, unless open question 4 was answered yes.
+  That is `TileWorld`'s, unless open question 4 was answered yes, and the
+  falling crate's push, unless open question 5 was.
 - Add a todo for `Mover`'s second job (decision 7). Its trigger is a fourth
   thing a step moves along, such as a tow rope or a vehicle, or a bug traced
   to one of the three wirings.
