@@ -5,8 +5,9 @@ description: How to verify rgame changes — the four test tiers (Check/C, RSpec
 
 # Verifying rgame
 
-Four tiers. **Pick the highest one that can answer the question**, because the
-cheap tiers are the ones that stay green.
+Four tiers. **Pick the cheapest tier that can answer the question**, and be
+strict about which ones can: a cheap tier stays green when the question is
+beyond it.
 
 | Tier | Command | Covers | Speed |
 |---|---|---|---|
