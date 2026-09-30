@@ -5,8 +5,9 @@ description: How to verify rgame changes — the four test tiers (Check/C, RSpec
 
 # Verifying rgame
 
-Four tiers. **Pick the highest one that can answer the question**, because the
-cheap tiers are the ones that stay green.
+Four tiers. **Pick the cheapest tier that can answer the question**, and be
+strict about which ones can: a cheap tier stays green when the question is
+beyond it.
 
 | Tier | Command | Covers | Speed |
 |---|---|---|---|
@@ -21,9 +22,12 @@ cheap tiers are the ones that stay green.
 Tiers 1–3 are all automated and need no display. Tier 3 is the one most
 projects skip; here it works, and the harness is in `scripts/`.
 
-The architecture exists to keep things in tier 1 — see CLAUDE.md's layering
-rules and "Abstraction & testability strategy". If a thing is hard to test, its
-pure-logic part has usually not been separated out yet.
+The architecture exists to keep things in tier 1 — see
+[CLAUDE.md's layering rules](../../../CLAUDE.md#the-three-layers-and-who-may-talk-to-whom)
+and the three-layer split in
+[write-c-code](../write-c-code/SKILL.md#split-every-new-subsystem-into-three-layers).
+If a thing is hard to test, its pure-logic part has usually not been separated
+out yet.
 
 ---
 
@@ -286,7 +290,7 @@ heap-buffer-overflow. Check `text.count(old) == 1` and fail loudly otherwise.
 make test CFLAGS="$SAN"    # the SAN above, with -fno-sanitize-recover=all
 ```
 
-Measured, twice, on real modules here:
+Measured on real modules here:
 
 - A reconnect test passed for the wrong reason — the slot it expected was also
   the lowest free slot, so "reclaimed by GUID" and "took the first gap" were
