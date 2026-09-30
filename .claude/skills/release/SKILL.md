@@ -47,15 +47,15 @@ gem must never rule out a machine Ruby itself runs on.**
 
 Three things hold this up without anyone remembering them.
 `tools/platform_gem.rake` runs `tools/check_platform_gem.rb` on every gem it
-builds, which opens the `.gem` archive and checks nine rules — the platform, the
-two binaries and their extensions, that no source or `extconf.rb` is present, the
-Ruby bound, SDL2's licence, the file list against the source gem's, the linkage,
-and that neither binary needs a newer OS than the gem claims. CI's `smoke` job
-then installs the gem on a runner with **no SDL2 and no compiler** and plays the
-examples out of it through `tools/check_installed_gem.rb`, because a gem that
-builds is not yet a gem that runs somewhere else. And the `test` job still builds
-from source against a system SDL2 on all three platforms, so the source path
-stays covered rather than becoming the untested fallback.
+builds. That script opens the `.gem` archive and checks nine rules: the platform,
+the two binaries and their extensions, that no source or `extconf.rb` is present,
+the Ruby bound, SDL2's licence, the file list against the source gem's, the
+linkage, and that neither binary needs a newer OS than the gem claims. CI's
+`smoke` job then installs the gem on a runner with **no SDL2 and no compiler**
+and plays the examples out of it through `tools/check_installed_gem.rb`: a gem
+that builds is not yet a gem that runs somewhere else. And the `test` job still
+builds from source against a system SDL2 on all three platforms, so the source
+path stays covered rather than becoming the untested fallback.
 
 ## Never publish by hand
 
@@ -164,9 +164,9 @@ line for the version whatever it holds, so it cannot tell you a platform gem is
 missing.
 
 Run the last line outside the checkout. On a covered platform it installs
-without a compiler, which is the whole point; on any other it compiles the
-source gem, which is the check that the published source still builds with none
-of the repository's files around it.
+without a compiler, which is the point of a platform gem. On any other it
+compiles the source gem, which checks that the published source still builds
+with none of the repository's files around it.
 
 ## When the release job fails before it publishes
 

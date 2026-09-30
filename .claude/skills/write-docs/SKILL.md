@@ -6,9 +6,8 @@ description: How to write reference documentation under docs/api and keep it mat
 # Writing documentation
 
 Reference documentation lives in `docs/api/`. It ships inside the gem, so its
-reader has installed rgame and has nothing else. Write every page for that
-reader. They have only the current code and took no part in writing it. The page
-should help them understand that code and use it.
+reader has installed rgame and has only the current code. They took no part in
+writing it. Write every page to help that reader understand the code and use it.
 
 The top-level `README.md` and `ext/README.md` stay where they are. They cover
 setup and orientation, not reference material.

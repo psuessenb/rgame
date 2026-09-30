@@ -1,13 +1,13 @@
 ---
 name: write-example
-description: How to write an example under examples/ — the file shape, the drive script that acceptance-tests it, the asset licence rule, and the traps that have actually bitten (a top-level proc pinning the window, a save key that also walks the player, paused not gating draw, a nine-slice id that resolves to nothing). Use when adding or changing anything under examples/ or tools/drive/examples/, or when a driven example prints no report.
+description: How to write an example under examples/ — the file shape, the drive script that acceptance-tests it, the asset licence rule, and the traps that have bitten (a top-level proc pinning the window, a save key that also walks the player, paused not gating draw, a nine-slice id that resolves to nothing). Use when adding or changing anything under examples/ or tools/drive/examples/, or when a driven example prints no report.
 ---
 
 # Writing an rgame example
 
 An example is a **single file a stranger reads top to bottom**. It is not a
-game and not a test project: it makes one point, and everything in it is there
-to make that point. `test_projects/` is where whole games live.
+game and not a test project: it makes one point, and everything in it serves
+that point. Whole games live in `test_projects/`.
 
 Examples ship inside the gem. `tools/` does not, so a drive script costs
 nothing and an asset costs a redistribution licence.
@@ -73,11 +73,10 @@ Four rules for the header:
   the class and the class is findable from the file.
 - **Say what it does not solve.** `examples/game_menu` says its menu is at a
   fixed inset because centring needs a size that only exists at draw time.
-  That sentence is what stops a reader copying a limitation as if it were a
-  design.
+  That sentence stops a reader copying a limitation as if it were a design.
 - **No history.** Same rule as `docs/api/` (see
   [write-docs](../write-docs/SKILL.md)): no "used to", no "now", no "still".
-  Written for someone who has only the current code.
+  Write for someone who has only the current code.
 
 The header and every explaining comment in the file follow the style rules in
 [write-prose](../write-prose/SKILL.md).
@@ -90,13 +89,12 @@ The header and every explaining comment in the file follow the style rules in
 is fine when run by hand. Sometimes `X connection to :97 broken` appears too,
 sometimes not.
 
-**Cause:** a block captures the whole local variable scope it is written in —
-including `game`, further down the file, because Ruby builds the scope's
-variable table at compile time. Assign that block to a constant and it lives for
-the life of the process, so the `App` is never freed, so it is torn down after
-the harness has already killed Xvfb, and the process dies through a C-level
-`exit` that never flushes Ruby's buffered stdout. The report is written and then
-thrown away.
+**Cause:** a block captures the whole local variable scope it is written in,
+including `game` further down the file: Ruby builds the scope's variable table
+at compile time. Assign that block to a constant and it lives as long as the
+process. The `App` is then never freed, so it is torn down after the harness has
+already killed Xvfb. The process dies through a C-level `exit` that never
+flushes Ruby's buffered stdout. The report is written and then thrown away.
 
 ```ruby
 # Wrong — the wiring at the top level, so VOLUME_LABEL pins `game` for ever.
@@ -118,12 +116,11 @@ at_exit do
 end
 ```
 
-Zero is correct. One means something outlives the run — and the usual suspects
-are a proc, a constant, or a process-global that was never let go of.
-A global audio bus the engine once had was exactly that: it held the audio
-device, which held the asset manager, which held the window, and nobody noticed
-until something reached through it. Audio is now a system on the root, released
-with the tree.
+Zero is correct. One means something outlives the run. The usual suspects are a
+proc, a constant, or a process-global never let go of. A global audio bus the
+engine once had was one: it held the audio device, which held the asset
+manager, which held the window. Nobody noticed until something reached through
+it. Audio is now a system on the root, released with the tree.
 
 ---
 
@@ -132,13 +129,12 @@ with the tree.
 **Two actions may read one key, and both fire. Nothing warns.**
 
 `move_y` is bound to W and S. A `save` action added on S saves *and* walks the
-player downwards — which reads as "save does not work" because the movement is
-the thing you see. Verified with synthetic keystrokes: the save happened every
-time.
+player downwards. That reads as "save does not work", because the movement is
+what you see. Verified with synthetic keystrokes: the save happened every time.
 
 - **F1 and F2 are not free.** `RGame::Game` keeps them for the debug overlay and
   quit.
-- **Escape is deliberately not bound by the engine**, because it is every game's
+- **The engine deliberately leaves Escape unbound**, because it is every game's
   natural back button.
 - F5, F9 and Delete are free, and are what a player already expects.
 - Sharing a key is fine when nothing reads the other action. `examples/save_load_ids`
@@ -170,8 +166,8 @@ A `UI::Menu` does not need that: `menu.close` hides it and stops its input, and
 **Draw from `view`, not from `WIDTH`/`HEIGHT`.** Those constants are what the
 window *opens* at. Under fullscreen the view is the screen; under a scale mode
 it is the logical size. `view.width` is the only honest answer to "how big is
-the thing I am drawing in", and reading it is what makes a layout follow a
-fullscreen switch with nothing listening for the change.
+the thing I am drawing in". Reading it makes a layout follow a fullscreen switch
+with nothing listening for the change.
 
 **No clock on a draw path, ever.** Cosmetic animation accumulates its own
 elapsed seconds in `update(dt)` and hands the number to the renderer.
@@ -180,12 +176,12 @@ elapsed seconds in `update(dt)` and hands the number to the renderer.
 `locales/en.yml` beside its `main.rb` and sets
 `locales: File.expand_path('locales', __dir__)` in its `Game::Configuration`.
 Group keys by what the text is for (`help.*`, `status.*`, `hud.*`), and name
-them after what a line says, never its position. Build an `Engine::Text` in `initialize` and pass
-it to `renderer.text` as it is; `Game/NoLiteralText` refuses a String literal
-there. A table of text chosen by state holds `Text`s, and a sentence around a
-name is one key with the name as a variable (`"Chosen: %{item}"`). Drive the
-example afterwards: a key missing from the table shows under "missing or
-mismatched keys" and fails the run.
+them after what a line says, never its position. Build an `Engine::Text` in
+`initialize` and pass it to `renderer.text` as it is; `Game/NoLiteralText`
+refuses a String literal there. A table of text chosen by state holds `Text`s,
+and a sentence around a name is one key with the name as a variable
+(`"Chosen: %{item}"`). Drive the example afterwards: a key missing from the
+table shows under "missing or mismatched keys" and fails the run.
 
 **No String built per frame.** `renderer.text("#{n} plays", ...)` allocates every
 frame; `Game/NoInterpolationInHotPath` refuses it and is right. Use a key with a
@@ -195,7 +191,7 @@ id is the same bug without the interpolation — build the label in `initialize`
 **`[n, MAX].min` allocates nothing** despite the array literal: the VM compiles
 it to a single `opt_newarray_send`. Measured at 0 objects over 200,000 calls.
 Do not write around it — the cop knows, and `Style/MinMaxComparison` asks for
-exactly this form.
+this form.
 
 **Colours are `RGame::Util::Color`.** A raw `0xFFFFFFFF` raises `TypeError`.
 
@@ -205,15 +201,15 @@ exactly this form.
 
 **The test is not "may I use this" but "may I hand copies to everyone who
 installs rgame".** `examples/assets/` ships inside the gem, so it is CC0 or
-authored here, with nothing in between — a licence that merely permits use, or
-asks for a credit line, attaches an obligation to rgame and to everyone
-downstream. `media/` is gitignored precisely because its contents fail that
-test, so **an example may never read from it**. Record provenance in
+authored here, with nothing in between. A licence that only permits use, or asks
+for a credit line, attaches an obligation to rgame and to everyone downstream.
+`media/` is gitignored because its contents fail that test, so **an example may
+never read from it**. Record provenance in
 `examples/assets/README.md` even when the licence does not require it.
 
 **Vet an audio loop for trailing silence.** A track that "loops" by ending in a
 second of quiet sounds fine in a seam measurement and wrong to a player. Measure
-the silence, not just the seam.
+the silence, not only the seam.
 
 **Almost everything resolves by path. Nine-slices do not.**
 
@@ -223,16 +219,16 @@ the silence, not just the seam.
 | `:hit`, `:panel` | a Symbol is a name the game chose, and must be registered |
 
 A nine-slice id names an **element of an atlas**, not a file, so there is nothing
-for the manager to resolve it to. One line, and it is the only registration a
-menu example needs:
+for the manager to resolve it to. Registering the atlas takes one line, the only
+registration a menu example needs:
 
 ```ruby
 game.renderer.register_ui_atlas(game.assets.ui_atlas('ui.json'))
 ```
 
-This is worth checking against the plan before believing "this example needs no
-assets" — `UI::PanelButton` draws nine-slices, which made `examples/game_menu`
-asset-gated when the plan said it was not.
+Check this against the plan before believing "this example needs no assets".
+`UI::PanelButton` draws nine-slices, which made `examples/game_menu` asset-gated
+when the plan said it was not.
 
 ---
 
@@ -245,10 +241,10 @@ is driven by `tools/drive/examples/menu_navigation.rb`.
 ruby tools/drive_test_project.rb examples/<name>/main.rb --ticks 240
 ```
 
-Booting is not driving. The report counts what the game actually asked for —
-scenes entered, draw calls with first and last arguments, clips, translates,
-sounds, ticks against frames — and a plain boot of a game whose menu answered
-nothing reported "90 ticks, 90 frames" and looked perfectly healthy.
+Booting is not driving. The report counts what the game asked for: scenes
+entered, draw calls with first and last arguments, clips, translates, sounds,
+ticks against frames. A plain boot of a game whose menu answered nothing
+reported "90 ticks, 90 frames" and looked healthy.
 
 **The script's header comment says what the report should show.** That is the
 assertion, and it is the part to get right:
@@ -273,14 +269,14 @@ assertion, and it is the part to get right:
 - **Time a dialogue box's presses from a trace, not from the text.** A Down
   pressed while a line still types does nothing: the box shows only its ▼
   marker until the responses appear, and the next Enter picks the first one.
-  A `warn` in `on_beat_entered` with a tick counter, in a copy of `main.rb`
-  beside the original and run with `--script`, lists which beat began when.
-  Delete the copy afterwards.
-- **Leave the window windowed.** There is no window manager on Xvfb, so a
-  fullscreen window left behind at the end of a run stays mapped and holding the
-  display, and the *next* window's loop never receives the events that drive it —
-  a hang with no failure and no output. A script that goes fullscreen switches
-  back before it ends.
+  For the trace, copy `main.rb` beside the original, add a `warn` with a tick
+  counter to `on_beat_entered`, and run the copy with `--script`. It lists which
+  beat began when. Delete the copy afterwards.
+- **Leave the window windowed.** Xvfb has no window manager, so a fullscreen
+  window left behind at the end of a run stays mapped and holds the display. The
+  *next* window's loop then never receives the events that drive it: a hang with
+  no failure and no output. A script that goes fullscreen switches back before
+  it ends.
 
 **Measure allocations with `--allocations`, never from an ordinary run's
 report.** An ordinary run records every draw call with its arguments, and that
@@ -317,11 +313,11 @@ In order, because each step is cheaper than the next:
    different reason and the bisect means nothing. Keep the original safe and cut
    the real file down.
 3. **`warn` markers**, not `puts`. stderr is unbuffered; stdout is not, and a
-   process that dies through a C-level exit loses everything still buffered —
-   which is the whole reason the report goes missing.
+   process that dies through a C-level exit loses everything still buffered.
+   That is why the report goes missing.
 4. **Backtrace a hang** by launching the process under gdb rather than attaching
    to it. Check `/proc/sys/kernel/yama/ptrace_scope` first: at 1, which is the
-   default on this machine, only a parent may attach and `gdb -p` simply fails.
+   default on this machine, only a parent may attach and `gdb -p` fails.
 
 ---
 
@@ -339,7 +335,7 @@ New engine code that an example needs is **still engine code**: a control goes
 in `lib/rgame/engine/ui/` with its own spec in `spec/`, a section in the matching
 `docs/api/` page written per [write-docs](../write-docs/SKILL.md), and — if the
 page has a "What this is not" list — that list trimmed to what is still
-genuinely missing.
+missing.
 
 Then list it: a `### name` entry in `docs/api/examples.md` (the index spec fails
 without one) and a row in the examples table of `README.md`. Anything learned

@@ -22,8 +22,8 @@ Tiers 1–3 are all automated and need no display. Tier 3 is the one most
 projects skip; here it works, and the harness is in `scripts/`.
 
 The architecture exists to keep things in tier 1 — see CLAUDE.md's layering
-rules and "Abstraction & testability strategy". If a thing is hard to test, that
-is usually a sign the pure-logic part has not been separated out yet.
+rules and "Abstraction & testability strategy". If a thing is hard to test, its
+pure-logic part has usually not been separated out yet.
 
 ---
 
@@ -32,27 +32,27 @@ is usually a sign the pure-logic part has not been separated out yet.
 **Tier 1 — Check, `test/test_*.c`.** Anything with no SDL/GL/IO: the
 fixed-timestep accumulator, transform composition, clip-rect intersection,
 z-sort and batching, glyph atlas packing, tile culling, the gamepad slot
-table. This is most of what is actually hard to get right. Write these first,
-before touching SDL.
+table. This is most of what is hard to get right. Write these first, before
+touching SDL.
 
-**Tier 2a — `rake spec`, in `spec/`.** `RGame::Util` and `RGame::Engine`.
-Must never load SDL: `require "rgame/core"` here would define `RGame::Core`
-for the whole process and destroy the engine layer's headless guarantee. Also
-where C-extension lifetime checks live (see "Leaks", below), and where
+**Tier 2a — `rake spec`, in `spec/`.** `RGame::Util` and `RGame::Engine`. It
+must never load SDL: `require "rgame/core"` here would define `RGame::Core` for
+the whole process and destroy the engine layer's headless guarantee.
+C-extension lifetime checks live here too (see "Leaks", below), and
 `spec/api_docs/` runs the documentation's examples and checks its links (see
 [write-docs](../write-docs/SKILL.md)).
 
 **Tier 2b — `rake spec:core`, in `spec_core/`.** `RGame::Core`'s Ruby-visible
 surface: the App lifecycle, `Input`'s binding table, gamepad hot-plug, and the
-names `docs/api/` mentions (`spec_core/api_docs/`). Opens
-real windows and boots its own Xvfb. A separate directory and runner precisely
-so tier 2a cannot be contaminated — see
+names `docs/api/` mentions (`spec_core/api_docs/`). It opens real windows and
+boots its own Xvfb. It has a separate directory and runner so tier 2a cannot be
+contaminated — see
 [Design out misuse](../../../CLAUDE.md#design-out-misuse-the-right-thing-must-be-the-easy-thing).
 
 Reusable support lives in `spec_core/support/`: `HeadlessDisplay` (Xvfb),
 `XKeys` (XTEST keystrokes) and `VirtualGamepad` (a synthetic SDL controller).
-How the spec itself is written — doubles, `let` and `context` — is
-[write-spec](../write-spec/SKILL.md).
+[write-spec](../write-spec/SKILL.md) covers how the spec itself is written:
+doubles, `let` and `context`.
 
 **Tier 3 — live window.** "Did a real SDL window open, take real input, and
 render without a GL error." Use it for the layer-3 shim only. Do not use it for
@@ -61,50 +61,50 @@ logic that tier 1 could cover.
 **Tier 3b — driven test project.** The acceptance test for anything that changes how
 the layers are wired: `RGame::Game`, the asset loaders, input polling, the
 renderer's id registries. It is the only tier where all three layers are present
-at once. Boots a test project unmodified, drives it from the script in
-`tools/drive/` whose path mirrors the project's own, bounds the ticks, and
-reports what the game asked for — scenes entered, sounds played, clips and
-translates pushed, ticks against frames. **Booting is not
-driving**: a plain boot of a game whose menu responded to nothing once reported
-"90 ticks, 90 frames" and looked healthy. Assert on structure, not on exact draw
-counts unless the run is seeded with `--seed N`.
-`--texts` adds every distinct string drawn with `text`, its count and the tick it
-first appeared on — the draw-call section keeps only first and last arguments, so
-"the same text, string for string" needs it. A run with more than one clip lists
-them per clip as well, and each viewport and `PlayerLayer` clips to its player's
-region, so that is how a report says which player saw a string.
+at once. It boots a test project unmodified and drives it from the script in
+`tools/drive/` whose path mirrors the project's own. It bounds the ticks and
+reports what the game asked for: scenes entered, sounds played, clips and
+translates pushed, ticks against frames. **Booting is not driving**: a plain
+boot of a game whose menu responded to nothing once reported "90 ticks, 90
+frames" and looked healthy. Assert on structure, not on exact draw counts,
+unless the run is seeded with `--seed N`.
+`--texts` adds every distinct string drawn with `text`, its count, and the tick
+it first appeared on. The draw-call section keeps only first and last
+arguments, so "the same text, string for string" needs it. A run with more than
+one clip lists the strings per clip as well. Each viewport and `PlayerLayer`
+clips to its player's region, so that is how a report says which player saw a
+string.
 
-Comparing a run against `main` is the strongest form of this: with `--seed N` two
-runs of unchanged code are byte-identical, so a diff of nothing is real evidence
-that a refactor moved nothing. One caveat, learned over about forty runs of it:
-three of them reported 239 frames where the rest reported 240. That is the
-fixed-timestep loop skipping a draw under load, not a behaviour change — it
-reproduces byte-identically on a re-run — so re-run a lone odd report before
-believing it, and take a baseline twice, because the capture you are comparing
-*against* can be the run that was wrong.
+Comparing a run against `main` is the strongest form of this. With `--seed N`,
+two runs of unchanged code are byte-identical, so an empty diff is real evidence
+that a refactor moved nothing. One caveat, learned over about forty such runs:
+three reported 239 frames where the rest reported 240. That is the
+fixed-timestep loop skipping a draw under load, not a behaviour change, and a
+re-run reproduces the normal report byte for byte. So re-run a lone odd report
+before believing it. Take a baseline twice as well, because the capture you
+compare *against* can be the run that was wrong.
 
-Five more things a comparison needs, each of which has produced a false result:
+Five more things a comparison needs; each has produced a false result:
 
 - **A report cannot match across a change to draw order or to a node's origin.**
   It lists draws in call order and in each node's local coordinates, so either
   change alters it with nothing moved on screen. Y-sort hit both: the sort
-  moved the order, and the sprite anchors moved the origins. Compare where each draw lands instead, by adding up the translates and
-  scales around it.
+  moved the order, and the sprite anchors moved the origins. Compare where each
+  draw lands instead, by adding up the translates and scales around it.
 - **A report cannot see a change below the renderer's calls.** It lists what a
   game asked for, not the pixels that came out, so its diff is empty for a
   change to blending, filtering or an upload. Premultiplied alpha changed 41 of
   215 driven frames and no report. Compare frames instead: prepend `frame_end` to
   `RGame::Game` in a scratch file, save the back buffer with `RenderedFrame.grab`
   at a few ticks of every driven run, and do that at `main` and at the head.
-
 - **A worktree of `main` has no `media/`.** It is git-ignored, so the test projects
   crash loading assets there. Symlink the checkout's `media/` into the worktree.
 - **A worktree has no compiled extensions either, and copied ones can be stale.**
-  `lib/rgame/*.so` is git-ignored too, so the usual move is copying the checkout's into
-  the worktree — but `make clean` deletes both, and a later `make ext-util` rebuilds only
-  one. Measured: a Core extension left over from an older build was copied, and every
-  report crashed at boot with `unknown keyword: :fullscreen`. Run `make ext` immediately
-  before copying.
+  `lib/rgame/*.so` is git-ignored too, so the usual move is to copy the
+  checkout's into the worktree. But `make clean` deletes both, and a later
+  `make ext-util` rebuilds only one. Measured: a Core extension left over from an
+  older build was copied, and every report crashed at boot with
+  `unknown keyword: :fullscreen`. Run `make ext` immediately before copying.
 - **The harness gives every run a fresh `RGAME_SAVE_DIR`**, so a run of
   `save_load`, `save_load_ids`, `menu_navigation` or `localization` never reads
   what the previous one saved. Setting it yourself keeps saves across runs, which
@@ -211,8 +211,8 @@ run can never hang.
 ## Leaks
 
 Leak checking is part of **writing** the code, not a separate test suite. The
-rule: any commit that adds C which allocates gets run once through the relevant
-check below before it is called done.
+rule: run any commit that adds allocating C once through the relevant check
+below before calling it done.
 
 ### C code — AddressSanitizer (reliable, use this)
 
@@ -227,15 +227,15 @@ make clean && make                                        # restore a normal bui
 ```
 
 **`-fno-sanitize-recover=all` is not optional.** ASan aborts on a finding, but
-UBSan by default *prints and carries on*, so undefined behaviour is reported
-to stderr while the suite still exits 0 and `make test` still says 100%.
+UBSan by default *prints and carries on*. It reports undefined behaviour to
+stderr while the suite still exits 0 and `make test` still says 100%.
 Measured here: removing a guard against signed overflow produced
 `runtime error: signed integer overflow` in the log and a passing build. With
 the flag, the same mutation fails the run.
 
 **`bounds-strict` covers what ASan structurally cannot.** ASan validates
 *allocations*, so an index that walks out of one array field and into another
-field of the same struct is, to ASan, a perfectly legal read. Measured here:
+field of the same struct is, to ASan, a legal read. Measured here:
 deleting a negative-slot guard made `pad_axes[-1]` read backwards into the
 `pad_buttons` field of the same struct — no ASan report, and the value it found
 happened to be zero, so the test passed too. `-fsanitize=bounds-strict` catches
@@ -247,12 +247,12 @@ to install, and no valgrind needed.
 **On Windows, `gcc`'s `ucrt64` toolchain has no sanitizer runtime at all** —
 this recipe needs MSYS2's separate `clang64` environment there instead. See
 [write-c-code](../write-c-code/SKILL.md)'s "How to actually catch these before
-they land" for the exact packages and command.
+they land" for the packages and command.
 
 **Verified:** a deliberate `malloc` with no `free` in a Check test is caught,
 reported with a full stack, and **fails the run** (exit 1). Under Check's
 default fork mode it surfaces as an `Error` attributed to the specific test,
-which is exactly what you want. `CK_FORK=no` also catches it but reports it
+which is what you want. `CK_FORK=no` also catches it but reports it
 after the summary line.
 
 **Verified:** the current engine's full create → run → destroy cycle under
@@ -272,15 +272,15 @@ cp /tmp/orig.c ext/rgame_core/<subsystem>/<mod>.c
 ```
 
 **Assert the anchor is unique before patching.** A scripted mutation that does
-`text.replace(old, new, 1)` silently patches the *first* match, which may be in
-a different function entirely — and a mutation applied somewhere harmless looks
-exactly like a mutation the suite failed to catch. Measured: a "prepare does
+`text.replace(old, new, 1)` silently patches the *first* match, which may sit
+in a different function. A mutation applied somewhere harmless looks the same as
+a mutation the suite failed to catch. Measured: a "prepare does
 not reset its batch count" mutation reported SURVIVED three times before the
 anchor turned out to also match two identical lines in `reset`, further up the
 file. With a unique anchor the same mutation is caught immediately, as a
 heap-buffer-overflow. Check `text.count(old) == 1` and fail loudly otherwise.
 
-**Run the mutations under the sanitizer build too**, not just the plain one:
+**Run the mutations under the sanitizer build too**, not only the plain one:
 
 ```
 make test CFLAGS="$SAN"    # the SAN above, with -fno-sanitize-recover=all
@@ -296,10 +296,9 @@ Measured, twice, on real modules here:
   plausible zero, so a guard against them looks like dead code until the
   sanitizer is watching.
 - Two guards that looked equally defensive turned out different: one prevented
-  signed-overflow UB and was load-bearing, the other was genuinely dead because
-  a helper already validated its input. Mutation testing is what told them
-  apart — the dead one was deleted, the live one got a comment explaining what
-  it prevents.
+  signed-overflow UB and was load-bearing, the other was dead because a helper
+  already validated its input. Mutation testing told them apart: the dead one
+  was deleted, and the live one got a comment explaining what it prevents.
 
 If a mutation survives for a reason you can explain and accept — a guard that
 only becomes load-bearing in later work, say — write the reason into a comment
@@ -309,9 +308,8 @@ at the guard, so the next person doesn't delete it as redundant.
 
 Sanitizers do **not** work through Ruby (see "Dead ends"). Instead, have the
 extension count outstanding C allocations and assert the count returns to its
-baseline after GC. This directly tests the bug that actually happens: a
-TypedData `dfree` that is missing, or that frees the wrapper but not an inner
-buffer.
+baseline after GC. This tests the bug that happens in practice: a TypedData
+`dfree` that is missing, or that frees the wrapper but not an inner buffer.
 
 In the extension, behind a debug-only method:
 
@@ -346,7 +344,7 @@ looks like a pointer keeps its object alive. A returned C frame leaves its words
 behind, and the frames `GC.start` pushes do not always overwrite them, so the
 *last* object the loop built can survive every collection. Whether it does
 depends on the compiler's frame layout. Measured on `Util::SolidGrid` and
-`Util::RouteSearch`: exactly one survivor on Linux and Windows CI, none in 26
+`Util::RouteSearch`: one survivor on Linux and Windows CI, none in 26
 local runs of the same code. So a spec that passes here proves nothing about
 the runners.
 
@@ -370,8 +368,8 @@ in `spec_core/` (`debug_live_textures`, `debug_live_sounds`) do not use a
 thread and pass on CI today. That is luck of frame layout, not immunity, so
 reach for the helper if one of them starts reading one high.
 
-Also worth doing once per new TypedData class, since it catches GC-mark bugs
-that leak nothing but crash later:
+Run this once per new TypedData class too. It catches GC-mark bugs that leak
+nothing but crash later:
 
 ```ruby
 GC.verify_compaction_references(expand_heap: true, toward: :empty)
@@ -379,19 +377,19 @@ GC.verify_compaction_references(expand_heap: true, toward: :empty)
 
 ### Dead ends — do not retry these
 
-Both were tried on this machine and measured. They do not work; the failure
-mode of each is *silence*, which is why they are recorded here.
+Both were tried and measured on this machine. They do not work, and each fails
+*silently*, which is why they are recorded here.
 
 - **ASan/LSan through Ruby** (`LD_PRELOAD=libasan.so`, with or without
   `RUBY_FREE_AT_EXIT=1`). The exit-time leak check never fires under Ruby at
-  all. Driving it on demand via `__lsan_do_recoverable_leak_check` does fire,
-  but a deliberate 20 × 4096-byte leak in an extension was reported **3 times
-  out of 20, with the extension never appearing in any stack trace** — Ruby's
+  all. Driving it on demand via `__lsan_do_recoverable_leak_check` does fire.
+  But a deliberate 20 × 4096-byte leak in an extension was reported **3 times
+  out of 20, and the extension never appeared in any stack trace**: Ruby's
   conservative machine-stack scanning makes most leaked blocks look reachable.
   It also drowns the report in ~11,000 allocations of Ruby's own. Unusable.
 - **RSS growth loops.** Churning objects and watching `VmRSS` gave a **28 MB
-  rise on a class with no leak at all** — Ruby's heap high-water mark and
-  malloc arena retention dominate the signal completely. Unusable as a leak
+  rise on a class with no leak at all**: Ruby's heap high-water mark and
+  malloc arena retention dominate the signal. Unusable as a leak
   signal at any threshold worth setting.
 
 ---
@@ -406,13 +404,13 @@ mode of each is *silence*, which is why they are recorded here.
   Xvfb has no GPU; without them `SDL_GL_CreateContext` fails.
 - **Focus is usually already correct.** SDL takes input focus for its own
   window when it maps it, and a bare Xvfb has no window manager to argue with
-  it — measured: the window owns focus before the harness does anything.
+  it. Measured: the window owns focus before the harness does anything.
   `w.keys.focus(id)` exists for the multi-window / WM case; it is insurance,
   not the fix. If keys seem lost, check `w.keys.focused_window` before assuming
   a focus problem.
 - **`bundle exec` needs an absolute `BUNDLE_GEMFILE`** when spawned from
-  another cwd. `LiveWindow` sets it. Without it you get a bare "Could not
-  locate Gemfile" on the child's stderr and the window never appears — which
+  another cwd. `LiveWindow` sets it. Without it, the child prints a bare
+  "Could not locate Gemfile" to stderr and the window never appears, which
   looks identical to a broken injector.
 - **`tap` needs a settle longer than one frame** (16 ms at 60 fps), or the
   event pump can miss the press/release pair. The default 50 ms is fine.
@@ -429,7 +427,7 @@ The engine layer only ever calls a renderer (or audio server, or input
 backend) by method name, so every such interface has at least two
 implementations: the real `RGame::Core` one and the recording fake that
 headless specs substitute. If the fake drifts from the real one, `rake spec`
-stays green while the game no longer runs — the classic failure of this
+stays green while the game no longer runs. That is the classic failure of this
 pattern, and the one thing the split cannot catch by itself.
 
 So each of those interfaces gets a **shared example group** in
@@ -447,14 +445,14 @@ There are three of these today, all built the same way:
 | Host hook | `render { \|renderer, image, font\| ... }` | `with_audio { \|audio, sound_path\| ... }` | `tile_map { \|map\| ... }` |
 
 The tile map is the one that points *up* rather than down: `Core::TileMapRenderer`
-draws a map it may not name, so the contract is what stops the stand-in drifting
-from the parsed article. Both of its implementations are headless, so unlike the
+draws a map it may not name, so the contract stops the stand-in drifting from
+the parsed article. Both of its implementations are headless, so unlike the
 other two it runs entirely in `spec/`.
 
 `spec_core/core_spec_helper.rb` requires the contracts across the directory
 boundary, and the stand-ins built against them. That is the *only* thing that
-crosses: no `spec/` example file is
-loaded there, and nothing in `spec/` ever names Core.
+crosses: no `spec/` example file is loaded there, and nothing in `spec/` ever
+names Core.
 
 A contract states the method list and its argument shapes; it cannot state
 pixels or samples, because the fake produces neither. That is why
@@ -464,14 +462,14 @@ are the guarantee.
 
 The audio contract also shows what a contract must *leave out*: whether a sound
 has finished. Playback runs against a clock in both implementations, so
-"is it still playing a moment later" has no stable answer, and only the
-transitions a caller controls are stated.
+"is it still playing a moment later" has no stable answer. The contract states
+only the transitions a caller controls.
 
 ## A fake must refuse what the real thing refuses
 
 The rule above is about methods that exist. This one is about the calls that
-must **fail**, and it is the half that is easy to miss — a fake is written by
-listing what a caller does, and a caller does not ordinarily pass `nil`.
+must **fail**, the half that is easy to miss. A fake is written by listing what
+a caller does, and a caller does not ordinarily pass `nil`.
 
 > **A fake that only ever says yes tests nothing about the paths that exist
 > because the real one says no.**
@@ -479,7 +477,7 @@ listing what a caller does, and a caller does not ordinarily pass `nil`.
 The failure is specific and nasty: a guard is written in the real code *because*
 the real thing raises, a spec is written against the fake, the spec passes
 whether or not the guard is there, and the mutation that deletes the guard
-survives. That is exactly how it was found — a `NineSlice` guard against
+survives. That is how it was found: a `NineSlice` guard against
 zero-size sub-images looked untested because `StubImage#subimage` accepted what
 `Image#subimage` rejects.
 
@@ -491,9 +489,10 @@ So, whenever a fake is written or a real method grows a `raise`:
    and audio surfaces turned up **ten** differences, one of which was a
    *segfault* in the real code (`renderer.text(nil, …)` reached `RSTRING_PTR`
    without a type check).
-2. **Put the refusal in the contract, not just in the fake.** A patched fake
-   drifts again; a contract example runs against both. `spec/support/shared_examples/`
-   has an "arguments it refuses" section for exactly this.
+2. **Put the refusal in the contract, not only in the fake.** A patched fake
+   drifts again; a contract example runs against both.
+   `spec/support/shared_examples/` has an "arguments it refuses" section for
+   this.
 3. **Match on argument-shape refusals; document the rest.** A fake can check
    that a coordinate is a number and a label is a String — the real ones cross
    into C through `NUM2DBL` and `StringValue`, which raise `TypeError`. It
@@ -503,7 +502,7 @@ So, whenever a fake is written or a real method grows a `raise`:
    never looks at an image; `FakeRecording` documents that it does not refuse
    `.new` the way the real `Recording` does, because no scene ever calls it.
 4. **Validate without converting.** The real binding converts (`NUM2DBL`); the
-   fake should check and then record what the caller actually passed, so
+   fake should check and then record what the caller passed, so
    assertions read as written. Where a coercion is pure Ruby — colours go
    through `RGame::Util::Color.coerce` — the fake calls *the same function*,
    which is better than matching its behaviour.
@@ -537,12 +536,11 @@ whole platform because one environment cannot.
 - **Virtual gamepad button state.** Attaching a synthetic pad works anywhere
   SDL does — it is an SDL feature, not an OS one — but *reading a pressed
   button back* does not. On GitHub's macOS runners SDL reports success at every
-  step and the state never appears; see
-  `VirtualGamepad.button_state_supported?`, which probes it and skips the two
-  examples that need it. Hot-plug specs, which only attach and detach, run
-  everywhere.
+  step and the state never appears. `VirtualGamepad.button_state_supported?`
+  probes it and skips the two examples that need it. Hot-plug specs, which only
+  attach and detach, run everywhere.
 
-**Read the skip count, not just the colour.** A green `rake spec:core` on macOS
+**Read the skip count, not only the colour.** A green `rake spec:core` on macOS
 or Windows covers strictly less than a green one on Linux, and how much less is
 in the run's `exclude` line.
 
@@ -550,8 +548,7 @@ in the run's `exclude` line.
 
 ## Extending this skill
 
-This is a living document. When a verification problem costs more than a few
-minutes, add what was learned — especially **negative** results, since those
-are what otherwise get retried. Keep the "verified" claims tied to something
-actually run; if a claim here is not reproducible, fix or delete it rather than
-softening it.
+When a verification problem costs more than a few minutes, add what was learned
+here, especially **negative** results: those are what otherwise get retried.
+Keep every "verified" claim tied to something run. If a claim here is not
+reproducible, fix or delete it rather than softening it.

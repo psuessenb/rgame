@@ -29,8 +29,8 @@ misleads the person scanning it.
 
 ## The body
 
-One paragraph. Two at the most, and only when the change genuinely has two
-things to say. Never three.
+One paragraph. Two at the most, and only when the change has two things to
+say. Never three.
 
 Say what the change does and, where it is not obvious, why. Prose only — no
 bullets, no `Changes:` heading, no file-by-file inventory, because the diff
@@ -38,7 +38,7 @@ already lists the files. Cut filler: "this commit", "basically", "in order to",
 "various improvements", "as requested". A sentence that would survive being
 deleted should be deleted.
 
-Omit the body only when the summary genuinely says everything, as in
+Omit the body only when the summary says everything, as in
 `Fix input edges being consumed before a tick reads them`.
 
 ## No trailers
