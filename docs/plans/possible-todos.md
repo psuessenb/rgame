@@ -70,6 +70,66 @@ translucent pixels would have been darkened by their alpha twice.
 coordinate scaling not good enough, or the first want for a post-processing
 effect.
 
+### SDL3's GPU API, and why it comes after the loader
+
+**Decision.** When GL 1.1 stops being enough, the next step is the keyhole
+loader above, over GL 2.1. SDL3's GPU API is the likely step after that. GL 2.1
+and its framebuffer-object extension give everything this file wants from a
+GPU: render targets, and fragment shaders in GLSL 1.20. macOS gives an app that requests no version a 2.1
+context, so 2.1 is the floor on every platform rgame supports.
+
+GLSL 1.20 reads `gl_Vertex`, `gl_MultiTexCoord0` and `gl_Color`, which
+`gl_backend.c`'s client-side arrays already feed, so a shader needs no new
+vertex path. It travels with each draw command as texture and blend do, and the
+queue sorts and batches by it the same way. Shaders add about ten entry points
+to the loader's six.
+
+**Why not SDL3's GPU API now.** It fits the renderer: the queue already builds
+one sorted vertex array a frame, which SDL_GPU uploads once and draws batch by
+batch. The costs lie elsewhere.
+
+- **SDL3 comes first.** SDL_GPU exists only in SDL3. That move touches 192
+  distinct SDL names in 15 files and `rakelib/sdl2.rake`. SDL3 still creates GL
+  contexts, so the move is worth making on its own and decides nothing about
+  the renderer.
+- **Shaders are compiled ahead of time.** SDL_GPU takes SPIR-V, DXIL, DXBC or
+  MSL, never GLSL source for the driver to compile. The source gem compiles on
+  `gem install`, where no shader compiler exists. So the engine's shaders would
+  ship compiled under `lib/`, with a spec checking them against their source. A
+  shader a game wrote would need a compile step in every game's build, or
+  SDL_shadercross at runtime. Shadercross brings DXC and SPIRV-Cross, two large
+  C++ libraries, into every game.
+- **There is no fallback.** SDL_GPU has three backends: Vulkan, D3D12 on
+  Windows 10 or newer, and Metal on macOS 10.14 or newer. It has no GL backend,
+  so a Windows machine whose driver offers only OpenGL could no longer run
+  rgame. Metal costs nothing, since the gem already targets macOS 11.
+- **CI is unverified.** `rake spec:core` draws real pixels on all three runners
+  through software GL: Mesa on Linux and Windows, Apple's GL on macOS. SDL_GPU
+  would need Mesa's software Vulkan, lavapipe, on Linux and Windows, and
+  working Metal on GitHub's macOS VMs. Nobody has checked either.
+  `spec_core/support/rendered_frame.rb` also reads pixels by calling GL through
+  Fiddle, so the extension would have to expose a readback.
+
+**The shader API is the decision that cannot be undone, not the backend.** If
+games write GLSL 1.20, a move to SDL_GPU breaks every game's shaders. So the
+engine offers effects rather than a shader language. Palette swap, hit flash,
+outline, CRT and lighting become engine-owned shaders that take parameters, as
+the UI package offers menus rather than a toolkit. Games then never see the
+backend, and shaders that ship compiled cost them nothing.
+
+A GL 2.1 step throws little away when SDL_GPU follows: the loader, the render
+target and shader code in `gl_backend.c`, and a few short shaders. The Ruby API,
+the queue's batching, `Presentation` and the tests against
+`test/support/recording_backend.c` all carry over.
+
+**Trigger.** macOS removes or breaks OpenGL. Or a game needs what macOS's GL
+cannot give: it stops at 4.1, which has no compute shaders, so particles
+simulated on the GPU need another API. Or a measurement shows driver overhead
+costing a game frames. Going straight to SDL_GPU at the first render target
+makes sense only if three things hold: SDL3 is happening anyway, games get
+effects rather than shaders, and a probe shows all three CI runners draw with
+it.
+
 ### Two smaller things in the same area
 
 - **`:overscan`.** `Presentation` has four modes; SDL has a fifth, which fills
