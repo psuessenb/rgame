@@ -124,9 +124,25 @@ The last step of a roadmap is folding the plan back and deleting it.
 
 Whatever is still true moves into CLAUDE.md or `docs/api/` (written per
 [write-docs](../write-docs/SKILL.md)). The plan's steps have often updated the
-documentation already; double-check now that it is up to date. Rescue open
-questions and recorded to-dos from the plan, and ask the user where they belong
-when that is unclear. Then the file or folder goes; `git log` keeps the rest.
+documentation already; double-check now that it is up to date. Then the file or
+folder goes; `git log` keeps the rest.
+
+**An open question still open goes with the plan.** It has no answer to lose,
+and one that matters comes back. It moves to
+[`possible-todos.md`](../../../docs/plans/possible-todos.md) only with a trigger
+that file's header accepts. Fold-backs used to move every open question there,
+and the file filled with triggers like "a scene that needs it", which any entry
+could claim.
+
+**A measured bug the plan did not fix is the exception.** It neither goes with
+the plan nor becomes a possible todo. Ask the user about each one before
+deleting the plan, and let them decide what happens to it.
+
+Then read all of `possible-todos.md`, not only the entries this plan touched.
+Delete an entry the code has answered or made moot, and correct one whose
+premise, numbers or examples no longer hold. Premultiplied alpha made the
+multiply-blend entry's GL call draw black, and research for another feature
+was what found it.
 
 At fold-back, also read the plan's failures as a whole and turn them into a
 guard or a skill change — see

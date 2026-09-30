@@ -153,8 +153,7 @@ Taken in conversation on 2026-09-30, while re-planning step 6:
    that is not read from the map. `Platform` registers there, and `Footing`
    and `GapBlockers` ask it which platform stands where. **Lean:** the
    registry is a later plan's question. Blocks nothing before step 7. Decide by
-   the time step 7 is re-planned. A yes inserts rough steps before it, and a
-   no, or no answer, moves it to `possible-todos.md` at step 8.
+   the time step 7 is re-planned. A yes inserts rough steps before it.
 5. **A falling node can still be pushed.** Suspension stops a node's own
    components, not another node's mover. A hero walking into a crate pushed it
    from x 65 to 75 over the 10 ticks after it dropped *(measured at
@@ -165,8 +164,7 @@ Taken in conversation on 2026-09-30, while re-planning step 6:
    cutscene suspends too, which is why it is not the `Fall`'s job.
    `topdownplatformer`'s script holds right until about tick 416, and its
    crate drops on 414, so the fix may change that report. Blocks nothing in
-   step 6. Decide before step 8, which otherwise moves it to
-   `possible-todos.md`.
+   step 6. Decide before step 8.
 
 ## What was measured before planning
 
@@ -1462,9 +1460,6 @@ pointer would repeat both.
 
 - Check `components.md`, `examples.md` and the other pages against the landed
   code, per [write-docs](../../.claude/skills/write-docs/SKILL.md).
-- Move each open question still open to `possible-todos.md`, with its trigger.
-  That is `TileWorld`'s, unless open question 4 was answered yes, and the
-  falling crate's push, unless open question 5 was.
 - Add a todo for `Mover`'s second job (decision 7). Its trigger is a fourth
   thing a step moves along, such as a tow rope or a vehicle, or a bug traced
   to one of the three wirings.

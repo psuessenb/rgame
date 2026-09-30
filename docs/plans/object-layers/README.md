@@ -364,8 +364,7 @@ Taken at `abb91ad`, and on `origin/build-step-8-tiled-map` for `tour.tmx`.
    keyword" as the room is built, naming neither the map nor the object. Step 7
    found it in adventure's `Warp`. Following `**` up the chain would remove the
    rule, and naming the map and the object would at least say where it broke.
-   *Waits on step 11, which moves it to `possible-todos.md` if no step takes
-   it.*
+   *Open until step 11, unless a step takes it.*
 8. ~~**How should a class with nothing to set carry `@placeable`?**~~
    **Settled in step 8's review by decision 26 — in its class comment.** The
    tag followed only `initialize`, so such a class defined
