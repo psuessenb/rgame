@@ -5,17 +5,17 @@ description: How a finished plan's failures become a change to the guards and th
 
 # Learning from a mistake
 
-Every roadmap step's pull request carries a **What proved wrong** section, and
-those are where this repository's rules came from: every trap in
-[write-c-code](../write-c-code/SKILL.md) was paid for once already. This is how
-that gets back into the guards and the skills instead of staying in a merged
-pull request nobody reads again.
+Every roadmap step's pull request carries a **What proved wrong** section. This
+repository's rules came from those sections: every trap in
+[write-c-code](../write-c-code/SKILL.md) was paid for once already. This skill
+gets them back into the guards and the skills, instead of leaving them in a
+merged pull request nobody reads again.
 
 Run it at **fold-back**, the step that deletes the plan — not at the end of each
 step. A lesson that turns up in two different steps has shown that it repeats;
 one seen once has only been argued about, and eight prompts per plan produce
 eight paragraphs. The exception is a mistake that cost a whole debugging
-session: that one is worth writing when it happens.
+session: write that one down when it happens.
 
 Collect every step's **What proved wrong** first — from the merged pull
 requests, since the plan's landed notes go with the plan. Then take each bullet

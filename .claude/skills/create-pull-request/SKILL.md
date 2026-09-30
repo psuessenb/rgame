@@ -9,9 +9,9 @@ Every branch meant to reach `main` gets a pull request, and every step of a
 roadmap is a branch — see [implement-step](../implement-step/SKILL.md) for how
 a step becomes one.
 
-The pull request is where the work is explained. The commits say what each
-change does; the pull request says what was attempted, what actually happened,
-and what that means for whoever reads the plan next.
+The pull request explains the work. The commits say what each change does; the
+pull request says what was attempted, what happened, and what that means for
+whoever reads the plan next.
 
 ## The title
 
@@ -27,11 +27,10 @@ Implement step 3 — View, Layout and the draw signature sweep
 
 ## The body
 
-Write it with [write-prose](../write-prose/SKILL.md) loaded before the first
-sentence; its style rules apply to every sentence and bullet. Four sections, in
-this order. It is longer than a typical pull request body because it is doing a
-second job: everything here is what gets folded back into the plan as the
-step's landed note.
+Load [write-prose](../write-prose/SKILL.md) before the first sentence; its
+style rules apply to every sentence and bullet. Four sections, in this order.
+The body runs longer than a typical pull request's because it does a second
+job: all of it gets folded back into the plan as the step's landed note.
 
 ```markdown
 ## What the plan said
@@ -42,7 +41,7 @@ including the parts that turned out to be wrong. Link the plan document.>
 
 ## What was implemented
 
-<What actually shipped, in concrete names. The modules, the classes, the
+<What shipped, in concrete names. The modules, the classes, the
 signatures. Where a sub-step needed more than one commit, or was split
 differently from the plan, say so.>
 
@@ -50,8 +49,8 @@ differently from the plan, say so.>
 
 <Bulleted. Each assumption the sketch made that did not survive contact, what
 replaced it, and what it means for the steps that follow. Three or four is
-normal. "Nothing" is a legitimate answer and is worth stating explicitly, but
-it is rare enough to be worth double-checking.>
+normal. "Nothing" is a legitimate answer. State it explicitly, but
+double-check it first, because it is rare.>
 
 ## Verification
 
@@ -63,7 +62,7 @@ For a branch that is not part of a plan, the first section has nothing to
 restate: use **What this is for** instead, and keep the other three.
 
 Write prose and bullets, not a file-by-file inventory. The diff already lists
-the files. Both follow the style rules in [write-prose](../write-prose/SKILL.md).
+the files.
 
 Do not wrap lines to a fixed width. A pull request body renders reflowed while a
 commit message sits in `git log` at the terminal width, so the wrap that is right
@@ -75,10 +74,9 @@ sentence.
 No `Co-Authored-By`, no `Assisted-By`, no "Generated with" line, no session
 link — in the body or the commits it contains.
 
-`attribution.pr` and `attribution.commit` are both set to the empty string in
-`.claude/settings.local.json`, which is what stops the harness adding one. The
-rule is stated here as well because a setting is invisible at the moment the
-body is written.
+`.claude/settings.local.json` sets `attribution.pr` and `attribution.commit` to
+the empty string, which stops the harness adding one. This skill states the rule
+as well, because a setting is invisible at the moment the body is written.
 
 ## Opening it
 
@@ -103,9 +101,9 @@ CI runs on pull requests and covers Linux, macOS and Windows
 of the three platforms are only ever exercised there.
 
 Report the CI result, read with `gh pr checks` from the branch. If it fails on
-a platform you cannot reproduce locally,
-read the log and say what broke rather than guessing at a fix — and see
-[write-c-code](../write-c-code/SKILL.md), whose "traps Linux and macOS cannot
-surface" catalogues the failures that only appear off Linux.
+a platform you cannot reproduce locally, read the log and say what broke rather
+than guessing at a fix. "The traps Linux and macOS cannot surface" in
+[write-c-code](../write-c-code/SKILL.md) catalogues the failures that appear
+only off Linux.
 
 Merging is the user's decision. Do not merge a pull request unless asked.
