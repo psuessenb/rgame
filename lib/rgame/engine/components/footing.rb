@@ -179,6 +179,11 @@ module RGame
           @rgame_platform = nil
         end
 
+        # Leaves the platform the node rides, as its Fall starts.
+        #
+        # @api private
+        def leave_platform = board(nil)
+
         private
 
         def find_siblings

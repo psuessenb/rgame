@@ -773,6 +773,131 @@ end
 - **A designer's key comes through the node**, as any value for a component
   does. The class tags `@param fact [Symbol]` and passes it on as `key:`.
 
+### `Fall`
+
+**Takes its node out of play for a while, then brings it back.** `start`
+suspends the node and shows its [`FallLook`](#falllook), if it has one. After
+`duration` seconds, a node with a [`Respawn`](#respawn) stands on its respawn
+point, and any other node is freed.
+
+```ruby
+require 'rgame'
+
+hero = RGame::Engine::Node2D.new(x: 40)
+hero.scale = 2
+world = RGame::Engine::Node2D.new
+world.add_node(hero)
+fall = hero.add_component(RGame::Engine::Components::Fall.new(duration: 0.25))
+hero.add_component(RGame::Engine::Components::Shrink.new)
+hero.add_component(RGame::Engine::Components::Respawn.new)
+world.enter_tree
+
+hero.x = 60
+fall.start
+hero.suspended?                        # => true
+16.times { world.update(1.0 / 60) }
+[hero.x, hero.scale, fall.falling?]    # => [40, 2, false] — back on its point, at the scale it had
+```
+
+- **Construct:** `Fall.new(duration: 0.4)`. `duration` is in seconds, readable
+  as `duration`. Anything but a positive number raises `ArgumentError`.
+- **`start`** starts a fall and returns the `Fall`. During a fall it does
+  nothing. It raises for a node outside the tree or with no parent, and
+  `ArgumentError` for a node with two `FallLook`s.
+- **`finish`** ends a fall under way as its end would, and returns the `Fall`.
+  With none under way it does nothing. `falling?` says whether one is.
+- **Signals:** `on_fell` fires as the fall starts, before the look starts. That
+  is where a game takes a life. `on_finished` fires once the fall has ended,
+  after the respawn or the free.
+- **Lifecycle:** `_detach` ends a fall under way. The node is resumed, its look
+  finished, and `on_finished` does not fire. So a node taken out of the tree
+  mid-fall, through a door or freed, stops falling at once, and so does a node
+  whose `Fall` is removed.
+
+**The fall runs from beside the node.** A
+[suspended](scene_graph.md#pausing-a-subtree) node stops its own components, so
+the `Fall` adds a helper node to the falling node's parent for each fall, and
+drives the look from there. A fall therefore pauses when the world around the
+node is paused. The helper leaves the parent in the sweep of the tick the fall
+ends in, and a fall allocates nothing.
+
+**A game decides at each fall what it looks like and whether the node comes
+back.** The `Fall` looks the look up after `on_fell`, and the `Respawn` as the
+fall ends. So a look added in `on_fell` shows, and a `Respawn` removed there
+frees the node:
+
+```ruby
+fall.on_fell do
+  @lives -= 1
+  hero.remove_component(RGame::Engine::Components::Respawn) if @lives.zero?
+end
+```
+
+**A fall started on a platform leaves it.** The node's [`Footing`](#footing), if
+it has one, lets its [`Platform`](#platform) go, and the platform carries the
+node no further.
+
+**A cutscene waits on a fall.** A `Fall` answers `on_finished` and `finish`, so a
+[`Cutscene`](#cutscene) `hold` step can return one. A skip calls `finish`, and the
+node comes back or is freed:
+
+```ruby
+TRAPDOOR = RGame::Engine::Cutscene::Script.build do
+  run { |c| c.open_trapdoor }
+  hold { |c| c.hero.get_component(RGame::Engine::Components::Fall).start }
+end
+```
+
+### `FallLook`
+
+**What a fall looks like.** The node's [`Fall`](#fall) calls `start` as a fall
+starts, `show(progress)` every tick of it, and `finish` once as it ends, however
+it ends. `progress` runs from 0 at the fall's start to 1 at its end. Each does
+nothing in `FallLook`. A look subclasses it and overrides what it needs, as
+[`Shrink`](#shrink) does:
+
+```ruby
+require 'rgame'
+
+# A fall that fades the node out, and gives its opacity back.
+class FadeOut < RGame::Engine::Components::FallLook
+  def start
+    @found = node.opacity
+  end
+
+  def show(progress)
+    node.opacity = @found * (1 - progress)
+  end
+
+  def finish
+    node.opacity = @found
+  end
+end
+
+hero = RGame::Engine::Node2D.new
+world = RGame::Engine::Node2D.new
+world.add_node(hero)
+fall = hero.add_component(RGame::Engine::Components::Fall.new(duration: 0.5))
+hero.add_component(FadeOut.new)
+hero.add_component(RGame::Engine::Components::Respawn.new)
+world.enter_tree
+
+fall.start
+15.times { world.update(1.0 / 60) }
+hero.opacity     # => 0.5 — halfway through the fall
+20.times { world.update(1.0 / 60) }
+hero.opacity     # => 1 — back, with the opacity it found
+```
+
+**The node is suspended all the while.** A look's `_update` does not run, so it
+never counts time itself: `progress` is its clock. Its `_draw` still runs, as a
+suspended node still draws, so a look may draw what it likes, such as a splash.
+
+**A node holds one look.** A `Fall` raises `ArgumentError` as it starts on a node
+with two. A node with none holds still at its scale while it falls. A look that
+leaves its node mid-fall is shown no more and gets no `finish`, so its own
+`_detach` gives back what it changed, as `Shrink`'s does.
+
 ### `FeetCollider`
 
 **A [`BoxCollider`](#boxcollider) whose rectangle is the node's feet**: centred
@@ -1793,6 +1918,27 @@ reappears at the opposite one.
 - **One response to the edge per node.** It raises at attach beside a
   `DespawnOffscreen`, or beside a mover declaring `blocked_by: [:bounds]`. A wrapping
   entity's mover declares no `:bounds`; see [`WorldBounds.one_response!`](#world).
+
+### `Shrink`
+
+**A fall that drops its node out of sight.** As a [`FallLook`](#falllook), it
+shrinks the node through [`scale`](scene_graph.md#scale) from the scale it found
+toward 0, easing in, and gives that scale back as the fall ends. It shrinks
+toward the node's origin, where a character stands, so the character drops into
+the ground at its feet.
+
+```ruby
+hero.add_component(RGame::Engine::Components::Fall.new)
+hero.add_component(RGame::Engine::Components::Shrink.new)
+```
+
+- **Construct:** `Shrink.new`, which takes nothing.
+- **The shrink:** at `progress` p the node's scale is the scale it found times
+  1 − p², so a node at scale 2 falls from 2 and comes back at 2.
+- **Lifecycle:** `_detach` gives the scale back mid-fall, so a node that leaves
+  the tree mid-fall, or loses its `Shrink`, is not left shrunk.
+
+It allocates nothing.
 
 ### `Sprite`
 

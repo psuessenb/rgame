@@ -337,6 +337,42 @@ RSpec.describe RGame::Engine::Components::Cutscene do
       2.times { tick }
       expect([cutscene.step_index, tween.done?]).to eq([1, true])
     end
+
+    # A trapdoor: the prop falls, and comes back on its point.
+    describe 'on a Fall' do
+      let(:fall) { prop.add_component(RGame::Engine::Components::Fall.new(duration: 0.25)) }
+      let(:trapdoor) do
+        script do
+          hold { |c| c.prop.get_component(RGame::Engine::Components::Fall).start }
+          run { |c| c.mark(:back) }
+        end
+      end
+
+      def finishes
+        heard = []
+        fall.on_finished { heard << stage.tick }
+        prop.add_component(RGame::Engine::Components::Respawn.new.set_point(5.0, 6.0))
+        heard
+      end
+
+      it 'waits for the fall to end' do
+        heard = finishes
+        play(trapdoor)
+        4.times { tick }
+
+        expect([heard, stage.marks, prop.world_x, prop.suspended?]).to eq([[2], [[:back, 3]], 5.0, false])
+      end
+
+      it 'ends the fall as its end would when skipped' do
+        heard = finishes
+        cutscene = play(trapdoor)
+        tick
+        cutscene.skip
+
+        expect([heard, stage.marks, prop.world_x, prop.suspended?, fall.falling?])
+          .to eq([[1], [[:back, 1]], 5.0, false, false])
+      end
+    end
   end
 
   # The caller that uses both: two players in two rooms of one world.
