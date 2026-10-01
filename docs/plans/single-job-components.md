@@ -1,8 +1,7 @@
 # Single-job components
 
-**Status:** Steps 1–5 are implemented. Step 6 is re-planned at `91b7269` and
-ready. Step 7 is rough, and is re-planned before it starts. Step 8 folds the
-plan back and deletes it.
+**Status:** Steps 1–6 are implemented. Step 7 is rough, and is re-planned
+before it starts. Step 8 folds the plan back and deletes it.
 
 ## Verdict
 
@@ -167,6 +166,14 @@ Taken in conversation on 2026-09-30, while re-planning step 6:
    crate drops on 414, so the fix may change that report. Blocks nothing in
    step 6. Decide before step 8, which otherwise moves it to
    `possible-todos.md`.
+6. **A platform carries a node a game respawns off it, once.** Found in step 6.
+   A hero suspended on the shuttle and respawned by hand onto the bank at x 60
+   stands at 60.5 a tick later *(measured)*. Its `Footing` leaves the platform
+   on its next update, after the platform's carry. A `Fall` leaves the platform
+   as it starts, so no fall shows it. Only a game calling `Respawn#respawn` on a
+   riding node does. **Lean:** `Respawn#respawn` has the node's `Footing` leave
+   its platform, as `Fall#start` does. Blocks nothing. Decide before step 8,
+   which otherwise moves it to `possible-todos.md`.
 
 ## What was measured before planning
 
@@ -1434,6 +1441,87 @@ end
 - `git grep -nE 'Engine::Fall\b|fall: [0-9]|Footing#on_fell'` lists nothing
   outside `docs/plans/`.
 
+**Landed.** The branch is `fall-component`. The re-plan merged before it as
+#176, and each sub-step is one commit. `Fall.new(duration: 0.4)` answers
+`start`, `finish`, `falling?`, `on_fell` and `on_finished`. `FallLook` answers
+`start`, `show(progress)` and `finish`, and `Shrink` subclasses it. All three
+are as sketched. `Footing.new(coyote: 0.1)` lost `fall:`, `falling?`, `on_fell`
+and `fall_ended`, and gained `leave_platform`, `@api private`, for the `Fall`.
+`Fall::Clock` only forwards its `_update` to `Fall#advance`. The shrink and the
+end moved into `Fall` and `Shrink`, so nothing of `Engine::Fall` was copied
+whole.
+
+`rake spec` passes 4,637 examples, 66 more than `main`. The new files hold 45
+in `fall_spec.rb`, 7 in `shrink_spec.rb` and 3 in `fall_allocation_spec.rb`.
+`cutscene_spec.rb` and `platforming_spec.rb` gain 2 each, and `components.md`
+gains 2 doc examples. `footing_spec.rb` has 48, 6 more, and
+`footing_allocation_spec.rb` has 4, 1 fewer. `rake spec:core` passes 544, and
+`rake drive:allocations` passes 42 projects and skips 2 that read a `media/`
+this checkout lacks.
+
+Driven with the plan's flags, all three projects report the same as `main`,
+line for line. `topdownplatformer` differs only in the checkout path inside its
+tilemap names. `pits` draws its 590 `sprite`s and 698 `scaled`, and
+`moving_platforms` its 9150 and 1044. `topdownplatformer` draws its 3273 `rect`s
+and 1750 `scaled`. Runs on both sides drew a frame fewer than they ticked on
+this machine at times, and each such run was repeated until it drew every tick.
+A scratch trace of three falls
+at scale 1, 90 ticks each, matches `main` line for line. It covers position,
+scale, suspension, `falling?`, `coyote_left`, opacity and the parent's children.
+At scale 2 the node falls from 2 and comes back at 2, on the same ticks.
+
+Each guard fails a spec without it. With no `leave_platform` in `Fall#start`,
+the shuttle example fails in both orders. The shuttle carries the falling hero
+10 px, then once more after the respawn. Without the fresh clock below, "falls
+again from on_finished" fails, and without the clock's `freed?` check, "moves a
+fall started again after #finish" fails. An Array made in `Shrink#show` fails
+`fall_allocation_spec.rb`.
+
+- **`Fall` finds the look after `on_fell`, not as the fall starts.** Rule 5 only
+  put `on_fell` before the first `show`. Found after it, the look is the
+  game's to choose at each fall, such as a splash over water, just as the game
+  removes a `Respawn` there. A fall finished in `on_fell` starts no look.
+- **A fall started again before the sweep needs a fresh clock.** `add_node`
+  returns at once for a node that is already the parent's child, and leaves it
+  marked free. So a fall started from `on_finished`, or after `finish`, would
+  run on a clock the sweep then removes, and the node would stay suspended for
+  good. `Fall#start` builds a new `Clock` only then, and a clock marked free
+  advances nothing. `Engine::Fall` had the same hole, but only a gap could start
+  it, and never twice in one tick.
+- **`coyote_left` reads the floor.** With `fall_ended` gone, `Footing` no longer
+  hears the fall end. After a respawn, `coyote_left` would read 0 until the
+  `Footing`'s next update, and `pits` would draw its bar empty for a frame. It
+  answers `coyote` whenever the node stands, so leaving the platform stays the
+  one call from `Fall` back to `Footing`.
+- **A look that leaves its node mid-fall gets no `finish`.** The sketch had the
+  `Fall` call `finish` once however the fall ends, but a look removed from its
+  node has no node to finish on. The `Fall` stops showing it, and the look's own
+  `_detach` gives back what it changed. `Shrink` does so, and its `finish` does
+  nothing after the first.
+- **The verify grep finds rule 11's own spec.** `footing_spec.rb` passes
+  `fall: 0.4` to check the refusal, so `fall: [0-9]` lists that one line.
+- **All three projects allocate a little more than on `main`**, on the same
+  share of ticks, and the same in two runs of each side. `pits` allocates 15.1
+  objects a second against 11.8, `moving_platforms` 8.7 against 7.0, and
+  `topdownplatformer` 7.5 against 6.4. Run with a budget of 1, the probe lists
+  call caches for the fall's new call sites, made on the first fall inside the
+  measured window. It also lists the `finished` signal, built on its first emit,
+  since nothing in `pits` connects to it. A warm fall allocates nothing.
+- **A platform carries a node a game respawns off it, once.** It is not the
+  fall's doing, and is open question 6.
+- **For step 7:** the shape "a sibling the owner drives, when the node is
+  suspended" held. One more line belongs beside it. A sibling looked up after
+  the owner's signal is one the game may choose at each event.
+
+Documented in `docs/api/components.md` under new `Fall`, `FallLook` and `Shrink`
+sections, with examples the doc specs run for `Fall` and `FallLook`. `Footing`
+is rewritten, and `Respawn`, `Checkpoint` and `Hop` name the `Fall`.
+`tile_maps.md`'s gaps, `scene_graph.md`'s `scale`, the `pits` and
+`moving_platforms` entries in `examples.md` and the `pits`, `moving_platforms`
+and `jump_topdown` headers name it too. `CHANGELOG.md`'s unreleased "Falling
+into a gap" entry splits into three: `Footing`, `Fall` with `Respawn`, and
+`FallLook` with `Shrink`.
+
 ### Step 7 — The `build-components` skill (rough)
 
 Written from the landed notes of steps 2–6, per
@@ -1463,8 +1551,9 @@ pointer would repeat both.
 - Check `components.md`, `examples.md` and the other pages against the landed
   code, per [write-docs](../../.claude/skills/write-docs/SKILL.md).
 - Move each open question still open to `possible-todos.md`, with its trigger.
-  That is `TileWorld`'s, unless open question 4 was answered yes, and the
-  falling crate's push, unless open question 5 was.
+  That is `TileWorld`'s, unless open question 4 was answered yes, the falling
+  crate's push, unless open question 5 was, and the respawned rider, unless
+  open question 6 was.
 - Add a todo for `Mover`'s second job (decision 7). Its trigger is a fourth
   thing a step moves along, such as a tow rope or a vehicle, or a bug traced
   to one of the three wirings.
