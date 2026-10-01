@@ -1,7 +1,7 @@
 # Single-job components
 
-**Status:** Steps 1–6 are implemented. Step 7 is re-planned at `f021207` and
-ready. Step 8 folds the plan back and deletes it.
+**Status:** Steps 1–7 are implemented. Step 8 folds the plan back and deletes
+it.
 
 ## Verdict
 
@@ -181,6 +181,51 @@ Taken in conversation on 2026-10-01, while re-planning step 7:
    as it starts, so no fall shows it. Only a game calling `Respawn#respawn` on a
    riding node does. **Lean:** `Respawn#respawn` has the node's `Footing` leave
    its platform, as `Fall#start` does. Blocks nothing. Decide before step 8.
+7. **What step 7's blind review found in components the plan does not change.**
+   A subagent given only the skill reviewed every component at `0361b28`. Each
+   of these predates the plan:
+   - **`ThrustController` answers two questions:** how a ship handles, and which
+     two input actions steer it. An AI ship cannot reuse its handling, since
+     `Actions#axis` raises for an action no map declares. It also writes its
+     `Velocity`'s `vx` and `vy` in `_update`, the phase the `Velocity`
+     integrates in. The ship moves 0.1667 px on its first thrusting tick in one
+     add order, and none in the other *(measured)*. **Lean:** `Hop`'s shape, with
+     the actions as a default and a method for a ship no player steers.
+   - **`WanderController` sets its body's intent in `_update`**, the phase the
+     body steps in. A new heading moves the body on tick 1 in one add order and
+     on tick 2 in the other *(measured)*. **Lean:** it rerolls in `_control`,
+     where `PlayerController` sets intent.
+   - **`Hop` lands at elevation 0, not at the elevation it found, and has no
+     `_detach`.** A node at elevation 4 lands at 0, and one whose `Hop` is
+     removed mid-hop stays at 8.889 *(measured)*. **Lean:** it gives back what it
+     found, and lands in `_detach`.
+   - **`Footing` keeps the `Mover` it found on its first update.** Removed from a
+     riding node, the `Mover` is still called, and the next carry raises
+     `NoMethodError` *(measured)*. `Navigator` keeps the `BoxCollider` it found at
+     attach, so one added later goes unseen. **Lean:** `Footing` looks the
+     `Mover` up in `ride`, which only a carry calls.
+   - **`CameraFollow`'s header is wrong in one add order.** It says the camera
+     reads the node's position from before whatever moves it this tick. With a
+     mover added before it, the camera reads the position after. **Lean:** the
+     header says the camera trails by a tick in one order.
+   - **`Footing`'s header holds in one add order.** It says a node that lands on
+     a gap loses its footing on the tick it lands, and with `coyote: 0` on its
+     first tick off the floor. With its `Hop` added after it, a node landing on
+     tick 31 falls on tick 32. With its mover added after it, a node walking off
+     falls at x 65, not 64, because the mover takes one more step after the fall
+     suspends it *(both measured)*. `components.md` states the coyote window's
+     tick, and the header states neither. **Lean:** the header says which order
+     its ticks hold for.
+   - **`TileWorld`'s first sentence says it draws the map**, and a later
+     paragraph says it does not draw. **Lean:** the clause goes.
+   - **`Targeting` keeps a `CollisionWorld` that may be nil.** On a scene with
+     none, its first update raises `NoMethodError` for `nearest` on nil
+     *(measured)*, and so do `Grab`'s and the `Interactor`'s. It is one more
+     caller of the shape `possible-todos.md` records under "The plain `system`
+     lookup still returns nil where a system is required". **Lean:** `system!`,
+     which names the class and where it looked.
+
+   Blocks nothing. Decide before step 8.
 
 ## What was measured before planning
 
@@ -1622,6 +1667,72 @@ The skill's outline. Each line is still subject to write-skill's cut:
   open question, or a gap in the skill, fixed and reviewed again. Its report
   goes into the landed note.
 - `rake spec` is green, and RuboCop passes `mover.rb`.
+
+**Landed.** The branch is `build-components`. The re-plan is its first commit,
+then 7a and 7b, then one commit revising the skill after its review.
+`.claude/skills/build-components/SKILL.md` has the sketched outline, in 120
+lines. `write-plan` links its checks and loads it for a component's sketch.
+`write-ruby-code` points at it from its first paragraph, and CLAUDE.md names it
+in its list of skills and in "Before building". `Mover`'s header says it
+answers two questions on purpose. `rake spec` passes 4,637 examples, as on
+`main`, and RuboCop passes `mover.rb`. The link check resolves all 53 relative
+links in CLAUDE.md, the three skills and this plan. The checks' questions stand
+in the skill alone.
+
+The blind review ran three times. Each round was a fresh subagent that read
+only the skill and the 48 files in `lib/rgame/engine/components/`, over 9 to 15
+minutes:
+
+| Round | Named as answering two questions | Skill changes after it |
+|---|---|---|
+| 1, at `0361b28` | `Mover`, as the exception; `Footing` and `ThrustController`, uncovered | six |
+| 2 | `Mover`, `Cutscene` and `TileWorld`, all covered | five |
+| 3 | `Mover` and `Platform`, covered by the exception; `ThrustController`, uncovered | three, not reviewed again |
+
+Every other failure the rounds reported is in open question 7, six of whose
+eight entries are measured, or is passed below with its reason.
+
+- **The plan expected the review to name `Mover` alone.** Two rounds also
+  found `ThrustController` answering two questions, how a ship handles and
+  which two actions steer it, where the plan's own review had passed it. The
+  rounds also found seven defects in components the plan does not change,
+  recorded as open question 7.
+- **The first draft let the tells decide.** Round 1 flagged `Footing` by the
+  walker tell, and the collider's `layer` by "one value, several readers". The
+  skill now says that a tell sends a component to the test, and the test
+  decides. A reason is a question the component answers, whether or not a
+  keyword for it exists yet.
+- **"A layer may narrow who acts" needed the plan's own condition:** where a
+  contact picks the node. Without it, `Checkpoint`'s raise for a node with no
+  `Respawn` read as choosing by layer. This plan's table said "the contact
+  picks the node", and the first draft dropped it.
+- **The rule on siblings needed a limit.** "Look up one it can do without when
+  it uses it" read as condemning every cache made on a first update,
+  `Footing`'s `Hop` included. The skill allows one for a sibling read every
+  tick, and says what it costs. A sibling removed later is still called, and
+  open question 7 measured that as a crash.
+- **`Mover` sat under "What is not a second job"** while its header says it
+  answers two. It stands apart now, with the hooks the exception needs:
+  `Grab`'s crate, and a `Platform`'s riders carried through their `Footing`.
+- **Reading what a sibling changed in the same phase** was not covered by
+  "never a sibling that writes into another". The skill accepts the tick where
+  it shows nowhere, and asks the docs to state it where it shows.
+- **The five checks became seven.** The test for two jobs, and the rules on
+  siblings and on giving back, join the review list. Round 1 found the list
+  reached only part of the skill.
+- **Passed, with reasons.** `CollisionWorld#nearest(layer:)` is a query, so
+  its caller decides why it asks, as this plan's table of layers said.
+  `Sprite`'s own `scale` sizes one image, and the node's scales the whole
+  subtree. `OccupiesCell`'s cell is set by hand because a node's origin need
+  not stand on its cell. `Hop`'s `height` caches what it writes. The
+  `Interactor` ignoring `policy:` is Liskov's, which decision 2 leaves to a
+  later plan. `Footing` with no `Mover` moves its node itself when carried,
+  which is the carry, not a `Mover`'s job.
+- **For step 8:** open question 7's measured defects go to the user before the
+  plan is deleted, as `implement-step` now says of a measured bug the plan did
+  not fix. The link check is a scratch script, `check_links.rb`. Step 8's
+  learn-from-mistakes pass may ask whether skills need a guard of their own.
+  None reads a link under `.claude/` today.
 
 ### Step 8 — Fold the plan back and delete it
 
