@@ -2027,14 +2027,22 @@ two matches is one candidate.
 **Inertial ship flight on top of a `Velocity` sibling.** A turn axis rotates the
 node, and a thrust axis accelerates it along its heading.
 
-- **Construct:** `ThrustController.new(turn_speed:, accel:, max_speed:, drag: 0.0,
-  turn_action: :turn, thrust_action: :thrust)`.
+- **Construct:** `ThrustController.new(turn_speed:, accel:, turn_action: :turn,
+  thrust_action: :thrust)`. Drag and the top speed are the `Velocity`'s `drag:` and
+  `max_speed:`.
 - **Lifecycle:** `_attach` looks up the node's `Velocity` with `require_sibling`,
-  so a missing one raises at once instead of surfacing later as a `nil`.
-- **Phase:** `_control(actions)` reads intent: turn sets `velocity.spin`, and thrust
-  is stored. `_update(dt)` accelerates along the heading, applies drag, and clamps to
-  `max_speed`. Angle 0 points up, so forward is `(sin θ, −cos θ)`. Firing is not part
-  of this component.
+  so a missing one raises at once instead of surfacing later as a `nil`. `_detach`
+  gives the `Velocity` back the `spin`, `ax` and `ay` it had at attach, so a ship
+  whose controller is removed drifts on.
+- **Phase:** it writes in `_control(actions)` only. The turn axis times
+  `turn_speed` sets `velocity.spin`. The thrust axis times `accel` sets `velocity.ax`
+  and `velocity.ay`, along the heading. The `Velocity` integrates both in its own
+  step, so the first thrust moves the ship on the tick it starts, in either add
+  order.
+- **Heading:** angle 0 points along +x, so forward is `(cos θ, sin θ)`. Thrust
+  follows the angle the node has in `_control`, before that tick's turn.
+
+Firing is not part of this component.
 
 ### `TileWorld`
 
@@ -2215,15 +2223,26 @@ fade.value   # read in the node's _draw
 
 ### `Velocity`
 
-**Integrates linear and angular velocity into the node's transform each step.**
+**Integrates acceleration into the velocity, and the velocity into the node's
+transform, each step.**
 
-- **Construct:** `Velocity.new(vx: 0.0, vy: 0.0, spin: 0.0, blocked_by: [], pushes: [])`.
+- **Construct:** `Velocity.new(vx: 0.0, vy: 0.0, spin: 0.0, ax: 0.0, ay: 0.0,
+  drag: 0.0, max_speed: nil, blocked_by: [], pushes: [])`.
   [`Mover`](#mover) decides what may stop it, as for a `CharacterBody`.
-- **State:** `vx`, `vy` and `spin` are read/write. A controller, or the node's own
-  `_control` hook, writes them as movement intent.
-- **Phase:** `_update(dt)` moves the node by `vx*dt` and `vy*dt` through `apply_move`.
-  It adds `spin*dt` to `node.angle` directly: a collision box does not turn with its
-  node, so nothing can block a rotation.
+- **State:** `vx`, `vy`, `spin`, `ax` and `ay` are read/write. A controller, or the
+  node's own `_control` hook, writes them as movement intent.
+- **Phase:** `_update(dt)` changes the velocity first, and moves the node with the
+  result:
+  1. It adds `ax*dt` and `ay*dt` to `vx` and `vy`.
+  2. It keeps `1 - drag*dt` of the velocity, and none once that falls below zero.
+  3. It scales the velocity down to `max_speed`, if the speed is over it. `nil`
+     caps nothing.
+  4. It moves the node by `vx*dt` and `vy*dt` through `apply_move`.
+  5. It adds `spin*dt` to `node.angle` directly: a collision box does not turn with
+     its node, so nothing can block a rotation.
+
+  An acceleration set in `_control` therefore moves the node on the same tick,
+  whichever component was added first.
 - **Blocked:** a stopped step leaves `vx` and `vy` unchanged. They are the intent.
   The game decides what a stop does to them, whether nothing, zero or a bounce, in an
   `on_blocked` handler. To block a `ThrustController` ship, declare `blocked_by:` on
