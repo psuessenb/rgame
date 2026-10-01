@@ -258,7 +258,8 @@ cell without a gap tile, plus the box of every `Platform` over a gap.
   that touches it.
 
 Add order changes a result by one tick at most. `Footing` finds the node's `Hop`
-and mover on its first update, and its `Fall` each time the node loses its footing.
+on its first update, its mover at each carry, and its `Fall` each time the node
+loses its footing.
 A mover finds its `Platform` on its first update too, so those may go on in any
 order.
 

@@ -987,7 +987,9 @@ then carries it by every step it takes. The carry goes through the node's
 [`Mover`](#mover), so its own `blocked_by:` still stops it, or straight onto the
 node when it has none. The node leaves as its centre leaves the platform, as its
 `Fall` starts, and as it leaves the tree. `platform` is the one it rides, or `nil`.
-`Footing` finds the node's `Mover` on its first update, as it finds the `Hop`.
+`Footing` looks the `Mover` up at each carry, so a `Mover` added or removed while
+the node rides counts from the platform's next step. Once its `Mover` is gone,
+nothing stops the node, and the platform carries it straight.
 
 ### `Grab`
 

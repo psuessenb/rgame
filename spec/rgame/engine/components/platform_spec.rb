@@ -159,6 +159,15 @@ RSpec.describe RGame::Engine::Components::Platform do
       expect(node.x - platform.node.x).to be_within(1e-9).of(-5.0)
     end
 
+    it 'carries a rider straight by its step once its Mover is removed' do
+      platform = platform_at(80.0, 24.0, vx: 60)
+      node = rider_at(76.0, 24.0)
+      tick
+      node.remove_component(parts::CharacterBody)
+      ticks(20)
+      expect(node.x - platform.node.x).to be_within(1e-9).of(-5.0)
+    end
+
     it 'leaves the platform as the node steps off it onto the ground' do
       platform = platform_at(64.0, 24.0) # box 48..80, flush with the ground's edge at 48
       node = rider_at(52.0, 24.0)
@@ -202,6 +211,15 @@ RSpec.describe RGame::Engine::Components::Platform do
       fall = node.add_component(parts::Fall.new)
       ticks(80)
       expect([node.x, platform.node.x, fall.falling?]).to match([116.0, be_within(1e-9).of(160.0), true])
+    end
+
+    it 'stops the rider through a Mover added after it boarded' do
+      platform_at(80.0, 24.0, width: 48, vx: 60)
+      node = rider_at(80.0, 24.0, body: false)
+      tick
+      node.add_component(parts::CharacterBody.new(speed: 60, blocked_by: [:wall]))
+      ticks(50)
+      expect(node.x).to eq(116.0)
     end
   end
 
