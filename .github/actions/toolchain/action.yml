@@ -72,6 +72,14 @@ runs:
     # knowing when a graphics or input failure appears on one run and not
     # another.
     #
+    # Before updating, the step untaps every tap Homebrew does not maintain
+    # itself. The runner image ships third-party taps rgame never installs
+    # from, and `brew update` exits 1 when any one of them fails to fetch. The
+    # image's hashicorp/tap tracks a `master` branch its upstream has deleted.
+    # Homebrew falls back to fetching `main`, and on one run that fetch failed
+    # too. Without `--force`, `brew untap` refuses a tap with installed
+    # formulae; with it, it uninstalls them first.
+    #
     # A run-only job installs nothing at all here: macOS ships its own window
     # server and OpenGL, so the step is skipped rather than run with an empty
     # package list, which `brew install` would refuse.
@@ -79,6 +87,7 @@ runs:
       if: runner.os == 'macOS' && (inputs.build-tools == 'true' || inputs.system-sdl2 == 'true' || inputs.cmake == 'true')
       shell: bash
       run: |
+        brew tap | awk '!/^homebrew\//' | xargs -r brew untap --force
         brew update
         brew install \
           ${{ inputs.build-tools == 'true' && 'check pkg-config' || '' }} \
