@@ -344,6 +344,48 @@ RSpec.describe RGame::Engine::Components::Navigator do
     end
   end
 
+  # A node in the tree attaches each component as it arrives, so its collider may come
+  # after its navigator, and may leave before a route is planned.
+  describe 'on a node already in the tree' do
+    def navigator_beside(collider, collider_first:)
+      mount(fence)
+      node = RGame::Engine::Node2D.new(x: 20.0, y: 20.0)
+      scene.add_node(node)
+      scene.enter_tree
+      node.add_component(collider) if collider_first
+      navigator = node.add_component(described_class.new(speed: 120.0))
+      node.add_component(collider) unless collider_first
+      navigator
+    end
+
+    { 'before' => true, 'after' => false }.each do |order, collider_first|
+      context "with the collider added #{order} the navigator" do
+        it 'refuses one taller than a tile' do
+          collider = RGame::Engine::Components::BoxCollider.new(width: 16, height: 48)
+          navigator = navigator_beside(collider, collider_first:)
+          expect { navigator.go_to(*centre(18, 10)) }.to raise_error(ArgumentError, /16x48 over 16x16 tiles/)
+        end
+
+        it 'ends with the centre of the box on the target' do
+          collider = RGame::Engine::Components::BoxCollider.new(width: 12, height: 6)
+          navigator = navigator_beside(collider, collider_first:)
+          navigator.go_to(*centre(18, 10))
+          walk(navigator)
+          expect([collider.cx, collider.cy]).to eq(centre(18, 10))
+        end
+      end
+    end
+
+    it 'measures from the node origin once the collider is removed' do
+      collider = RGame::Engine::Components::BoxCollider.new(width: 16, height: 48)
+      navigator = navigator_beside(collider, collider_first: true)
+      navigator.node.remove_component(RGame::Engine::Components::BoxCollider)
+      expect(navigator.go_to(*centre(18, 10))).to be(true)
+      walk(navigator)
+      expect([navigator.node.x, navigator.node.y]).to eq(centre(18, 10))
+    end
+  end
+
   it 'refuses a scene with no TileWorld at attach, naming itself' do
     hero_at(1, 1, blocked_by: [])
     expect do

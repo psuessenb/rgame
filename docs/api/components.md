@@ -1491,8 +1491,7 @@ navigator.go_to(200.0, 360.0) # => true — the hero sets off; false when there 
   navigator that should stay off solid tiles while walking declares `:tiles`, like
   any mover.
 - **Lifecycle:** `_attach` raises when the scene has no `TileWorld` to plan over.
-  It also looks up the node's `BoxCollider`, if any. Calling `go_to` before the
-  node is in the tree raises too.
+  Calling `go_to` before the node is in the tree raises too.
 - **`go_to(world_x, world_y)`** plans from where the node stands and starts walking
   at once, from exactly there. A navigator halfway along one route turns onto the
   next without a jump. It returns `true`, or `false` when no route exists: the
@@ -1501,7 +1500,10 @@ navigator.go_to(200.0, 360.0) # => true — the hero sets off; false when there 
   `go_to`, even for a target in the node's own cell; it fires on the next step.
 - **The anchor.** The centre of the collider's box reaches the target: the feet,
   for a [`FeetCollider`](#feetcollider). On a node without a collider, the origin
-  does. The walk ends with the anchor on the centre of the target tile.
+  does. The walk ends with the anchor on the centre of the target tile. `go_to`
+  looks up the node's `BoxCollider` each time it plans, so a collider added or
+  removed later counts from the next route. A route under way keeps the anchor it
+  was planned for.
 - **Readers:** `cells` returns the route as the search found it,
   `[[col, row], ...]` from start tile to target, or `nil` before the first `go_to`.
   Use it to draw the route. `path` returns the smoothed
