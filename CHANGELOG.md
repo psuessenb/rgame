@@ -90,6 +90,10 @@ index, not the argument.
   `:top_left`, and put the picture's centre, bottom centre or top-left corner
   on the node's origin. The two cover the same pixels for the same anchor and
   size. See [docs/api/components.md](docs/api/components.md#sprite).
+- **An animation table says what it holds.** `AnimationSet#include?` says
+  whether a sheet's table has an animation of that name, and
+  `AnimationSet#names` lists them all. See
+  [docs/api/internals.md](docs/api/internals.md#animationset--pure-frame-maths).
 - **Rooms that players stand apart in.** `RGame::Engine::Scene::Rooms` runs
   every room a player stands in, each a `Scene::Room` built anew as it starts
   running. `define(name) { Room.new }` names a room, and `move(hero, to:,
