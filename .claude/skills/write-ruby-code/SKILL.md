@@ -7,7 +7,8 @@ description: The rules for Ruby in rgame that RuboCop cannot check — which pre
 
 RuboCop checks the formatting, and the [RuboCop section of
 CLAUDE.md](../../../CLAUDE.md#rubocop) says how to treat it. This is what no cop
-sees.
+sees. How many jobs a component has, and how it finds its siblings, is
+[build-components](../build-components/SKILL.md).
 
 **Apply it to a plan's sketch too.** Names get decided there: `on_portrait` came
 from a dialogue plan's `def on_portrait(renderer, speaker); end` and was built
