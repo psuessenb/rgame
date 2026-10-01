@@ -1,7 +1,7 @@
 # Single-job components
 
-**Status:** Steps 1–6 are implemented. Step 7 is rough, and is re-planned
-before it starts. Step 8 folds the plan back and deletes it.
+**Status:** Steps 1–6 are implemented. Step 7 is re-planned at `f021207` and
+ready. Step 8 folds the plan back and deletes it.
 
 ## Verdict
 
@@ -134,6 +134,15 @@ Taken in conversation on 2026-09-30, while re-planning step 6:
     missing look: "It should be explicit, not have some implicit fallback." A
     default would hide the look a game swaps out.
 
+Taken in conversation on 2026-10-01, while re-planning step 7:
+
+12. **`TileWorld` stays whole.** It answers what the map holds at a point, and
+    its registry of `Platform`s belongs to that question, since a platform is
+    floor over a gap. No game varies `TileWorld`, so the test of two games with
+    two reasons finds nothing. A split would give `Footing`, `GapBlockers` and
+    `Platform` a second system to find. The skill names it in its
+    counterweight, beside `Cutscene`.
+
 ## Open questions
 
 1. ~~**`examples/quests_and_dialogue` starts a conversation by layer.**~~
@@ -146,7 +155,8 @@ Taken in conversation on 2026-09-30, while re-planning step 6:
    decision 9.
 3. ~~**`Mover`.**~~ **Settled: it stays out, flagged as the exception.** See
    decision 7.
-4. **`TileWorld`.** The request does not list it, and decision 1 argues for
+4. ~~**`TileWorld`.**~~ **Settled: it stays whole.** See decision 12. The
+   question as it stood: the request does not list it, and decision 1 argues for
    it. It reads the map for solidity, occupancy, routes, gaps, bounds and the
    tile clock. It also keeps a registry of `Platform`s, the one thing it holds
    that is not read from the map. `Platform` registers there, and `Footing`
@@ -221,8 +231,8 @@ the node out of play and brings it back. `topdownplatformer`'s walker adds a
 only by which one, and a keyword holds that. A game varies a blink or a shrink
 in kind: a splash, a burn, a shimmer.
 
-**Two questions, left:** `Mover`, as the flagged exception of decision 7, and
-`TileWorld`, open question 4.
+**Two questions, left:** `Mover`, as the flagged exception of decision 7.
+`TileWorld` was the other candidate, and stays whole (decision 12).
 
 **One question**, including three that look busy:
 
@@ -732,7 +742,7 @@ to hold, each line subject to write-skill's cut:
 
 - **A split of `Mover`.** It stays whole, flagged as the exception (decision
   7).
-- **`TileWorld`**, unless open question 4 says otherwise.
+- **A split of `TileWorld`.** It stays whole (decision 12).
 - **O, L, I and D.** The `Interactor` takes `policy:` and ignores it. A node
   holding a `Grab` and an `Interactor` cannot ask `get_component(Targeting)`
   for either. Both are for later plans.
@@ -1519,29 +1529,99 @@ and `jump_topdown` headers name it too. `CHANGELOG.md`'s unreleased "Falling
 into a gap" entry splits into three: `Footing`, `Fall` with `Respawn`, and
 `FallLook` with `Shrink`.
 
-### Step 7 — The `build-components` skill (rough)
+### Step 7 — The `build-components` skill
 
-Written from the landed notes of steps 2–6, per
-[write-skill](../../.claude/skills/write-skill/SKILL.md), under
-`.claude/skills/build-components/SKILL.md`. The expected contents are
-[in the design](#the-build-components-skill).
+The skill the plan was for (decision 4), written from what steps 2–6 found.
+Every one of them has landed, and the skill changes no behaviour, so it comes
+last before the fold-back. Re-planned at `f021207`, after decision 12, where it
+measured:
 
-**`Mover` is flagged as the exception** (decision 7), with the reason, in two
-places. The skill names it where it states the counterweight. `Mover`'s own
-header says it answers two questions on purpose, beside its note on why
-blocking lives in a base class.
+| | |
+|---|---|
+| Skills | 15 under `.claude/skills/`, 3,005 lines. None says how to design a component |
+| The five checks | stated once, in `write-plan`'s "The same question, as a review of existing code", lines 117–132. CLAUDE.md's "Before building" points at them (line 101), and this plan's hard constraint 4 links the section |
+| Where a sketch loads a skill | `write-plan`'s "What a step contains", item 3: `write-ruby-code`, or `write-c-code` for C |
+| Skills that name `Component` | `write-ruby-code`, for its prefixes, the seal and the ivar rule. `write-spec` names the component registry once, for doubles |
+| Add order in the docs | `components.md`'s "Where to add a component" and "Adding from `_enter_tree`, and when you must" |
+| `Mover`'s header | 123 lines. "Why a base class" (lines 18–24) records the order dependence a `Blocking` sibling had. No sentence says it answers two questions |
+| Guards on skills | none. No spec reads `.claude/skills/`, and CI skips a change to `.claude/**` alone |
 
-Links to it:
+**What it resembles.**
 
-- **`write-plan`**, where a sketch loads `write-ruby-code`, and where its five
-  interface checks stood;
-- **`write-ruby-code`**, one line at the top;
-- **CLAUDE.md**'s list of skills, and its "Before building" sentence that
-  points at the five checks.
+- **Reused:** CLAUDE.md's rule on layers, which the skill links rather than
+  restates, and `write-plan`'s five checks, which move into it.
+- **Considered for extending:** `write-ruby-code`, which already governs
+  `Component` subclasses. Its rules are about names and machinery, which a
+  reader checks line by line. This skill's are about jobs, which only a design
+  review sees. A section there would load for every line of Ruby, and a
+  component's design is not decided on every line.
+- **New:** the skill.
 
-`implement-step` gets no link unless the re-plan finds a reason. It re-plans
-through `write-plan` and writes code through `write-ruby-code`, so a third
-pointer would repeat both.
+Two sub-steps:
+
+- **7a. The skill, and the links to it.** The five checks leave `write-plan`,
+  which keeps its worked example and links to them. Its item 3 loads the skill
+  for a component's sketch. `write-ruby-code` gains one line at the top, and
+  CLAUDE.md names the skill in its list of skills and in "Before building".
+- **7b. `Mover`'s header names its second job.** Beside "Why a base class", it
+  says it answers two questions on purpose: where its step lands, and what
+  moves with it. It also says why it stays whole (decision 7).
+
+`implement-step` gets no link. It re-plans through `write-plan` and writes code
+through `write-ruby-code`, and both link the skill.
+
+The skill's outline. Each line is still subject to write-skill's cut:
+
+```markdown
+# Building a component
+  one line: CLAUDE.md's rule, and write-ruby-code for names
+
+## One job is one question        the test: two games, two reasons
+## The tells                      six, each with the mistake behind it
+## What is not a second job       sound:, Hop's action:, Mover (decision 7),
+                                  Cutscene and TileWorld (decision 12)
+## How to split one               by where the second half runs: a signal, a
+                                  hook, a sibling the owner drives; never a
+                                  sibling writing into another in one phase
+## Siblings                       required at attach, or looked up when used;
+                                  no default for a missing one;
+                                  components.any?, not get_component
+## A component that changes its node for a while
+                                  give back what it found, in _detach too
+## Reviewing existing components  the five checks, from write-plan, with the
+                                  test above as a sixth
+```
+
+**Rules:**
+
+1. Every line passes write-skill's cut: would the work come out the same
+   without it?
+2. Each tell and each rule on siblings names the mistake it stops, in a clause.
+3. The five checks stand in the skill alone. `write-plan` and CLAUDE.md link
+   them, and `git grep` finds their questions nowhere else outside
+   `docs/plans/`.
+4. The skill restates nothing CLAUDE.md, `write-ruby-code` or `components.md`
+   says. It links them.
+5. Its description says when to load it: designing, adding, splitting or
+   reviewing a component, sketching one in a plan, and giving one a new
+   keyword, flag or sibling.
+6. Every link in the files 7a touches resolves, anchors included.
+7. `Mover`'s header says it answers two questions, which two, and why it stays
+   whole.
+
+**Tests:** none. No spec reads a skill, and 7b changes a comment.
+
+**Verify:**
+
+- A link check over the files 7a touches, run by hand from the scratchpad,
+  resolves every relative path and every anchor.
+- **A blind review.** A subagent given only the skill reads every file in
+  `lib/rgame/engine/components/` and lists each component it finds answering
+  two questions. It should name `Mover`, as the named exception, and nothing
+  else. Anything else it names is a finding the plan missed, recorded as an
+  open question, or a gap in the skill, fixed and reviewed again. Its report
+  goes into the landed note.
+- `rake spec` is green, and RuboCop passes `mover.rb`.
 
 ### Step 8 — Fold the plan back and delete it
 
