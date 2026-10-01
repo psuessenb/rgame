@@ -514,10 +514,10 @@ the node is, rather than taking it by hand.
 **What exists instead.** Every caller sets `margin` to a radius or more itself.
 Asteroids' rock uses its largest tier's radius for all four tiers.
 
-**Why not now.** It needs a footprint convention first, and there is none:
-`node.width`/`height` do not say where the box sits. `Sprite` culls a box centred
-on the origin and `AnimatedSprite` one cornered at it, each deciding for itself,
-and the wrapped and despawned nodes draw centred.
+**Why not now.** It needs a footprint the node itself answers, and there is
+none: `node.width` and `height` do not say where the box sits. A `Sprite` or an
+`AnimatedSprite` places it by its own `anchor:`, `:bottom` unless told
+otherwise, and the wrapped and despawned nodes in asteroids pass `:center`.
 
 **Trigger.** A caller whose hand-set margin is visibly wrong, or a second place
 that needs a node's footprint and has to pick a convention.
@@ -559,7 +559,8 @@ at `b765de3`):
 - `Components::Cutscene` disconnects from what each `hold` or `talk` step
   handed it, as the step ends.
 
-The next change to `Signal` should start here.
+`Components::Checkpoint`, which came later, disconnects from its collider as
+`Collectable` does. The next change to `Signal` should start here.
 
 ### A seal on the private methods of every engine node
 
@@ -570,7 +571,7 @@ an ordinary name, so a game's subclass can replace one without a word.
 
 **Why not now.** Every ivar of every engine node and component starts with
 `rgame_`, so the ivar rule is wider than the method rule. Widening the seal
-means deciding, in each of 66 classes, which private methods are machinery and
+means deciding, in each of 77 classes, which private methods are machinery and
 which are seams, as `spec/rgame/engine/sealed_privates_spec.rb` already does for
 the two base classes. No collision on such a method has happened yet.
 
@@ -589,8 +590,8 @@ it chose not to change.
   change to the collision API, which would carry a rename with it.
 - **The plain `system` lookup still returns nil where a system is required.**
   `Node2D#system!` raises with the class and where it looked, but
-  `PlayerLayer` calls `system(Viewports).screen_for`, and seven examples call
-  `system(RGame::Engine::Players)` and use the result at once. Outside a
+  `PlayerLayer` calls `system(Viewports).screen_for`, and ten examples call
+  `system(Engine::Players)` and use the result. Outside a
   `Game` each fails as a `NoMethodError` on nil. **Trigger:** someone hitting
   that `NoMethodError`, or the next change to one of those callers.
 
@@ -613,6 +614,35 @@ in `docs/api/components.md`. Two things the interaction-verbs plan left:
   `search`, and its handler finds nothing. An `Interaction` cannot say a verb is
   unavailable, so a prompt drawn per verb would still offer the search.
   **Trigger:** a game that draws a prompt per verb.
+
+### Loose ends from single-job components
+
+The plan that gave each component one question left three things. The
+[build-components](../../.claude/skills/build-components/SKILL.md) skill holds
+what it found, and the [component review](research/component-review-findings.md)
+the defects it did not fix.
+
+- **`Mover` answers two questions.** It answers where its step lands, and what
+  moves with the step through three wirings: the `Pushable` it pushes, the one
+  a `Grab` has it drag, and its `Platform`'s riders. Its header and the skill
+  name it as the exception. The second half must run after the step, and a
+  sibling could run it only from its own `_update`, so add order would decide
+  the tick. A `Blocking` sibling once fired `on_unblocked` on two different
+  ticks that way. No split that avoids it is known. **Trigger:** a fourth thing
+  a step moves along, such as a tow rope or a vehicle, or a bug traced to one
+  of the three wirings.
+- **A component for doors.** A door connects its collider's `on_hit` and
+  checks the toucher's layer by hand, as seven other handlers in the examples
+  and test projects do. A `Touch.new(by: :hero).on_touched { ... }` would make
+  the layer a required keyword, so no handler could forget it. Its whole job
+  is one `if` over what `on_hit` hands over. **Trigger:** a bug traced to an
+  `on_hit` handler missing its layer check.
+- **A sheet animation that plays once, or holds a frame longer.**
+  `AnimationSet` loops every animation, at one rate a frame. `Engine::FrameTimes`
+  already answers a map tile whose frames last different times, and it times
+  sheets too. So either is one change, in one place. **Trigger:** an attack or
+  a death that must stop on its last frame, or a sheet whose frames are drawn to
+  be held for different times.
 
 ---
 
@@ -942,26 +972,29 @@ problem, or a store that requires a pack.
 
 ## Misc
 
-### A twin-stick example for `ThrustController` and `Targeting`
+### An example that flies, for `ThrustController`
 
 **What.** One example, `examples/twin_stick` or similar: a ship that turns and
-thrusts with `Components::ThrustController`, and a turret that aims at the
-nearest enemy through `Components::Targeting`.
+thrusts with `Components::ThrustController`. A turret aiming at the nearest
+enemy through `Components::Targeting` would make it most of a twin-stick
+shooter.
 
-**What exists instead.** Every other public engine class has an example. These
-two have specs and sections in `docs/api/components.md`, but no running file:
-`ThrustController` is used only by `test_projects/asteroids`, which does not
-ship, and nothing builds a `Targeting` at all. `examples/save_load_ids` explains
-in its header why it does *not* use `Targeting`. Every example moves things in
-screen axes, so nothing flies, and the two together are most of a twin-stick
-shooter, which is why this is one example rather than two.
+**What exists instead.** `ThrustController` has a spec and a section in
+`docs/api/components.md`, and only `test_projects/asteroids` builds one, which
+does not ship. Every example moves things in screen axes, so nothing flies.
+`Targeting` needs no example of its own: `components.md` aims a turret in an
+example the doc specs run, and `Grab` and `Interactor` are Targetings that
+`push_pull`, `collectables` and `quests_and_dialogue` build.
 
 **Why not now.** The single-concept examples plan that found the gap is done,
-and neither class has a caller asking for one.
+and no caller asks for one. The
+[component review](research/component-review-findings.md) found two defects in
+`ThrustController`: it answers which actions steer a ship as well as how the
+ship handles, and it writes its `Velocity` in the phase that `Velocity` reads.
+An example built now would be built on the shape their fixes change.
 
-**Trigger.** The next change to either class, which then has no example to check
-it against — or a reader asking how to aim at something. If `Targeting` still
-has no caller when this is picked up, deleting it is the other answer.
+**Trigger.** A fix for either finding, which then has no example to check it
+against, or a reader asking how to fly something.
 
 ### A snapshot of the loaded translation tables
 
