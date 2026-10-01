@@ -10,12 +10,15 @@
 # button hops. C or the pad's Y turns coyote time off and on. It exercises:
 #   - TileMap gap tiles — `pits.tsx` gives its tiles the class `gap`, and a cell
 #     holding one has no floor;
-#   - Components::Footing — the fall into a gap, and the coyote time before it;
+#   - Components::Footing — the floor under the hero, and the coyote time
+#     before a gap drops them;
+#   - Components::Fall — the fall, which takes the hero out of play;
 #   - Components::Respawn — the way back to where the hero first stood;
 #   - Components::Blink — the blink that shows where they came back, started
 #     from Respawn's `on_respawned`;
 #   - Components::Hop — the jump a node in the air crosses a gap with;
-#   - Node2D#scale — the shrink into the gap, drawn about the hero's feet;
+#   - Components::Shrink and Node2D#scale — the shrink that shows the fall,
+#     drawn about the hero's feet;
 #   - Components::TileWorld, Components::CharacterBody and
 #     Components::FeetCollider — the map, the walking and the box whose centre
 #     stands on the floor.
@@ -27,8 +30,8 @@
 # spot they started from, blinking for a second. They can walk at once: the
 # blink only shows where they came back. Nothing here decides any of that but
 # the blink, which the hero starts from `Respawn`'s `on_respawned`. The map
-# says where the gaps are, `Footing` watches the feet, and `Respawn` holds the
-# spot.
+# says where the gaps are, `Footing` watches the feet, `Fall` takes the hero out
+# of play, `Shrink` shows it, and `Respawn` holds the spot.
 #
 # Hop across a trench instead. A hero in the air never falls, so a hop that
 # lands on the far side crosses, and one that lands in the trench falls there.
@@ -43,7 +46,7 @@
 #
 # ## What this does not solve
 #
-# **A fall costs nothing.** `Footing#on_fell` is where a game takes a life, and
+# **A fall costs nothing.** `Fall#on_fell` is where a game takes a life, and
 # this one takes none. **The floor stands still.** `examples/moving_platforms`
 # carries the hero across a chasm on a raft. **The spot never moves.** `Respawn#set_point` moves it,
 # which is what a checkpoint would call. **The pit's edges are drawn on one
@@ -97,6 +100,8 @@ module PitsExample
       add_component(Components::PlayerController.new)
       add_component(Components::Hop.new(peak: HOP_PEAK, duration: HOP_DURATION))
       @footing = add_component(Components::Footing.new(coyote: COYOTE))
+      add_component(Components::Fall.new)
+      add_component(Components::Shrink.new)
       blink = add_component(Components::Blink.new)
       add_component(Components::Respawn.new).on_respawned { blink.start(1.0) }
     end

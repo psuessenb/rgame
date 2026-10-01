@@ -22,7 +22,8 @@ RSpec.describe RGame::Engine::Components::Checkpoint do
     node = engine::Node2D.new(x: x, y: 27.0)
     node.add_component(parts::FeetCollider.new(width: 12, height: 6, layer: layer))
     node.add_component(parts::CharacterBody.new(speed: 60))
-    node.add_component(parts::Footing.new(coyote: 0, fall: 0.25))
+    node.add_component(parts::Footing.new(coyote: 0))
+    node.add_component(parts::Fall.new(duration: 0.25))
     node.add_component(parts::Respawn.new) if respawn
     root.add_node(node)
   end

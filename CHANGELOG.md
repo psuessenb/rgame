@@ -45,14 +45,22 @@ index, not the argument.
 - **A moving platforms example.** `examples/moving_platforms` shuttles a raft
   across a chasm, boarded with a timed hop. See
   [docs/api/examples.md](docs/api/examples.md#moving_platforms).
-- **Falling into a gap, with coyote time.** `Components::Footing` drops a node
-  whose box's centre stands off the floor, once it has been off it for more than
-  `coyote` seconds, and at once when it lands there from a `Hop`. A node in the
-  air never falls. The fall suspends the node and shrinks it into the gap, and
-  `on_fell` fires as it starts. `Components::Respawn` then puts the node back
-  on its respawn point and emits `on_respawned`, and a node without one is
-  freed. A respawn point stands on ground: `Respawn` raises for one over a gap.
-  See [docs/api/components.md](docs/api/components.md#footing).
+- **Falling into a gap, with coyote time.** `Components::Footing` says what a
+  node stands on. It starts the node's `Components::Fall` once the centre of its
+  box has been off the floor for more than `coyote` seconds, and at once when it
+  lands there from a `Hop`. A node in the air never falls. See
+  [docs/api/components.md](docs/api/components.md#footing).
+- **A fall, and the way back.** `Components::Fall` suspends its node for its
+  `duration`, started by a `Footing`, a game or a cutscene's `hold`, and fires
+  `on_fell` as it starts. `Components::Respawn` then puts the node back on its
+  respawn point and emits `on_respawned`, and a node without one is freed. A
+  respawn point stands on ground: `Respawn` raises for one over a gap. See
+  [docs/api/components.md](docs/api/components.md#fall).
+- **What a fall looks like.** A `Components::FallLook` on the falling node shows
+  the fall from how far through it is. `Components::Shrink` shrinks the node
+  into the gap and gives back the scale it found. A node with no look holds
+  still as it falls. See
+  [docs/api/components.md](docs/api/components.md#falllook).
 - **Blinking a node.** `Components::Blink` hides and shows its node in turn
   for the seconds `start` is given, then gives back the opacity it found. See
   [docs/api/components.md](docs/api/components.md#blink).

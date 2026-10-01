@@ -285,6 +285,124 @@ RSpec.describe RGame::Engine::Components::Fall do
     end
   end
 
+  # The fall a Footing starts, on a walker that heads east at a pixel a tick and
+  # steps off the floor at 64. The Footing drops it on the step off.
+  describe 'from a Footing' do
+    def walker(order: %i[body hop footing fall shrink])
+      node = engine::Node2D.new(x: 40.0, y: 27.0)
+      node.add_component(parts::FeetCollider.new(width: 12, height: 6))
+      built = { body: parts::CharacterBody.new(speed: 60),
+                hop: parts::Hop.new(peak: 10, duration: 0.5, action: nil),
+                footing: parts::Footing.new(coyote: 0),
+                fall: described_class.new(duration: 0.5),
+                shrink: parts::Shrink.new,
+                respawn: parts::Respawn.new,
+                blink: parts::Blink.new }
+      built[:respawn].on_respawned { built[:blink].start(0.5) } if order.include?(:blink)
+      order.each { node.add_component(built[it]) }
+      world.add_node(node)
+      root.enter_tree
+      node
+    end
+
+    def walk_off(node)
+      node.get_component(parts::CharacterBody).set_intent(1, 0)
+      (1..200).find { tick.then { !node.get_component(parts::Footing).standing? } }
+    end
+
+    it 'stops the node where it fell and says so once' do
+      node = walker
+      fell = 0
+      fall(node).on_fell { fell += 1 }
+      walk_off(node)
+      ticks(10)
+
+      expect([node.suspended?, node.world_x, fell]).to eq([true, 64.0, 1])
+    end
+
+    # The fall began on the step off, so 29 of its 30 ticks have run at the end.
+    it 'shrinks the node from 1 toward 0 over the fall' do
+      node = walker
+      walk_off(node)
+      scales = Array.new(28) { tick.then { node.scale } }
+
+      expect(scales.first).to be > 0.99
+      expect(scales.each_cons(2).all? { |a, b| b < a }).to be(true)
+      expect(scales.last).to be < 0.1
+    end
+
+    it 'frees a node with no Respawn at the end, unscaled and resumed' do
+      node = walker
+      walk_off(node)
+      ticks(30)
+
+      expect([world.children, node.scale, node.suspended?, fall(node).falling?]).to eq([[], 1, false, false])
+    end
+
+    [%i[body hop footing fall shrink respawn blink], %i[blink respawn shrink fall footing hop body]].each do |order|
+      it "brings a node with a Respawn back on its point, blinking and walking, added as #{order.join(', ')}" do
+        node = walker(order: order)
+        walk_off(node)
+        took = (1..40).find { tick.then { !fall(node).falling? } }
+        state = [node.world_x, node.world_y, node.scale, node.suspended?, world.children]
+        ticks(1)
+
+        expect([took, state]).to match([be_between(29, 31), [40.0, 27.0, 1, false, [node]]])
+        expect([node.get_component(parts::Blink).blinking?, node.world_x]).to eq([true, 41.0])
+      end
+
+      # The game's choice at each fall: it takes a life in on_fell, and removes the
+      # Respawn with the last one.
+      it "brings a node back from its first fall and frees it after its second, added as #{order.join(', ')}" do
+        node = walker(order: order)
+        lives = 2
+        respawns = 0
+        node.get_component(parts::Respawn).on_respawned { respawns += 1 }
+        fall(node).on_fell do
+          lives -= 1
+          node.remove_component(parts::Respawn) if lives.zero?
+        end
+        walk_off(node)
+        ticks(40)
+        back = world.children.include?(node)
+        walk_off(node)
+        ticks(40)
+
+        expect([back, respawns, world.children.empty?, lives]).to eq([true, 1, true, 0])
+      end
+    end
+
+    it 'holds mid-shrink while the world around it is paused' do
+      node = walker
+      walk_off(node)
+      ticks(10)
+      world.paused = true
+      scale = node.scale
+      ticks(60)
+
+      expect([node.scale, fall(node).falling?]).to eq([scale, true])
+    end
+
+    it 'ends at once, unscaled and resumed, when the node is taken from its parent' do
+      node = walker
+      walk_off(node)
+      ticks(10)
+      world.remove_node(node)
+
+      expect([node.scale, node.suspended?, fall(node).falling?]).to eq([1, false, false])
+    end
+
+    it 'leaves the parent with no trace of the fall once it has ended' do
+      node = walker
+      walk_off(node)
+      ticks(10)
+      root.add_node(node)
+      tick
+
+      expect(world.children).to eq([])
+    end
+  end
+
   describe 'around it' do
     it 'holds mid-fall while the world around the node is paused' do
       node = faller(parts::Shrink.new)

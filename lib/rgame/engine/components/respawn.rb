@@ -6,10 +6,12 @@ module RGame
       # Where a node comes back after a fall.
       #
       #   hero.add_component(Footing.new(coyote: 0.1))
+      #   hero.add_component(Fall.new)
+      #   hero.add_component(Shrink.new)
       #   blink = hero.add_component(Blink.new)
       #   hero.add_component(Respawn.new).on_respawned { blink.start(1.0) }
       #
-      # A Footing whose node has one calls #respawn at the end of a fall, rather than
+      # A Fall whose node has one calls #respawn at the end of the fall, rather than
       # freeing the node. The node stands on its point at once, and its controls work
       # from that tick. A camera following the node cuts there. A game shows where
       # it came back from `on_respawned`, with a Blink as above.
@@ -25,8 +27,8 @@ module RGame
       # point as the scene loads instead. A node that starts on a platform takes a
       # point on ground from #set_point before it is added.
       #
-      # A game decides at each fall whether the node comes back: the fall looks the
-      # Respawn up as it ends, so one removed in Footing's `on_fell` frees the node.
+      # A game decides at each fall whether the node comes back: the Fall looks the
+      # Respawn up as it ends, so one removed in its `on_fell` frees the node.
       #
       # #respawn works without a fall too, for a game whose hero can come back from
       # something that is not one.

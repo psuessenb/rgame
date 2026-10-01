@@ -242,9 +242,11 @@ cell without a gap tile, plus the box of every `Platform` over a gap.
   box.** For a character, that box is its
   [`FeetCollider`](components.md#feetcollider).
 - **A [`Footing`](components.md#footing) drops a node off the floor**, once it
-  has been off for more than `coyote` seconds. A node that lands on a gap falls on
-  the tick it lands, and a node in the air never falls. The fall shrinks the node
-  over `fall` seconds, then brings it back or frees it.
+  has been off for more than `coyote` seconds, by starting the node's
+  [`Fall`](components.md#fall). A node that lands on a gap drops on the tick it
+  lands, and a node in the air never falls. The `Fall` takes the node out of play
+  for its `duration`, then brings it back or frees it. A node with no `Fall` stands
+  over the gap.
 - **A node rides the `Platform` under its centre**, where the cell is a gap. The
   platform's mover carries it through the rider's own mover, so a wall still stops
   it.
@@ -256,8 +258,9 @@ cell without a gap tile, plus the box of every `Platform` over a gap.
   that touches it.
 
 Add order changes a result by one tick at most. `Footing` finds the node's `Hop`
-and mover on its first update, and a mover finds its `Platform` the same way, so
-those may go on in any order.
+and mover on its first update, and its `Fall` each time the node loses its footing.
+A mover finds its `Platform` on its first update too, so those may go on in any
+order.
 
 ### Layers
 

@@ -44,6 +44,8 @@ RSpec.describe 'Top-down platforming' do # rubocop:disable RSpec/DescribeClass -
              parts::CharacterBody.new(speed: 60, blocked_by: %i[tiles npc]),
              parts::Hop.new(peak: 10, duration: 0.5, action: nil),
              parts::Footing.new(coyote: 0.1),
+             parts::Fall.new,
+             parts::Shrink.new,
              parts::Respawn.new.set_point(60.0, 96.0)], order, x:, y:)
   end
 
@@ -58,10 +60,13 @@ RSpec.describe 'Top-down platforming' do # rubocop:disable RSpec/DescribeClass -
     node_of([parts::BoxCollider.new(width: 16, height: 16, offset_x: -8, offset_y: -16, layer: :crate),
              parts::Pushable.new(blocked_by: %i[tiles hero crate]),
              parts::Footing.new(coyote: 0),
+             parts::Fall.new,
+             parts::Shrink.new,
              parts::Respawn.new], order, x:, y:)
   end
 
   def footing(node) = node.get_component(parts::Footing)
+  def fall(node) = node.get_component(parts::Fall)
   def body(node) = node.get_component(parts::CharacterBody)
 
   def tick
@@ -96,7 +101,7 @@ RSpec.describe 'Top-down platforming' do # rubocop:disable RSpec/DescribeClass -
           tick
           standing << [*heroes, wanderer].all? { footing(it).platform.equal?(shuttle) }
         end
-        expect([standing.uniq, heroes.map { it.x - shuttle.node.x }, [*heroes, wanderer].map { footing(it).falling? }])
+        expect([standing.uniq, heroes.map { it.x - shuttle.node.x }, [*heroes, wanderer].map(&:suspended?)])
           .to match([[true], offsets.map { be_within(1e-6).of(it) }, [false, false, false]])
       end
 
@@ -120,7 +125,7 @@ RSpec.describe 'Top-down platforming' do # rubocop:disable RSpec/DescribeClass -
         ticks(30)
         body(leaper).set_intent(0, 0)
         ticks(3) # the hop lands on its 31st tick, on the gap
-        fell = footing(leaper).falling?
+        fell = fall(leaper).falling?
         ticks(60)
         expect([fell, leaper.x, leaper.y, footing(leaper).platform.nil?, footing(stayer).platform.equal?(shuttle),
                 shuttle.riders.size]).to eq([true, 60.0, 96.0, true, true, 2])
@@ -129,9 +134,24 @@ RSpec.describe 'Top-down platforming' do # rubocop:disable RSpec/DescribeClass -
       it 'drops a crate pushed into the chasm, and brings it back' do
         box.get_component(parts::Pushable).push(-24.0, 0.0)
         tick
-        fell = footing(box).falling?
+        fell = fall(box).falling?
         ticks(60)
-        expect([fell, box.x, box.y, footing(box).falling?]).to eq([true, 370.0, 40.0, false])
+        expect([fell, box.x, box.y, fall(box).falling?]).to eq([true, 370.0, 40.0, false])
+      end
+
+      # A fall a game starts on the shuttle, as a trapdoor would: the hero leaves it
+      # at once, holds still while the shuttle moves on, and comes back on the bank.
+      it 'lets a hero fall from the shuttle, which carries it no further, and brings it back' do
+        leaper, stayer = heroes
+        ticks(60)
+        fall(leaper).start
+        left = [footing(leaper).platform.nil?, shuttle.riders.include?(footing(stayer)), shuttle.riders.size]
+        x = leaper.x
+        ticks(20)
+        held = [leaper.x, fall(leaper).falling?]
+        ticks(20)
+        expect([left, held, leaper.x, leaper.y, fall(leaper).falling?]).to eq([[true, true, 2], [x, true], 60.0, 96.0,
+                                                                               false])
       end
     end
   end
@@ -151,7 +171,7 @@ RSpec.describe 'Top-down platforming' do # rubocop:disable RSpec/DescribeClass -
     it 'steps off the platform onto the ground' do
       body(walker).set_intent(-1, 0)
       ticks(180)
-      expect([walker.x, footing(walker).platform.nil?, footing(walker).falling?]).to match([be < 128.0, true, false])
+      expect([walker.x, footing(walker).platform.nil?, walker.suspended?]).to match([be < 128.0, true, false])
     end
 
     it 'stops at the platform’s far edge, over the chasm' do

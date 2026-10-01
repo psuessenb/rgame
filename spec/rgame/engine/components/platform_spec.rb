@@ -199,8 +199,9 @@ RSpec.describe RGame::Engine::Components::Platform do
     it 'stops the rider and not the platform, and the rider falls once it is off' do
       platform = platform_at(80.0, 24.0, width: 48, vx: 60)
       node = rider_at(80.0, 24.0, blocked_by: [:wall])
+      fall = node.add_component(parts::Fall.new)
       ticks(80)
-      expect([node.x, platform.node.x, footing(node).falling?]).to match([116.0, be_within(1e-9).of(160.0), true])
+      expect([node.x, platform.node.x, fall.falling?]).to match([116.0, be_within(1e-9).of(160.0), true])
     end
   end
 

@@ -13,7 +13,7 @@ module RGame
     #
     # **The centre decides, not the box.** A walker whose box overlaps a gap still stands
     # on the floor while its centre does, which is what lets it stand at the very edge, and
-    # it is the same point Components::Footing will watch to decide it falls. A box that
+    # it is the same point Components::Footing watches to decide it stands. A box that
     # could not overlap a gap cell at all would also stop a walker on a platform, which
     # stands inside gap cells.
     #

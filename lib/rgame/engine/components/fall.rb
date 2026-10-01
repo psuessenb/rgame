@@ -7,14 +7,15 @@ module RGame
       # suspends the node and shows its Components::FallLook, if it has one. At the
       # end it hands the node to its Respawn, or frees a node with none.
       #
-      #   fall = hero.add_component(Fall.new)
+      #   hero.add_component(Footing.new(coyote: 0.1))
+      #   hero.add_component(Fall.new)
       #   hero.add_component(Shrink.new)
       #   hero.add_component(Respawn.new)
-      #   fall.start
       #
-      # A game or a cutscene starts one with #start, wherever the node stands. It
-      # answers `on_finished` and #finish, so a cutscene's `hold` step waits on
-      # it, and a skip ends it as its end would.
+      # A Footing starts it as the node walks into a gap, and a game or a cutscene
+      # can start one anywhere with #start. It answers `on_finished` and #finish,
+      # so a cutscene's `hold` step waits on it, and a skip ends it as its end
+      # would.
       #
       # **Each piece is the game's to add.** A node with no look holds still at
       # its scale while it falls, and a node with no Respawn is freed. The fall

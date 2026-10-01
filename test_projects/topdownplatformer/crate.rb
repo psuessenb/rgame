@@ -16,6 +16,8 @@ module TopDownPlatformer
                                                 offset_y: -SIZE / 2, layer: :crate))
       add_component(Components::Pushable.new(blocked_by: %i[tiles crate hero]))
       add_component(Components::Footing.new(coyote: 0))
+      add_component(Components::Fall.new)
+      add_component(Components::Shrink.new)
       blink = add_component(Components::Blink.new)
       add_component(Components::Respawn.new).on_respawned { blink.start(0.5) }
     end

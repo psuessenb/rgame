@@ -41,8 +41,8 @@
 #
 # **Crossing anything.** `Hop` knows nothing about tiles, and a wall stops the
 # feet mid-hop. A gap in the floor is another matter: `Components::Footing`
-# reads `hop.airborne?`, so a hop crosses a gap and a walk into one falls.
-# `examples/pits` shows that.
+# reads `hop.airborne?`, so a hop crosses a gap, and a walk into one starts the
+# node's `Components::Fall`. `examples/pits` shows that.
 #
 # **Height against the scenery.** The lifted sprite keeps the draw order it has
 # on the ground, so a hop next to a tree still passes behind the canopy that
