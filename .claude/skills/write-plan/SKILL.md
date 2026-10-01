@@ -6,8 +6,8 @@ description: How to write a plan under docs/plans — research and measurement f
 # Writing a plan
 
 A plan in this project is **not** a task list. Every plan that worked here was
-mostly research — inventory, measurement, prior art, rejected alternatives — and
-the roadmap at the end was the short part that fell out of it. Write it in that
+mostly research: inventory, measurement, prior art, rejected alternatives. The
+roadmap at the end was the short part that fell out of it. Write it in that
 order and the roadmap mostly writes itself. Write the roadmap first and it will
 be fiction.
 
@@ -50,8 +50,8 @@ rest, not before.
 
 ## Research first, and measure it
 
-The research half is what makes the roadmap trustworthy, and its rule is
-simple: **numbers, not adjectives.**
+The research half makes the roadmap trustworthy. Its rule: **numbers, not
+adjectives.**
 
 Put a "What was measured before planning" section near the top of the roadmap
 or the brief, as a two-column table, with the commit the numbers were taken at.
@@ -63,16 +63,16 @@ naming plan's counts missed an `attr_accessor` in one step and nine stubs in
 the next.
 
 This pays twice. It stops the plan budgeting from a guess, and it sometimes
-kills a step outright — a sweep that sounded like the expensive part of a rework
-turned out to be eleven definitions across eight files, a morning's work, and
-only counting showed that.
+kills a step outright. A sweep that sounded like the expensive part of a rework
+turned out to be eleven definitions across eight files, a morning's work. Only
+counting showed that.
 
 **Measure what the design adds, not only what exists today.** A proposal's own
 cost is the number most often assumed rather than taken. The Tiled plan's
 transform added 2.8 ms to a 250×250×6 map against 15.1 ms the load already spent,
 and that is what settled whether to cache its result.
 
-Tag any finding you actually verified, so a reader can tell measurement from
+Tag any finding you verified, so a reader can tell measurement from
 expectation:
 
 ```markdown
@@ -85,10 +85,9 @@ likely to skip: **what already in this codebase resembles the thing being
 planned.** Not what it can reuse — that answers itself — but what does a similar
 enough job that one shape should cover both. See
 [Before building: find the thing it resembles](../../../CLAUDE.md#before-building-find-the-thing-it-resembles)
-for why; what a plan
-owes is the three piles, in writing, with the "genuinely new" one justified
-rather than assumed. A plan that cannot name what its subject resembles has
-usually not looked.
+for why. A plan owes the three piles in writing, with the "genuinely new" one
+justified rather than assumed. A plan that cannot name what its subject
+resembles has usually not looked.
 
 Two research sections earn their place nearly every time:
 
@@ -106,22 +105,22 @@ correct. `TileCharacterBody` resolved a step against a grid; `BoxCollider`
 reported overlapping pairs out of a spatial hash. Different indexes, different
 questions, no shared code — and on that reading, two systems is right.
 
-They answered the same question about different things: *what is in the way*.
-Seen that way the duplication is obvious and it was expensive. The shape had two
-owners, so a character wanting both built one box privately and handed it to the
-other component in an `_enter_tree` hook written for no other purpose — and forgetting
-that hook was **silent** — precisely the failure
+Yet they answered the same question about different things: *what is in the
+way*. Seen that way, the duplication is obvious, and it was expensive. The shape
+had two owners. A character wanting both built one box privately, and handed it
+to the other component in an `_enter_tree` hook written for no other purpose.
+Forgetting that hook was **silent**: the failure
 [Design out misuse](../../../CLAUDE.md#design-out-misuse-the-right-thing-must-be-the-easy-thing)
 exists to refuse. Unifying it afterwards took six steps and touched every
 collision file in the project.
 
 ### The same question, as a review of existing code
 
-Applied to the whole engine layer the first time, it found a second instance: `Velocity`,
-`PathFollow` and `CharacterBody` all answered *where does this node go this step*,
-and only the last could be stopped by anything. They became three subclasses of
-`Components::Mover`, which owns what happens after a step is computed. For each
-class, the checks that sweep ran were:
+The first time this question swept the whole engine layer, it found a second
+instance. `Velocity`, `PathFollow` and `CharacterBody` all answered *where does
+this node go this step*, and only the last could be stopped by anything. They
+became three subclasses of `Components::Mover`, which owns what happens after a
+step is computed. For each class, that sweep ran these checks:
 
 - Does it duplicate state the node owns? (`Engine::Body` kept its own `x`/`y`.)
 - Does it need a hand-written hook to hand its data to another component?
@@ -180,10 +179,9 @@ it pick your class's attributes is not.
    the method cannot be described without it, the format is in the interface.
 
 A fourth belongs to [Design out misuse](../../../CLAUDE.md#design-out-misuse-the-right-thing-must-be-the-easy-thing)
-and is the same failure seen
-from the caller: **a conversion every caller must remember**. If the transform
-does not do it, each caller does, and the ones that forget produce a plausible
-picture rather than an error.
+and is the same failure seen from the caller: **a conversion every caller must
+remember**. If the transform does not do it, each caller does, and the ones that
+forget produce a plausible picture rather than an error.
 
 ### The worked example: the Tiled parser
 
@@ -253,11 +251,11 @@ several short ones and is honest about what the reader is committing to.
 ### Detail the next few steps only
 
 **Plan steps 0–3 in detail and leave 4–6 rough.** Then re-plan each rough step
-once the layer beneath it exists. This is not laziness and it is not an
-estimate-avoidance trick; it is the one habit that measurably worked in every
+once the layer beneath it exists. This is not laziness or an
+estimate-avoidance trick. It is the one habit that measurably worked in every
 plan here. A re-planned step routinely overturns something an earlier step
 recorded as fact, and a step written out before its foundation existed has
-always had to be rewritten anyway.
+always had to be rewritten.
 
 Say which steps are rough, in the document, at the top.
 
@@ -265,8 +263,8 @@ Say which steps are rough, in the document, at the top.
 
 Steps are numbered; sub-steps take a letter (`1a`, `1b`). **A step is a size,
 not a topic: it is one branch and one pull request, and each of its sub-steps is
-one commit.** Split a step at the boundaries where a commit would naturally
-fall, and a step that needs no splitting has no sub-steps and is one commit.
+one commit.** Split a step where a commit would naturally fall. A step that
+needs no splitting has no sub-steps and is one commit.
 [implement-step](../implement-step/SKILL.md) is what happens to it from there.
 
 A step has, in this order:
@@ -277,7 +275,7 @@ A step has, in this order:
    or the mistake it prevents.
 3. **The concrete shape.** Write the struct, the header, the class skeleton or
    the method signature in a fenced block. A step whose API cannot be sketched
-   yet is a step that is not ready to be detailed. A sketch is code, and its
+   yet is not ready to be detailed. A sketch is code, and its
    names get built as written, so load
    [write-ruby-code](../write-ruby-code/SKILL.md), or
    [write-c-code](../write-c-code/SKILL.md) for C, before writing it.
@@ -300,8 +298,8 @@ should expect them.
 - **A status line at the top**, saying which steps are implemented and which are
   still rough.
 
-Both are maintained by [implement-step](../implement-step/SKILL.md), which also
-covers what a landed note has to say.
+[implement-step](../implement-step/SKILL.md) maintains both, and covers what a
+landed note has to say.
 
 ## The last step is deleting the plan
 
@@ -319,8 +317,10 @@ updates it where an earlier step did not. The rules are in
 ## Before writing
 
 - **Read the code first.** Every strong section in these plans came from
-  reading the actual file and counting, and the weak ones came from
-  remembering.
+  reading the file and counting, and the weak ones came from remembering.
+- **Read [`possible-todos.md`](../../../docs/plans/possible-todos.md)**, and
+  list in the first question round each entry whose trigger has fired, or that
+  this plan would fire.
 - **Ask for the requirement in the user's own words** and keep it verbatim in
   the folder if it arrives that way. One plan here began as a five-bullet
   requirement file that the design answered point by point.
@@ -334,8 +334,8 @@ the user can decide. This is a loop, and each round ends your turn:
 
 1. **Write the questions** to `docs/plans/<topic>-questions.md`. Where the
    research already turned up viable options, present them as lettered choices,
-   each with its trade-off and your recommendation. Where it is genuinely open,
-   ask plainly. Leave space under each question for the answer.
+   each with its trade-off and your recommendation. Where it is open, ask
+   plainly. Leave space under each question for the answer.
 2. **Score your confidence** at the top of the file: the probability that the
    user's answers would *not* materially change the design or the roadmap's
    detailed steps. Beneath it, list what is holding the score down.

@@ -56,8 +56,8 @@ opening and closing — rather than writing one entry that lists every step.
 existing Unreleased entry instead of adding a new one.** A reader upgrading
 from the last release never saw the intermediate state. So for them:
 
-- A fix to an unreleased feature is not a fix. The feature's entry simply
-  describes the fixed behaviour.
+- A fix to an unreleased feature is not a fix. The feature's entry describes
+  the fixed behaviour.
 - A rename of an unreleased class is not a rename. The entry uses the new name,
   and the old one appears nowhere.
 - A class added and removed within the same cycle appears nowhere.

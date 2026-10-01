@@ -34,7 +34,7 @@ better.
   cop there and say why.** Do not turn the `let` back into a method to get under
   the limit — that is how the memoized helpers got written in the first place.
   The cop counts helpers inherited from enclosing groups, so one more `let` at a
-  file's top level can put every group in that file over at once; the disable
+  file's top level can put every group in that file over at once. The disable
   then belongs around the whole file, not around twenty groups.
 - **A helper that takes arguments stays a method.** `let` cannot be
   parameterized, so this suite's factories — `tile_world(solid:)`, `npc_at(x, y)`
@@ -43,11 +43,11 @@ better.
 
 ## `describe` the thing, `context` the situation
 
-A condition gets a `context`, phrased `when`/`with`/`without`. The suite reads
-flat because it has 580 `describe` to 2 `context` — `describe 'blocked_by:
-%i[tiles npc]'` is a context — and `RSpec/ContextWording` never fires, because it
-only inspects `context` blocks. New specs follow the rule; converting the
-existing ones buys nothing.
+A condition gets a `context`, phrased `when`/`with`/`without`. The suite has
+580 `describe` to 2 `context`, so it reads flat, even where a group such as
+`describe 'blocked_by: %i[tiles npc]'` is a context. `RSpec/ContextWording`
+never fires, because it inspects only `context` blocks. New specs follow the
+rule; converting the existing ones buys nothing.
 
 ## Allocation specs
 

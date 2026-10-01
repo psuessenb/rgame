@@ -2249,8 +2249,7 @@ step 4's box draw by eye.
 - **`docs/api/scene_graph.md`** covers what `mount` builds for an object layer.
 - **`docs/plans/possible-todos.md`**:
   - "Platforms as Tiled tile objects" is answered, or its trigger updated.
-  - Open questions still open move here.
-  - So do the plan's "does not deliver" items that have a trigger.
+  - The plan's "does not deliver" items that have a trigger move here.
 - Run [learn-from-mistakes](../../../.claude/skills/learn-from-mistakes/SKILL.md)
   over every step's "What proved wrong".
 - Delete `docs/plans/object-layers/`.

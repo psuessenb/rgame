@@ -11,7 +11,7 @@ sees.
 
 **Apply it to a plan's sketch too.** Names get decided there: `on_portrait` came
 from a dialogue plan's `def on_portrait(renderer, speaker); end` and was built
-exactly as written.
+as written.
 
 ## Game code names the engine through its own module
 
@@ -70,8 +70,8 @@ can check tense, so this rule is written, not guarded.
 ### A hook is the step the engine performs, in the present tense
 
 `_draw`, `_update`, `_control`, `_enter_tree`, `_attach`. Name a new hook after
-the step that calls it, not after what it produces. Tense then separates the two families a second
-time, hooks present and signals past.
+the step that calls it, not after what it produces. Tense then separates the two
+families a second time: hooks present, signals past.
 
 - **A state that flips gets one hook per direction.** `UI::Button` calls
   `_gain_focus` and `_lose_focus`. `_change_focus` reads as a command, and the
@@ -130,9 +130,10 @@ A game's own ivars need no prefix and no check against a list of taken names.
 ### What the guards cannot see
 
 `Signal::DSL`, `Engine::Hooks`, `Engine::SealedPrivates` and `Engine::Closed`
-all check in `method_added`, which Ruby does not call for a method that arrives through
-`include` or `prepend`. A module mixed into a subclass can still replace a
-signal's connect method or define a misspelled hook, and nothing raises.
+all check in `method_added`. Ruby does not call it for a method that arrives
+through `include` or `prepend`. So a module mixed into a subclass can still
+replace a signal's connect method or define a misspelled hook, and nothing
+raises.
 
 `Game/NoEngineIvar` reads the ivars a game writes out, and literal names given to
 `instance_variable_get` and its siblings. It passes `attr_accessor :rgame_label`
@@ -184,8 +185,8 @@ Two shapes need no `with` at all:
 reads them at runtime, so this comment is code. A keyword with no tag, or with a
 type outside [the
 table](../../../docs/api/internals.md#mapbuilder--a-node-from-a-maps-object),
-stays out of every map's reach, and a blank line above the `def` detaches the
-whole block. Do not tag `x`, `width`, another `Node2D` keyword, `route` or
+stays out of every map's reach. A blank line above the `def` detaches the whole
+block. Do not tag `x`, `width`, another `Node2D` keyword, `route` or
 `name`: the builder sets them, and the tag raises.
 
 **Name `route:` or `name:` in `initialize` to receive them.** The builder passes
@@ -228,6 +229,6 @@ Array that already exists, forwarding with `(...)`, and `Hash#each` with two
 block parameters (with one, it allocates an Array for each entry).
 
 The cops read one method at a time, and a Float's value is invisible to them.
-`rake drive:allocations` measures every driven project whole, and it is what
-catches the rows marked "nothing". See the
+`rake drive:allocations` measures every driven project whole, and it catches
+the rows marked "nothing". See the
 [verify](../verify/SKILL.md) skill, tier 3c.

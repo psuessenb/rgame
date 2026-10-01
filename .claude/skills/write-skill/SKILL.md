@@ -40,7 +40,7 @@ What a reader gets wrong without it:
 
 - **The counterintuitive.** The rule whose payoff is the opposite of what it
   looks like.
-- **A rule that stops a mistake that actually happened.** Name the mistake in a
+- **A rule that stops a mistake that happened.** Name the mistake in a
   clause; a rule with a scar gets followed.
 - **The exact command, path, name or number** — anything otherwise looked up.
 - **The counterweight.** What the rule does *not* cover. A strong rule with no
