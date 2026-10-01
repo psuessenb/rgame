@@ -5,8 +5,8 @@ module RGame
     module Components
       # The scene-scoped tile world: a system component (it lives on the scene node and
       # is found with node.system(TileWorld)) that owns the parsed Engine::TileMap and
-      # everything an actor needs from it — collision against the solid tiles, the world
-      # bounds, and drawing the map through the scene's camera.
+      # everything an actor needs from it — the solid tiles to collide against and the
+      # world bounds.
       #
       # **It does not resolve a step.** What it owns is the map's solid tiles as a blocker
       # source (#blockers, an Engine::TileBlockers); the actor that wants to be stopped by
