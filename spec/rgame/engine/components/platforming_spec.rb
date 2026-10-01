@@ -49,6 +49,12 @@ RSpec.describe 'Top-down platforming' do # rubocop:disable RSpec/DescribeClass -
              parts::Respawn.new.set_point(60.0, 96.0)], order, x:, y:)
   end
 
+  # A hero that pushes crates, and nothing else of a platformer's.
+  def pusher(x, y)
+    node_of([parts::FeetCollider.new(width: 12, height: 6, layer: :hero),
+             parts::CharacterBody.new(speed: 60, blocked_by: %i[tiles crate], pushes: [:crate])], :forward, x:, y:)
+  end
+
   def npc(x, y, order)
     node_of([parts::FeetCollider.new(width: 12, height: 6, layer: :npc),
              parts::CharacterBody.new(speed: 30, blocked_by: %i[tiles gaps hero]),
@@ -137,6 +143,19 @@ RSpec.describe 'Top-down platforming' do # rubocop:disable RSpec/DescribeClass -
         fell = fall(box).falling?
         ticks(60)
         expect([fell, box.x, box.y, fall(box).falling?]).to eq([true, 370.0, 40.0, false])
+      end
+
+      # A hero walking west pushes the crate over the edge and walks on. At 73a74a2 it
+      # pushed the falling crate on, from x 351 to 340.
+      it 'holds a hero pushing the crate into the chasm once it drops, as a fixed crate would' do
+        hero = pusher(390.0, 40.0)
+        body(hero).set_intent(-1, 0)
+        reports = []
+        body(hero).on_blocked { |by, axis| reports << [by.node.equal?(box), axis] }
+        ticks(26) # the crate drops on the 26th, at x 351
+        dropped = [box.x, fall(box).falling?]
+        ticks(10)
+        expect([dropped, box.x, hero.x, reports]).to eq([[351.0, true], 351.0, 365.0, [[true, :x]]])
       end
 
       # A fall a game starts on the shuttle, as a trapdoor would: the hero leaves it

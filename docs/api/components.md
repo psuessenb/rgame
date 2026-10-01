@@ -1400,6 +1400,13 @@ A `Pushable` may declare `pushes:` too, which is how a crate pushes a crate. One
 moves at most `Mover::PUSH_DEPTH` crates in a row, 4; the next one stops the chain as a
 wall would. A pushed node never pushes the node that pushed it.
 
+**A step pushes no [suspended](scene_graph.md#pausing-a-subtree) node.** A
+[`Fall`](#fall), a [`Cutscene`](#cutscene)'s `pause:` and a
+[room's move](scene_graph.md#a-move-lands-in-the-sweep) each suspend a node to take it
+out of play. A suspended crate stops a step as a crate against a wall does, and a
+crate pushed into it stops there too. `Pushable#push` itself still moves a suspended
+node, for a game that calls it.
+
 **A mover drags what it holds.** `grabbed` is a `Pushable` the mover moves with every
 step, or `nil`; [`Grab`](#grab) sets it. On each axis the crate moves first, passing
 through the mover, and the mover follows as far as the crate went, passing through
@@ -1411,6 +1418,8 @@ two always move together:
 - **A crate that cannot move holds the mover still**, and `on_blocked` reports the
   crate's collider. A mover backed into a wall holds the crate still, and reports
   the wall.
+- **A suspended crate is not dragged.** The mover takes a plain step instead: it
+  walks away from the crate freely, and walking into the crate stops it.
 
 **A platform's mover carries its riders.** A mover whose node holds a
 [`Platform`](#platform) measures the node's world position around each step, and
@@ -1795,6 +1804,10 @@ from opposite sides then hold it still, and both stop against it. A crate that h
 do not stop is pushed into the hero on the far side, and neither stops the other
 while they overlap. Two players pushing side by side move it as far as one would.
 
+**A suspended crate stops its pusher as a wall does.** A [`Fall`](#fall) suspends it
+as it drops, and a cutscene may hold it the same way. No mover pushes or drags it
+until it resumes.
+
 - **Construct:** `Pushable.new(blocked_by:, pushes: [])`. `blocked_by:` is what stops
   the crate. `pushes:` makes it push the crates behind it, as for any
   [`Mover`](#mover).
@@ -1802,8 +1815,9 @@ while they overlap. Two players pushing side by side move it as far as one would
   [`BoxCollider`](#boxcollider), which is what a pusher runs into, or the scene has
   no [`CollisionWorld`](#collisionworld), which is where a pusher finds it.
 - **Push:** `push(dx, dy, by: nil, depth: 1)` moves the node as far as `blocked_by:`
-  allows. Movers call it through `pushes:` and `grabbed`, and a game may call it
-  directly, for a crate a spell shoves. `by` is the node pushing or pulling, which
+  allows. Movers call it through `pushes:` and `grabbed`, never on a suspended node.
+  A game may call it directly, for a crate a spell shoves or a cutscene moves, and
+  then it moves a suspended node as well. `by` is the node pushing or pulling, which
   the crate neither pushes back nor is stopped by.
   It re-indexes the collider at once, so a mover resolving later in the same step
   meets the crate where it now is.
