@@ -52,7 +52,7 @@ module ScrollMapExample
   SPEED = 220.0 # px/s — a camera pans faster than a character walks
 
   # The node the camera follows: no sprite, no collision, just a position that
-  # input moves and a camera that trails it.
+  # input moves and a camera that follows it.
   #
   # It draws a crosshair so the centre of the view is visible, which is the only
   # reason it is a class rather than a bare Node2D with three components on it.

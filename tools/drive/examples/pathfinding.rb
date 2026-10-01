@@ -34,7 +34,8 @@
 #   - **`sprite` spanning rows 0..2 and ending as it began**, on row 0 frame 0:
 #     the hero faced the way it walked with nothing pressing a direction, and was
 #     standing once it arrived;
-#   - **`tilemap` camera from (0.0, 0.0) to (0.0, 160.0)**, 160 being the
+#   - **`tilemap` camera from (72.0, 56.0) to (0.0, 160.0)**. The first frame
+#     is already centred on the cursor, on the hero's tile (24, 18). 160 is the
 #     southern clamp of a 640-tall map in a 480-tall window. The camera follows
 #     the cursor, so this is the cursor going south, not the hero;
 #   - **translates spanning x −72..384 and y −160..528**: the camera as its
