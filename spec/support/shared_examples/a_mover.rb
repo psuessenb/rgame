@@ -195,10 +195,11 @@ RSpec.shared_examples 'a mover' do
 
   # The whole map is a chasm, so the mover's own 16x16 box is the only floor. The rider's
   # 8x8 box starts 4 px inside it, and a :wall rider meets the wall's left edge at x = 200
-  # once the platform has gone 18 px.
+  # once the platform has gone 18 px. The chasm runs to x = 640, so a rider carried
+  # a few hundred steps stays over it: off the map, the platform lets it go.
   describe 'moving a Platform' do
     def mount_chasm
-      rows = Array.new(10) { '~' * 20 }
+      rows = Array.new(10) { '~' * 40 }
       mover_scene.add_component(
         RGame::Engine::Components::TileWorld.new(map: WalledTileMap.build(rows), tilemap_id: :map)
       )

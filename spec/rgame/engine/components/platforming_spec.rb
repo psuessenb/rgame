@@ -153,6 +153,39 @@ RSpec.describe 'Top-down platforming' do # rubocop:disable RSpec/DescribeClass -
         expect([left, held, leaper.x, leaper.y, fall(leaper).falling?]).to eq([[true, true, 2], [x, true], 60.0, 96.0,
                                                                                false])
       end
+
+      # A game brings a riding hero back with no fall before it. The shuttle updates
+      # before the hero, so it steps once more before the hero's Footing sees the bank.
+      it 'carries a hero respawned off the shuttle no further' do
+        leaper = heroes.first
+        ticks(60)
+        leaper.get_component(parts::Respawn).respawn
+        tick
+        expect([leaper.x, leaper.y, footing(leaper).platform.nil?, shuttle.riders.include?(footing(leaper))])
+          .to eq([60.0, 96.0, true, false])
+      end
+
+      # A cutscene suspends the hero before it brings it back, so the hero's Footing
+      # never updates, and only the shuttle can notice the hero is gone.
+      it 'carries a suspended hero respawned off the shuttle no further' do
+        leaper = heroes.first
+        ticks(60)
+        leaper.suspend
+        leaper.get_component(parts::Respawn).respawn
+        ticks(60)
+        expect([leaper.x, leaper.y, footing(leaper).platform.nil?, shuttle.riders.include?(footing(leaper))])
+          .to eq([60.0, 96.0, true, false])
+      end
+
+      it 'carries a suspended hero that stays on the shuttle, as a cutscene on board wants' do
+        rider = heroes.first
+        ticks(60)
+        rider.suspend
+        offset = rider.x - shuttle.node.x
+        ticks(60)
+        expect([rider.x - shuttle.node.x, footing(rider).platform.equal?(shuttle)])
+          .to match([be_within(1e-6).of(offset), true])
+      end
     end
   end
   # rubocop:enable RSpec/MultipleMemoizedHelpers
