@@ -417,7 +417,7 @@ checkpoint they touched, an earlier one touched again included.
 
 **A node on `by` with no `Respawn` raises at the touch**, naming its class and the
 layer. A game that ends on a fall decides at the fall instead, and removes the
-`Respawn` in [`Footing`](#footing)'s `on_fell`.
+`Respawn` in [`Fall`](#fall)'s `on_fell`.
 
 **It stands on ground.** With a [`TileWorld`](#tileworld) on the scene, `_attach`
 raises `ArgumentError` where the node's cell is a gap, under a platform or not. A
@@ -773,6 +773,132 @@ end
 - **A designer's key comes through the node**, as any value for a component
   does. The class tags `@param fact [Symbol]` and passes it on as `key:`.
 
+### `Fall`
+
+**Takes its node out of play for a while, then brings it back.** A
+[`Footing`](#footing) starts one as its node walks into a gap, and a game or a
+cutscene starts one anywhere with `start`. It suspends the node and shows its
+[`FallLook`](#falllook), if it has one. After `duration` seconds, a node with a
+[`Respawn`](#respawn) stands on its respawn point, and any other node is freed.
+
+```ruby
+require 'rgame'
+
+hero = RGame::Engine::Node2D.new(x: 40)
+hero.scale = 2
+world = RGame::Engine::Node2D.new
+world.add_node(hero)
+fall = hero.add_component(RGame::Engine::Components::Fall.new(duration: 0.25))
+hero.add_component(RGame::Engine::Components::Shrink.new)
+hero.add_component(RGame::Engine::Components::Respawn.new)
+world.enter_tree
+
+hero.x = 60
+fall.start
+hero.suspended?                        # => true
+16.times { world.update(1.0 / 60) }
+[hero.x, hero.scale, fall.falling?]    # => [40, 2, false] — back on its point, at the scale it had
+```
+
+- **Construct:** `Fall.new(duration: 0.4)`. `duration` is in seconds, readable
+  as `duration`. Anything but a positive number raises `ArgumentError`.
+- **`start`** starts a fall and returns the `Fall`. During a fall it does
+  nothing. It raises for a node outside the tree or with no parent, and
+  `ArgumentError` for a node with two `FallLook`s.
+- **`finish`** ends a fall under way as its end would, and returns the `Fall`.
+  With none under way it does nothing. `falling?` says whether one is.
+- **Signals:** `on_fell` fires as the fall starts, before the look starts. That
+  is where a game takes a life. `on_finished` fires once the fall has ended,
+  after the respawn or the free.
+- **Lifecycle:** `_detach` ends a fall under way. The node is resumed, its look
+  finished, and `on_finished` does not fire. So a node taken out of the tree
+  mid-fall, through a door or freed, stops falling at once, and so does a node
+  whose `Fall` is removed.
+
+**The fall runs from beside the node.** A
+[suspended](scene_graph.md#pausing-a-subtree) node stops its own components, so
+the `Fall` adds a helper node to the falling node's parent for each fall, and
+drives the look from there. A fall therefore pauses when the world around the
+node is paused. The helper leaves the parent in the sweep of the tick the fall
+ends in, and a fall allocates nothing.
+
+**A game decides at each fall what it looks like and whether the node comes
+back.** The `Fall` looks the look up after `on_fell`, and the `Respawn` as the
+fall ends. So a look added in `on_fell` shows, and a `Respawn` removed there
+frees the node:
+
+```ruby
+fall.on_fell do
+  @lives -= 1
+  hero.remove_component(RGame::Engine::Components::Respawn) if @lives.zero?
+end
+```
+
+**A fall started on a platform leaves it.** The node's [`Footing`](#footing), if
+it has one, lets its [`Platform`](#platform) go, and the platform carries the
+node no further.
+
+**A cutscene waits on a fall.** A `Fall` answers `on_finished` and `finish`, so a
+[`Cutscene`](#cutscene) `hold` step can return one. A skip calls `finish`, and the
+node comes back or is freed:
+
+```ruby
+TRAPDOOR = RGame::Engine::Cutscene::Script.build do
+  run { |c| c.open_trapdoor }
+  hold { |c| c.hero.get_component(RGame::Engine::Components::Fall).start }
+end
+```
+
+### `FallLook`
+
+**What a fall looks like.** The node's [`Fall`](#fall) calls `start` as a fall
+starts, `show(progress)` every tick of it, and `finish` once as it ends, however
+it ends. `progress` runs from 0 at the fall's start to 1 at its end. Each does
+nothing in `FallLook`. A look subclasses it and overrides what it needs, as
+[`Shrink`](#shrink) does:
+
+```ruby
+require 'rgame'
+
+# A fall that fades the node out, and gives its opacity back.
+class FadeOut < RGame::Engine::Components::FallLook
+  def start
+    @found = node.opacity
+  end
+
+  def show(progress)
+    node.opacity = @found * (1 - progress)
+  end
+
+  def finish
+    node.opacity = @found
+  end
+end
+
+hero = RGame::Engine::Node2D.new
+world = RGame::Engine::Node2D.new
+world.add_node(hero)
+fall = hero.add_component(RGame::Engine::Components::Fall.new(duration: 0.5))
+hero.add_component(FadeOut.new)
+hero.add_component(RGame::Engine::Components::Respawn.new)
+world.enter_tree
+
+fall.start
+15.times { world.update(1.0 / 60) }
+hero.opacity     # => 0.5 — halfway through the fall
+20.times { world.update(1.0 / 60) }
+hero.opacity     # => 1 — back, with the opacity it found
+```
+
+**The node is suspended all the while.** A look's `_update` does not run, so it
+never counts time itself: `progress` is its clock. Its `_draw` still runs, as a
+suspended node still draws, so a look may draw what it likes, such as a splash.
+
+**A node holds one look.** A `Fall` raises `ArgumentError` as it starts on a node
+with two. A node with none holds still at its scale while it falls. A look that
+leaves its node mid-fall is shown no more and gets no `finish`, so its own
+`_detach` gives back what it changed, as `Shrink`'s does.
+
 ### `FeetCollider`
 
 **A [`BoxCollider`](#boxcollider) whose rectangle is the node's feet**: centred
@@ -810,66 +936,58 @@ feet.on_hit { |other| take_damage if other.layer == :spike }
 
 ### `Footing`
 
-**What the node stands on, and the fall when that is nothing.** It watches the
-centre of the node's [`BoxCollider`](#boxcollider) box against the floor the
-scene's [`TileWorld`](#tileworld) describes, and drops the node into a gap it walked
-into. A tile of class `gap` makes a gap ([Gaps](tile_maps.md#gaps)).
+**What the node stands on: the ground, a platform it rides, or a gap.** It
+watches the centre of the node's [`BoxCollider`](#boxcollider) box against the
+floor the scene's [`TileWorld`](#tileworld) describes. A tile of class `gap`
+makes a gap ([Gaps](tile_maps.md#gaps)). A node that stands over a gap loses its
+footing, and its [`Fall`](#fall) starts, if it has one.
 
 ```ruby
 hero.add_component(RGame::Engine::Components::FeetCollider.new(width: 12, height: 6))
 hero.add_component(RGame::Engine::Components::Hop.new(peak: 18, duration: 0.5))
 hero.add_component(RGame::Engine::Components::Footing.new(coyote: 0.1))
+hero.add_component(RGame::Engine::Components::Fall.new)
+hero.add_component(RGame::Engine::Components::Shrink.new)
 ```
 
-- **Construct:** `Footing.new(coyote: 0.1, fall: 0.4)`, both in seconds. `coyote`
-  must be 0 or more, and `fall` positive, or it raises `ArgumentError`.
+- **Construct:** `Footing.new(coyote: 0.1)`, in seconds. `coyote` must be 0 or
+  more, or it raises `ArgumentError`.
 - **Lifecycle:** `_attach` raises when the node has no `BoxCollider` or the scene
-  no `TileWorld`. `_detach` leaves the node's platform and ends a fall under way.
+  no `TileWorld`. `_detach` leaves the node's platform.
 - **State:** `standing?` says whether the centre of the box is on the floor.
   `coyote_left` is the coyote time left: `coyote` while standing, counting down off
-  the floor, and 0 in the air or falling. `falling?`, and `coyote` and `fall`.
-  `coyote=` changes the coyote time, and refuses a negative number. `platform` is
-  the [`Platform`](#platform) the node rides, or `nil`.
-- **Signal:** `on_fell` fires once as the node starts to fall, before it shrinks.
-  That is where a game takes a life.
+  the floor, and 0 in the air or once the node has lost its footing. `coyote=`
+  changes the coyote time, and refuses a negative number. `platform` is the
+  [`Platform`](#platform) the node rides, or `nil`.
 
 **A node in the air never falls.** A node whose [`Hop`](#hop) is `airborne?`
-crosses a gap, and one that lands on a gap falls on the tick it lands. `Footing`
-finds the node's `Hop` on its first update, so a `Hop` added after it still counts.
+crosses a gap, and one that lands on a gap loses its footing on the tick it lands.
+`Footing` finds the node's `Hop` on its first update, so a `Hop` added after it
+still counts.
 
 **Coyote time lets a hop start just past the edge.** A node that walks off the
-floor falls once it has been off it for more than `coyote` seconds. At 0.1 s and
-60 ticks a second, a hop pressed in any of the six ticks after the step off still
-crosses. That holds with the `Footing` added after the node's mover. Added before
-it, the `Footing` sees the step off a tick later, and the window runs seven ticks.
-`coyote: 0` drops the node on its first tick off the floor.
+floor loses its footing once it has been off it for more than `coyote` seconds.
+At 0.1 s and 60 ticks a second, a hop pressed in any of the six ticks after the
+step off still crosses. That holds with the `Footing` added after the node's
+mover. Added before it, the `Footing` sees the step off a tick later, and the
+window runs seven ticks. `coyote: 0` drops the node on its first tick off the
+floor.
+
+**The fall is the node's `Fall`.** `Footing` looks it up each time the node loses
+its footing, so it may be added in any order, or later. A node with none stands
+over the gap, riding what it rode, and a `Fall` added then starts on the node's
+next update. So a node that only rides, such as a walker whose mover is
+`blocked_by: [:gaps]`, holds a `Footing` alone. The `Fall` says how long the node
+is out of play and what happens then. Its [`FallLook`](#falllook), such as
+[`Shrink`](#shrink), says what the fall looks like.
 
 **A node rides the [`Platform`](#platform) under it.** Where the centre of the box
 stands on a platform over a gap, the node boards it, in the air or not. The platform
 then carries it by every step it takes. The carry goes through the node's
 [`Mover`](#mover), so its own `blocked_by:` still stops it, or straight onto the
-node when it has none. The node leaves as its centre leaves the platform, as it
-falls, and as it leaves the tree. `platform` is the one it rides, or `nil`.
+node when it has none. The node leaves as its centre leaves the platform, as its
+`Fall` starts, and as it leaves the tree. `platform` is the one it rides, or `nil`.
 `Footing` finds the node's `Mover` on its first update, as it finds the `Hop`.
-
-**A fall stops the node and shrinks it into the gap.** The node is suspended, and
-its [`scale`](scene_graph.md#scale) runs from 1 to 0 over `fall` seconds, toward
-its origin, where it stands. A node with a [`Respawn`](#respawn) then comes back
-on its respawn point, and any other node is freed. The fall runs from a helper node `Footing` adds beside the
-falling one, so it pauses when the world around the node is paused. A node taken
-out of the tree mid-fall, through a door or freed, stops falling at once, at
-scale 1 and resumed.
-
-**A game decides at each fall whether the node comes back.** The fall looks the
-node's `Respawn` up as it ends, not as it starts. So a game that ends on a fall
-removes the `Respawn` in `on_fell`, and the node is freed instead:
-
-```ruby
-footing.on_fell do
-  @lives -= 1
-  hero.remove_component(RGame::Engine::Components::Respawn) if @lives.zero?
-end
-```
 
 ### `Grab`
 
@@ -934,7 +1052,8 @@ and child that reads its position.
 **The game decides what a hop crosses.** `Hop` knows nothing about tiles or
 colliders. A [`CharacterBody`](#characterbody) blocked by a wall stays blocked while
 its node is in the air. A [`Footing`](#footing) reads `airborne?`, so a node with
-both crosses a gap in the map mid-hop and falls into one it walks into.
+both crosses a gap in the map mid-hop, and loses its footing over one it walks
+into.
 
 ```ruby
 hop = add_component(RGame::Engine::Components::Hop.new(peak: 18, duration: 0.5))
@@ -1731,11 +1850,13 @@ continues the sequence rather than starting it again.
 
 ### `Respawn`
 
-**Where a node comes back after a fall.** A [`Footing`](#footing) whose node has
-one calls `respawn` at the end of a fall, instead of freeing the node.
+**Where a node comes back after a fall.** A [`Fall`](#fall) whose node has one
+calls `respawn` at the end of the fall, instead of freeing the node.
 
 ```ruby
 hero.add_component(RGame::Engine::Components::Footing.new(coyote: 0.1))
+hero.add_component(RGame::Engine::Components::Fall.new)
+hero.add_component(RGame::Engine::Components::Shrink.new)
 blink = hero.add_component(RGame::Engine::Components::Blink.new)
 hero.add_component(RGame::Engine::Components::Respawn.new).on_respawned { blink.start(1.0) }
 ```
@@ -1793,6 +1914,27 @@ reappears at the opposite one.
 - **One response to the edge per node.** It raises at attach beside a
   `DespawnOffscreen`, or beside a mover declaring `blocked_by: [:bounds]`. A wrapping
   entity's mover declares no `:bounds`; see [`WorldBounds.one_response!`](#world).
+
+### `Shrink`
+
+**A fall that drops its node out of sight.** As a [`FallLook`](#falllook), it
+shrinks the node through [`scale`](scene_graph.md#scale) from the scale it found
+toward 0, easing in, and gives that scale back as the fall ends. It shrinks
+toward the node's origin, where a character stands, so the character drops into
+the ground at its feet.
+
+```ruby
+hero.add_component(RGame::Engine::Components::Fall.new)
+hero.add_component(RGame::Engine::Components::Shrink.new)
+```
+
+- **Construct:** `Shrink.new`, which takes nothing.
+- **The shrink:** at `progress` p the node's scale is the scale it found times
+  1 − p², so a node at scale 2 falls from 2 and comes back at 2.
+- **Lifecycle:** `_detach` gives the scale back mid-fall, so a node that leaves
+  the tree mid-fall, or loses its `Shrink`, is not left shrunk.
+
+It allocates nothing.
 
 ### `Sprite`
 

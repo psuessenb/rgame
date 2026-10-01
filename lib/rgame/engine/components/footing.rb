@@ -3,75 +3,61 @@
 module RGame
   module Engine
     module Components
-      # What its node stands on, and the fall when that is nothing. It watches the
-      # centre of the node's BoxCollider box against the floor its scene's TileWorld
-      # describes (TileWorld#floor_at?), and drops the node into a gap it walked into.
+      # What its node stands on: the ground, a Components::Platform it rides, or a
+      # gap. It watches the centre of the node's BoxCollider box against the floor
+      # its scene's TileWorld describes (TileWorld#floor_at?). A node that stands over
+      # a gap loses its footing, and its Components::Fall starts, if it has one.
       #
       #   hero.add_component(FeetCollider.new(width: 12, height: 6))
       #   hero.add_component(Hop.new(peak: 18, duration: 0.5))
       #   hero.add_component(Footing.new(coyote: 0.1))
+      #   hero.add_component(Fall.new)
+      #   hero.add_component(Shrink.new)
       #
       # **A node in the air never falls.** A node with a Hop that is `airborne?` crosses
-      # a gap, and one that lands on a gap falls on the tick it lands. That is all a
-      # jump over a chasm needs: Hop knows nothing of gaps, and this reads only whether
-      # the node is in the air.
+      # a gap, and one that lands on a gap loses its footing on the tick it lands. That
+      # is all a jump over a chasm needs: Hop knows nothing of gaps, and this reads only
+      # whether the node is in the air.
       #
-      # **Coyote time.** A node that walks off the floor falls once it has been off it
-      # for more than `coyote` seconds, so a hop pressed just after the edge still counts.
-      # #coyote_left says how much is left, for a game that shows it.
+      # **Coyote time.** A node that walks off the floor loses its footing once it has
+      # been off it for more than `coyote` seconds, so a hop pressed just after the edge
+      # still counts. #coyote_left says how much is left, for a game that shows it.
       #
-      # **The fall stops the node and shrinks it into the gap** over `fall` seconds,
-      # through Node2D#scale, toward the node's origin, where it stands. A node with a
-      # Respawn then comes back on its respawn point, controllable at once; any other
-      # node is freed.
-      # `on_fell` fires as the fall starts, which is where a game takes a life.
-      #
-      # The fall runs from an Engine::Fall this keeps for its life, lent to the node's
-      # parent for each fall: a suspended node stops its own components, this one
-      # included. So a fall pauses with the world around it, and a node taken out of the
-      # tree mid-fall, through a door or freed, stops falling at once, unscaled and
-      # resumed.
+      # **The fall is the node's Fall.** This looks it up each time the node loses its
+      # footing, so it may be added in any order, or later. A node with none stands over
+      # the gap, riding what it rode, and its Fall starts on the next update after one
+      # arrives. So a node that only rides, such as a walker kept on a ring by
+      # `blocked_by: :gaps`, holds a Footing and nothing else.
       #
       # **It rides the platform under it.** Where the centre of the box stands on a
       # Components::Platform over a gap, in the air or not, the node boards it, and the
       # platform carries it by every step it takes: through the node's Mover, so its own
       # `blocked_by:` still stops it, or straight onto the node when it has none. The node
-      # leaves as the centre leaves the platform, as it falls, and as it leaves the tree.
+      # leaves as the centre leaves the platform, as its Fall starts, and as it leaves the
+      # tree.
       #
       # It finds the node's Hop and Mover on its first update rather than at attach, so
       # either added after it, from an `_enter_tree`, still counts.
       class Footing < Engine::Component
-        # Fired once as the node starts to fall, before it shrinks.
-        signal :fell
-
-        # How far over `coyote` the time off the floor must run before the node falls,
-        # in seconds. Six ticks of 1/60 add up to 0.09999999999999999, and at another
-        # step the sum lands just over the whole instead, so a comparison with no slack
-        # would change the rule by a tick with the step size.
+        # How far over `coyote` the time off the floor must run before the node loses
+        # its footing, in seconds. Six ticks of 1/60 add up to 0.09999999999999999, and
+        # at another step the sum lands just over the whole instead, so a comparison with
+        # no slack would change the rule by a tick with the step size.
         SLACK = 1e-9
 
         sealed_reader :coyote
 
-        # Seconds the fall takes, from the drop to the respawn.
-        sealed_reader :fall
-
         # The Components::Platform the node rides, or nil.
         sealed_reader :platform
 
-        # `coyote` and `fall` are in seconds. `coyote: 0` drops the node on the first
-        # tick off the floor, and `fall` must be positive.
-        def initialize(coyote: 0.1, fall: 0.4)
+        # `coyote` is in seconds, 0 or more, or it raises ArgumentError. `coyote: 0`
+        # drops the node on the first tick off the floor.
+        def initialize(coyote: 0.1)
           super()
           self.coyote = coyote
-          unless fall.is_a?(Numeric) && fall.positive?
-            raise ArgumentError, "fall must be a positive number of seconds, not #{fall.inspect}"
-          end
-
-          @rgame_fall = fall
-          @rgame_fall_node = Engine::Fall.new(self)
           @rgame_left = @rgame_coyote
           @rgame_airborne = false
-          @rgame_falling = false
+          @rgame_lost = false
           @rgame_hop = nil
           @rgame_mover = nil
           @rgame_siblings_known = false
@@ -97,27 +83,23 @@ module RGame
           @rgame_siblings_known = false
           @rgame_left = @rgame_coyote
           @rgame_airborne = false
+          @rgame_lost = false
         end
 
-        # Leaves its platform, and ends a fall under way, so a node taken out of the tree
-        # mid-fall leaves it unscaled and resumed.
-        def _detach
-          board(nil)
-          @rgame_fall_node.stop if @rgame_falling
-        end
+        def _detach = board(nil)
 
         # Whether the centre of the node's box is on the floor.
         def standing? = @rgame_world.floor_at?(@rgame_collider.cx, @rgame_collider.cy)
 
         # Seconds of coyote time left: `coyote` while standing, counting down off the
-        # floor, 0 in the air and while falling.
+        # floor, and 0 in the air and once the node has lost its footing.
         def coyote_left
-          return 0.0 if @rgame_falling || @rgame_airborne
+          return 0.0 if @rgame_airborne
+          return @rgame_coyote if standing?
+          return 0.0 if @rgame_lost
 
           @rgame_left.clamp(0.0, @rgame_coyote)
         end
-
-        def falling? = @rgame_falling
 
         # hot-path
         def _update(dt)
@@ -132,21 +114,13 @@ module RGame
 
           if platform || @rgame_world.floor_at?(x, y)
             @rgame_left = @rgame_coyote
-          elsif landed
-            drop
+            @rgame_lost = false
+          elsif landed || @rgame_lost
+            lose_footing
           else
             @rgame_left -= dt
-            drop if @rgame_left < -SLACK
+            lose_footing if @rgame_left < -SLACK
           end
-        end
-
-        # The Fall calls it once the node is back on its feet, or out of the tree.
-        #
-        # @api private
-        def fall_ended
-          @rgame_falling = false
-          @rgame_left = @rgame_coyote
-          @rgame_airborne = false
         end
 
         # Moves the node by what its platform moved: through its Mover when it has one,
@@ -179,6 +153,11 @@ module RGame
           @rgame_platform = nil
         end
 
+        # Leaves the platform the node rides, as its Fall starts.
+        #
+        # @api private
+        def leave_platform = board(nil)
+
         private
 
         def find_siblings
@@ -195,11 +174,9 @@ module RGame
           platform&.board(self)
         end
 
-        def drop
-          board(nil)
-          @rgame_falling = true
-          fell_signal.emit
-          @rgame_fall_node.start(node)
+        def lose_footing
+          @rgame_lost = true
+          node.get_component(Fall)&.start
         end
       end
     end

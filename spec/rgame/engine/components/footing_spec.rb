@@ -2,7 +2,8 @@
 
 # A walker on a map with gaps: it walks east at a pixel a tick, hops when told,
 # and falls where its footing says. The scene is the whole composition a game
-# builds, a CharacterBody, a Hop and a Footing on one node, in both add orders.
+# builds, a CharacterBody, a Hop, a Footing, a Fall and a Shrink on one node, in
+# every add order. Its Fall is how a spec sees the node lose its footing.
 RSpec.describe RGame::Engine::Components::Footing do
   # One gap tile wide at x 64..80, and one three wide at 128..176.
   let(:root) do
@@ -19,15 +20,14 @@ RSpec.describe RGame::Engine::Components::Footing do
   def parts = RGame::Engine::Components
   def dt = 1.0 / 60
 
-  def hero(order: %i[body hop footing], x: 40.0, **)
+  def hero(order: %i[body hop footing fall shrink], x: 40.0, **)
     node = engine::Node2D.new(x: x, y: 27.0)
     node.add_component(parts::FeetCollider.new(width: 12, height: 6))
     built = { body: parts::CharacterBody.new(speed: 60),
               hop: parts::Hop.new(peak: 10, duration: 0.5, action: nil),
               footing: described_class.new(**),
-              respawn: parts::Respawn.new,
-              blink: parts::Blink.new }
-    built[:respawn].on_respawned { built[:blink].start(0.5) } if order.include?(:blink)
+              fall: parts::Fall.new,
+              shrink: parts::Shrink.new }
     order.each { node.add_component(built[it]) }
     world.add_node(node)
     root.enter_tree
@@ -37,6 +37,7 @@ RSpec.describe RGame::Engine::Components::Footing do
   def body(node) = node.get_component(parts::CharacterBody)
   def hop(node) = node.get_component(parts::Hop)
   def footing(node) = node.get_component(described_class)
+  def falling?(node) = node.get_component(parts::Fall).falling?
 
   def tick
     root.update(dt)
@@ -62,8 +63,8 @@ RSpec.describe RGame::Engine::Components::Footing do
       expect { described_class.new(coyote: -0.1) }.to raise_error(ArgumentError, /coyote/)
     end
 
-    it 'refuses a fall that is not positive' do
-      expect { described_class.new(fall: 0) }.to raise_error(ArgumentError, /fall/)
+    it 'takes no fall, naming it' do
+      expect { described_class.new(fall: 0.4) }.to raise_error(ArgumentError, /fall/)
     end
   end
 
@@ -112,7 +113,7 @@ RSpec.describe RGame::Engine::Components::Footing do
       node = hero
       ticks(600)
 
-      expect([footing(node).falling?, footing(node).coyote_left, node.scale]).to eq([false, 0.1, 1])
+      expect([falling?(node), footing(node).coyote_left, node.scale]).to eq([false, 0.1, 1])
     end
 
     it 'stands on a point off the map, which is floor' do
@@ -128,10 +129,10 @@ RSpec.describe RGame::Engine::Components::Footing do
       node = hero
       walk_off(node)
       ticks(5)
-      expect(footing(node)).not_to be_falling
+      expect(falling?(node)).to be(false)
 
       tick
-      expect(footing(node)).to be_falling
+      expect(falling?(node)).to be(true)
     end
 
     it 'counts the coyote time down from the step off' do
@@ -151,7 +152,7 @@ RSpec.describe RGame::Engine::Components::Footing do
         hop(node).jump
         ticks(40)
 
-        expect([footing(node).falling?, node.world_x]).to eq([false, 103.0 + late])
+        expect([falling?(node), node.world_x]).to eq([false, 103.0 + late])
       end
     end
 
@@ -161,14 +162,14 @@ RSpec.describe RGame::Engine::Components::Footing do
       ticks(6)
       hop(node).jump
 
-      expect(footing(node)).to be_falling
+      expect(falling?(node)).to be(true)
     end
 
     it 'falls on the first tick off the floor with no coyote time' do
       node = hero(coyote: 0)
       walk_off(node)
 
-      expect(footing(node)).to be_falling
+      expect(falling?(node)).to be(true)
     end
   end
 
@@ -180,7 +181,7 @@ RSpec.describe RGame::Engine::Components::Footing do
       tick
       states = []
       20.times do
-        states << [footing(node).standing?, footing(node).falling?, footing(node).coyote_left]
+        states << [footing(node).standing?, falling?(node), footing(node).coyote_left]
         tick
       end
 
@@ -193,115 +194,62 @@ RSpec.describe RGame::Engine::Components::Footing do
       body(node).set_intent(1, 0)
       hop(node).jump
       ticks(30)
-      expect([hop(node).airborne?, footing(node).falling?]).to eq([true, false])
+      expect([hop(node).airborne?, falling?(node)]).to eq([true, false])
 
       ticks(2)
-      expect([hop(node).airborne?, footing(node).falling?]).to eq([false, true])
+      expect([hop(node).airborne?, falling?(node)]).to eq([false, true])
     end
   end
 
-  describe 'the fall' do
-    it 'stops the node where it fell and says so once' do
-      node = hero(coyote: 0)
-      fell = 0
-      footing(node).on_fell { fell += 1 }
+  describe 'with no Fall' do
+    it 'never suspends the node, which walks on over the gap with no coyote time left' do
+      node = hero(order: %i[body hop footing])
       walk_off(node)
       ticks(10)
 
-      expect([node.suspended?, node.world_x, fell]).to eq([true, 64.0, 1])
+      expect([node.suspended?, footing(node).standing?, footing(node).coyote_left, node.world_x])
+        .to eq([false, false, 0.0, 74.0])
     end
 
-    # The fall began on the step off, so 29 of its 30 ticks have run at the end.
-    it 'shrinks the node from 1 toward 0 over the fall' do
-      node = hero(coyote: 0, fall: 0.5)
-      walk_off(node)
-      scales = Array.new(28) { tick.then { node.scale } }
+    it 'has no coyote time left once it lands on a gap' do
+      node = hero(order: %i[body hop footing], x: 110.0)
+      body(node).set_intent(1, 0)
+      hop(node).jump
+      ticks(32)
 
-      expect(scales.first).to be > 0.99
-      expect(scales.each_cons(2).all? { |a, b| b < a }).to be(true)
-      expect(scales.last).to be < 0.1
+      expect([hop(node).airborne?, node.suspended?, footing(node).coyote_left]).to eq([false, false, 0.0])
     end
 
-    it 'frees a node with no Respawn at the end, unscaled and resumed' do
-      node = hero(coyote: 0, fall: 0.5)
-      walk_off(node)
-      ticks(30)
-
-      expect([world.children, node.scale, node.suspended?, footing(node).falling?]).to eq([[], 1, false, false])
-    end
-
-    [%i[body hop footing respawn blink], %i[blink respawn footing hop body]].each do |order|
-      it "brings a node with a Respawn back on its point, blinking and walking, added as #{order.join(', ')}" do
-        node = hero(order: order, coyote: 0, fall: 0.5)
-        walk_off(node)
-        took = (1..40).find { tick.then { !footing(node).falling? } }
-        state = [node.world_x, node.world_y, node.scale, node.suspended?, world.children]
-        ticks(1)
-
-        expect([took, state]).to match([be_between(29, 31), [40.0, 27.0, 1, false, [node]]])
-        expect([node.get_component(parts::Blink).blinking?, node.world_x]).to eq([true, 41.0])
-      end
-
-      # The game's choice at each fall: it takes a life in on_fell, and removes the
-      # Respawn with the last one.
-      it "brings a node back from its first fall and frees it after its second, added as #{order.join(', ')}" do
-        node = hero(order: order, coyote: 0, fall: 0.5)
-        lives = 2
-        respawns = 0
-        node.get_component(parts::Respawn).on_respawned { respawns += 1 }
-        footing(node).on_fell do
-          lives -= 1
-          node.remove_component(parts::Respawn) if lives.zero?
-        end
-        walk_off(node)
-        ticks(40)
-        back = world.children.include?(node)
-        walk_off(node)
-        ticks(40)
-
-        expect([back, respawns, world.children.empty?, lives]).to eq([true, 1, true, 0])
-      end
-    end
-
-    it 'holds mid-shrink while the world around it is paused' do
-      node = hero(coyote: 0, fall: 0.5)
+    it 'starts a Fall added over the gap on the next update' do
+      node = hero(order: %i[body hop footing])
       walk_off(node)
       ticks(10)
-      world.paused = true
-      scale = node.scale
-      ticks(60)
-
-      expect([node.scale, footing(node).falling?]).to eq([scale, true])
-    end
-
-    it 'ends at once, unscaled and resumed, when the node is taken from its parent' do
-      node = hero(coyote: 0, fall: 0.5)
-      walk_off(node)
-      ticks(10)
-      world.remove_node(node)
-
-      expect([node.scale, node.suspended?, footing(node).falling?]).to eq([1, false, false])
-    end
-
-    it 'leaves the parent with no trace of the fall once it has ended' do
-      node = hero(coyote: 0, fall: 0.5)
-      walk_off(node)
-      ticks(10)
-      root.add_node(node)
+      fall = node.add_component(parts::Fall.new)
       tick
 
-      expect(world.children).to eq([])
+      expect([fall.falling?, node.suspended?]).to eq([true, true])
+    end
+
+    it 'counts its coyote time again once the node stands' do
+      node = hero(order: %i[body hop footing])
+      walk_off(node)
+      ticks(10)
+      node.x = 40.0
+      tick
+
+      expect(footing(node).coyote_left).to eq(0.1)
     end
   end
 
   # Walking from 40, the centre steps off at 64 on tick 24. In the default order
-  # the footing reads it the same tick, and in the others at most one later.
+  # the footing reads it the same tick, and in the others at most one later. The
+  # Fall and the Shrink come before the rest, and after.
   describe 'add order' do
-    %i[body hop footing].permutation.each do |order|
+    %i[body hop footing].permutation.flat_map { [%i[fall shrink] + it, it + %i[fall shrink]] }.each do |order|
       it "falls on tick 30 or 31, added as #{order.join(', ')}" do
         node = hero(order: order)
         body(node).set_intent(1, 0)
-        fell_on = (1..40).find { tick.then { footing(node).falling? } }
+        fell_on = (1..40).find { tick.then { falling?(node) } }
 
         expect(fell_on).to be_between(30, 31)
       end
@@ -313,7 +261,7 @@ RSpec.describe RGame::Engine::Components::Footing do
         hop(node).jump
         ticks(40)
 
-        expect(footing(node)).not_to be_falling
+        expect(falling?(node)).to be(false)
       end
     end
 
@@ -325,13 +273,14 @@ RSpec.describe RGame::Engine::Components::Footing do
       node.add_component(parts::FeetCollider.new(width: 12, height: 6))
       node.add_component(parts::CharacterBody.new(speed: 60))
       node.add_component(described_class.new)
+      node.add_component(parts::Fall.new)
       world.add_node(node)
       root.enter_tree
       walk_off(node)
       hop(node).jump
       ticks(40)
 
-      expect([footing(node).falling?, node.world_x]).to eq([false, 104.0])
+      expect([falling?(node), node.world_x]).to eq([false, 104.0])
     end
   end
 end

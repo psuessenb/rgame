@@ -153,7 +153,7 @@ RSpec.describe RGame::Engine::Components::WanderController do
 
       600.times { scene.update(1.0 / 60) }
       footing = npc.get_component(RGame::Engine::Components::Footing)
-      expect([footing.falling?, footing.platform]).to eq([false, raft.get_component(RGame::Engine::Components::Platform)])
+      expect([npc.suspended?, footing.platform]).to eq([false, raft.get_component(RGame::Engine::Components::Platform)])
       expect(stopper).to have_received(:set_intent).at_least(5).times
     end
   end

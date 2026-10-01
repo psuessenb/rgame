@@ -32,7 +32,9 @@ module TopDownPlatformer
                                                   pushes: [:crate]))
       add_component(Components::PlayerController.new)
       add_component(Components::Hop.new(peak: HOP_PEAK, duration: HOP_DURATION))
-      add_component(Components::Footing.new).on_fell { fell }
+      add_component(Components::Footing.new)
+      add_component(Components::Fall.new).on_fell { fell }
+      add_component(Components::Shrink.new)
       blink = add_component(Components::Blink.new)
       add_component(Components::Respawn.new).on_respawned { blink.start(1.0) }
       add_component(Components::CameraFollow.new(camera: camera, offset_y: CAMERA_OFFSET_Y))

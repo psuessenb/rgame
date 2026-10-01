@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-# A footing checks every tick for every node that has one, and a fall runs every
-# tick it lasts, so neither may allocate once warm.
+# A footing checks every tick for every node that has one, so it may not
+# allocate once warm. The fall it starts is fall_allocation_spec's.
 RSpec.describe RGame::Engine::Components::Footing do
   let(:parts) { RGame::Engine::Components }
   let(:dt) { 1.0 / 60 }
@@ -17,7 +17,7 @@ RSpec.describe RGame::Engine::Components::Footing do
     RGame::Engine::Node2D.new(x: 40.0, y: 27.0).tap do |hero|
       hero.add_component(parts::FeetCollider.new(width: 12, height: 6))
       hero.add_component(parts::Hop.new(peak: 10, duration: 100, action: nil))
-      hero.add_component(described_class.new(coyote: 0.05, fall: 0.25))
+      hero.add_component(described_class.new(coyote: 0.05))
     end
   end
 
@@ -53,29 +53,11 @@ RSpec.describe RGame::Engine::Components::Footing do
     expect { tick }.to allocate_nothing
   end
 
-  # The first fall adds the Fall to the parent's lists, which may grow them. From
-  # the second on, every list already has room.
-  it 'allocates nothing over a whole fall, from the drop to the node freed' do
-    2.times do
-      node.x = 70.0
-      world.add_node(node)
-      30.times { tick }
-    end
+  # Over the gap with no Fall, it looks for one every update.
+  it 'allocates nothing over a gap with no Fall to start' do
     node.x = 70.0
-    world.add_node(node)
+    5.times { tick }
 
-    expect { 30.times { tick } }.to allocate_nothing
-  end
-
-  it 'allocates nothing over a fall that ends in a respawn and a blink' do
-    blink = node.add_component(parts::Blink.new)
-    node.add_component(parts::Respawn.new).on_respawned { blink.start(0.5) }
-    fall_and_blink = lambda do
-      node.x = 70.0
-      60.times { tick }
-    end
-    2.times { fall_and_blink.call }
-
-    expect { fall_and_blink.call }.to allocate_nothing
+    expect { tick }.to allocate_nothing
   end
 end

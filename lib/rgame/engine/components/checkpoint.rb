@@ -18,7 +18,7 @@ module RGame
       # **A node on `by` with no Respawn raises at the touch.** A layer named here is
       # one whose nodes come back, and a node that would not is a mistake the touch
       # names. A game that ends on a fall decides at the fall instead: it removes the
-      # Respawn in Footing's `on_fell`.
+      # Respawn in Fall's `on_fell`.
       #
       # **It stands on ground.** With a TileWorld on the scene, the attach raises
       # ArgumentError where the node's cell is a gap, as Respawn raises for its point,
@@ -71,7 +71,7 @@ module RGame
         def reach(other)
           respawn = other.node.get_component(Respawn) ||
                     raise("#{other.node.class} on :#{@rgame_by} touched a Checkpoint, and has no Respawn to " \
-                          'set. A game that ends on a fall removes the Respawn in Footing#on_fell instead.')
+                          'set. A game that ends on a fall removes the Respawn in Fall#on_fell instead.')
           respawn.set_point(node.world_x, node.world_y)
           reached_signal.emit(other)
         end
