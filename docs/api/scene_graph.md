@@ -28,8 +28,9 @@ top-down view. It defaults to 0, and positive is up the screen.
 children all ignore it. A character can therefore leave the ground while its feet
 box and the camera following it stay put. Components that draw the node's
 picture read it: `Components::Sprite` and `Components::AnimatedSprite` draw
-lifted. `Components::Hop` writes it. A node's own `_draw` is not lifted, so the
-parts that stay on the ground go there:
+lifted. `Components::Hop` adds its arc to it for the length of a hop, and gives
+back the elevation it started from as it lands. A node's own `_draw` is not
+lifted, so the parts that stay on the ground go there:
 
 ```ruby
 require 'rgame'
