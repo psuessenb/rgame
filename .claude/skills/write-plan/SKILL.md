@@ -120,16 +120,9 @@ The first time this question swept the whole engine layer, it found a second
 instance. `Velocity`, `PathFollow` and `CharacterBody` all answered *where does
 this node go this step*, and only the last could be stopped by anything. They
 became three subclasses of `Components::Mover`, which owns what happens after a
-step is computed. For each class, that sweep ran these checks:
-
-- Does it duplicate state the node owns? (`Engine::Body` kept its own `x`/`y`.)
-- Does it need a hand-written hook to hand its data to another component?
-- Does it behave differently depending on a sibling's add order?
-- Does it name a layer it may not name?
-- Is it a node pretending to be a component, or the reverse?
-
-These are interface-depth checks. A misfit inside a method body that presents a
-clean interface gets past them.
+step is computed. For each class, that sweep ran the checks
+[build-components](../build-components/SKILL.md#reviewing-existing-components)
+lists, and a plan that reviews components runs them still.
 
 ## Optimise for the game, not for the source
 
@@ -278,7 +271,9 @@ A step has, in this order:
    yet is not ready to be detailed. A sketch is code, and its
    names get built as written, so load
    [write-ruby-code](../write-ruby-code/SKILL.md), or
-   [write-c-code](../write-c-code/SKILL.md) for C, before writing it.
+   [write-c-code](../write-c-code/SKILL.md) for C, before writing it. A
+   component's sketch loads [build-components](../build-components/SKILL.md)
+   too.
 4. **The rules the tests must pin**, as a numbered list, when the step has
    behaviour worth stating independently of its implementation.
 5. **Tests**, naming the file and listing each case in a phrase.

@@ -15,7 +15,8 @@ freely, but do not rely on them: the code must read cleanly without them.
 Documentation follows [write-docs](.claude/skills/write-docs/SKILL.md), specs
 [write-spec](.claude/skills/write-spec/SKILL.md), plans
 [write-plan](.claude/skills/write-plan/SKILL.md), Ruby
-[write-ruby-code](.claude/skills/write-ruby-code/SKILL.md), C
+[write-ruby-code](.claude/skills/write-ruby-code/SKILL.md), components
+[build-components](.claude/skills/build-components/SKILL.md), C
 [write-c-code](.claude/skills/write-c-code/SKILL.md), and the skills themselves
 [write-skill](.claude/skills/write-skill/SKILL.md).
 
@@ -98,7 +99,9 @@ Tile collision and body collision were built independently, and each was
 correct. Yet they answered the same question about different things: *what is in
 the way*. Unifying them afterwards took six steps and touched every collision
 file in the project. The [write-plan](.claude/skills/write-plan/SKILL.md) skill
-has that case in full, and the five checks a sweep of existing code runs.
+has that case in full, and
+[build-components](.claude/skills/build-components/SKILL.md#reviewing-existing-components)
+the checks a sweep of existing components runs.
 
 ### Two smells, and why nobody smelled them
 
