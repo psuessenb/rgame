@@ -1,0 +1,38 @@
+{
+    "activeFile": "",
+    "expandedProjectPaths": [
+    ],
+    "fileStates": {
+        "/home/paul/Projects/rgame/examples/assets/tileset.tsx": {
+            "dynamicWrapping": false
+        },
+        "embedded_tileset.tsx": {
+            "dynamicWrapping": false
+        },
+        "things.tsx": {
+            "dynamicWrapping": true
+        }
+    },
+    "frame.defaultDuration": 200,
+    "last.externalTilesetPath": "/home/paul/Projects/rgame/examples/assets",
+    "last.imagePath": "/home/paul/Projects/rgame/examples/assets/tiled_tour/images",
+    "map.height": 40,
+    "map.lastUsedFormat": "tmx",
+    "map.tileHeight": 16,
+    "map.tileWidth": 16,
+    "map.width": 40,
+    "openFiles": [
+    ],
+    "project": "tour.tiled-project",
+    "property.type": "string",
+    "recentFiles": [
+    ],
+    "tileset.embedInMap": false,
+    "tileset.lastUsedFilter": "Tiled tileset files (*.tsx *.xml)",
+    "tileset.lastUsedFormat": "tsx",
+    "tileset.tileSize": {
+        "height": 16,
+        "width": 16
+    },
+    "tileset.type": 1
+}
