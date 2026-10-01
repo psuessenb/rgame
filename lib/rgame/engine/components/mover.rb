@@ -24,6 +24,12 @@ module RGame
       # `blocked_by` is order-free, but puts collision into the base of every node, HUDs and
       # menus included. A base class is order-free and touches only what moves.
       #
+      # **It answers two questions, on purpose.** One is where its step lands. The other is
+      # what moves with the step: the Pushable it pushes, the one a Grab has it drag, and
+      # the riders of its Platform. That half must run after the step, so a sibling holding
+      # it would bring back the order dependence the Blocking sibling had. No split that
+      # avoids it is known, so both stay here.
+      #
       # ## What stops a step is declared, not subclassed
       #
       # `blocked_by:` lists what a step may not pass through, and the default is nothing:
