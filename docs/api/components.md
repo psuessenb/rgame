@@ -55,6 +55,10 @@ and before its children.
   component never learns there is more than one player. Its `pressed?` and
   `released?` answer only for
   [presses the node saw start](input.md#a-node-reads-only-the-presses-it-saw-start).
+  A controller that reads no input sets its intent here too, as
+  [`WanderController`](#wandercontroller) does. Every `_control` in the tree runs
+  before any `_update`, so a sibling that steps in `_update` takes the intent on
+  the same tick, whichever of the two was added first.
 - `_update(dt)` advances state over the timestep.
 - `_draw(renderer, view)` renders through the renderer interface into the
   [viewport being drawn](scene_graph.md#viewports-and-views). Most components
@@ -2278,11 +2282,18 @@ one of eight or idle, and holds it. A wall that blocks it triggers an early re-r
 - **Lifecycle:** `_attach` looks up the node's `CharacterBody` with
   `require_sibling`. With no `rng:`, it finds the root's `RandomSource`, and
   raises `KeyError` naming it when the root has none.
-- **Phase:** `_update(dt)` counts down and re-rolls on timeout or when blocked.
-  "Blocked" means the body meant to move and its [`stopped?`](#mover) is true: its
-  step was cut short on either axis. A body with nothing declared is never blocked.
+- **Phase:** `_control(actions)` re-rolls once the timer has run out, or when the
+  body is blocked, and ignores `actions`. `_update(dt)` only counts the timer down.
+  So the body steps along a new heading on the tick it is rolled, whichever of the
+  two components was added first.
+- **Blocked:** the body meant to move, and its [`stopped?`](#mover) is true: its
+  last step was cut short on either axis. The next `_control` re-rolls, and that
+  tick's step takes the new heading. A body with nothing declared is never blocked.
   One riding a [`Platform`](#platform) re-rolls at the platform's edge, though the
   platform moves it every tick.
+- **Not controlled:** a node nothing controls rolls nothing. Under a
+  [`SceneStack`](scene_graph.md#scenes-scenestack)'s reveal, a wanderer keeps its
+  heading, and one that has just arrived stands still, as its `CharacterBody` does.
 - **Example:** `examples/save_load`.
 
 ### `World`

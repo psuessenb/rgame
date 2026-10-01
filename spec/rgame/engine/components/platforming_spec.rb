@@ -19,6 +19,7 @@ RSpec.describe 'Top-down platforming' do # rubocop:disable RSpec/DescribeClass -
     end
   end
   let(:world) { root.get_component(parts::TileWorld) }
+  let(:still) { engine::Actions.new }
 
   def engine = RGame::Engine
   def parts = RGame::Engine::Components
@@ -70,6 +71,7 @@ RSpec.describe 'Top-down platforming' do # rubocop:disable RSpec/DescribeClass -
   def body(node) = node.get_component(parts::CharacterBody)
 
   def tick
+    root.control(still)
     root.update(dt)
     root.sweep_freed
   end
