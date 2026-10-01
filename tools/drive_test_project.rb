@@ -207,6 +207,10 @@ module DriveTestProject
   # First and last cannot see a value that leaves and comes back — a hop starts and
   # ends on the ground — so each numeric argument's range is kept too, and printed
   # as `spans` for the positions where it varied.
+  #
+  # A String argument loses the checkout's path before it is cut to fit, so a
+  # report taken in a worktree of `main` matches one taken here. A game that
+  # names its map by absolute path would otherwise differ in that line alone.
   class Report
     Call = Struct.new(:calls, :first_args, :last_args, :ranges)
 
@@ -385,11 +389,13 @@ module DriveTestProject
       case value
       when Float then round(value).to_s
       when Integer, Symbol, true, false, nil then value.inspect
-      when String then (value.length > 24 ? "#{value[0, 21]}..." : value).inspect
+      when String then cut(value.delete_prefix("#{ROOT}/")).inspect
       when Hash then value.map { |k, v| "#{k}: #{summarize(v)}" }.join(' ')
       else value.class.name.split('::').last
       end
     end
+
+    def cut(string) = string.length > 24 ? "#{string[0, 21]}..." : string
 
     def round(number) = number.is_a?(Float) ? number.round(1) : number
   end

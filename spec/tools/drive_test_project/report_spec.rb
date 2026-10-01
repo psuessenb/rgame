@@ -25,6 +25,17 @@ RSpec.describe DriveTestProject::Report do
     end
   end
 
+  describe 'draw calls' do
+    it "names a file in the checkout from the checkout's root, so a worktree's report matches" do
+      report.record_draw('tilemap', ["#{DriveTestProject::ROOT}/test_projects/course.tmx", 0])
+      report.record_draw('tilemap', ['/elsewhere/maps/a_long_way_down/course.tmx', 2])
+
+      expect(section('draw calls')).to eq(<<~DRAWS)
+        \s\s     2  tilemap            first("test_projects/course.tmx", 0) last("/elsewhere/maps/a_lon...", 2) spans(1: 0..2)
+      DRAWS
+    end
+  end
+
   describe 'scenes' do
     let(:root) do
       RGame::Engine::Node2D.new.tap { it.add_component(RGame::Engine::Players.new([RGame::Engine::Player.new(id: 0)])) }
