@@ -4,7 +4,7 @@ module RGame
   module Engine
     # A node in a scene graph. We currently have only 2D nodes, but the
     # name reflects this should there ever be a 3D space. Nodes are
-    # containers for both containers and nodes. They extend the signal
+    # containers for both components and nodes. They extend the signal
     # DSL to allow for easy signal usage.
     class Node2D
       extend Engine::Signal::DSL
