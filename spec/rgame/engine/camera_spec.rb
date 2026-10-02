@@ -88,4 +88,85 @@ RSpec.describe RGame::Engine::Camera do
       expect([camera.x, camera.y]).to eq([0.0, 0.0])
     end
   end
+
+  # A followed target is read as the camera resolves, which the platform does
+  # after the tick's last update. So a target moved after `follow` was called is
+  # where the camera looks, whatever moved it and whenever.
+  describe '#follow' do
+    # A parentless node is pinned to the origin, so a target hangs under a root.
+    let(:root) { RGame::Engine::Node2D.new }
+    let(:target) { root.add_node(RGame::Engine::Node2D.new(x: 250.0, y: 250.0)) }
+
+    it 'reads the target where it is as the camera resolves' do
+      camera.follow(target)
+      target.x = 300.0
+      camera.resolve(100, 100)
+      expect([camera.x, camera.y]).to eq([250.0, 200.0])
+    end
+
+    it 'answers target_x and target_y with where the target is now' do
+      camera.follow(target)
+      target.y = 280.0
+      expect([camera.target_x, camera.target_y]).to eq([250.0, 280.0])
+    end
+
+    it 'shifts the point it looks at by the offsets' do
+      camera.follow(target, offset_x: 8.0, offset_y: -24.0)
+      expect([camera.target_x, camera.target_y]).to eq([258.0, 226.0])
+    end
+
+    it 'stops following on center_on, since the later call wins' do
+      camera.follow(target)
+      camera.center_on(40, 60)
+      target.x = 400.0
+      expect([camera.target_x, camera.target_y]).to eq([40, 60])
+    end
+
+    it 'replaces a center_on' do
+      camera.center_on(40, 60)
+      camera.follow(target)
+      expect(camera.target_x).to eq(250.0)
+    end
+
+    it 'refuses a target with no world position, naming its class' do
+      expect { camera.follow(:hero) }.to raise_error(TypeError, /world_x and world_y, not Symbol/)
+    end
+
+    # resolve runs every frame, once per viewport.
+    it 'resolves a moving target without allocating' do
+      camera.follow(target, offset_x: 8.0, offset_y: 8.0)
+      expect do
+        target.x += 1.0
+        camera.resolve(100, 100)
+      end.to allocate_nothing
+    end
+  end
+
+  describe '#unfollow' do
+    let(:root) { RGame::Engine::Node2D.new }
+    let(:target) { root.add_node(RGame::Engine::Node2D.new(x: 250.0, y: 250.0)) }
+
+    it 'keeps looking where the target is as it lets go' do
+      camera.follow(target, offset_y: 10.0)
+      camera.unfollow(target)
+      target.x = 400.0
+      expect([camera.target_x, camera.target_y]).to eq([250.0, 260.0])
+    end
+
+    it 'leaves a camera that follows something else since' do
+      other = root.add_node(RGame::Engine::Node2D.new(x: 30.0, y: 40.0))
+      camera.follow(target)
+      camera.follow(other)
+      camera.unfollow(target)
+      other.x = 90.0
+      expect(camera.target_x).to eq(90.0)
+    end
+
+    it 'leaves a center_on alone' do
+      camera.follow(target)
+      camera.center_on(40, 60)
+      camera.unfollow(target)
+      expect([camera.target_x, camera.target_y]).to eq([40, 60])
+    end
+  end
 end

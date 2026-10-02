@@ -21,6 +21,21 @@ module RGame
       # `offset_x` / `offset_y` shift the point being centred on, for a node
       # whose origin is not what should be in the middle of the screen — a
       # bottom-anchored sprite usually wants its feet, not its head.
+      #
+      # ## The camera reads the node, so no sibling's order shows
+      #
+      # This hands the camera the node rather than a position, through
+      # Camera#follow. The camera reads where the node is as the frame is drawn,
+      # after every update, so it centres on where the node is now in either
+      # add order. A position copied in `_update` was read before or after the
+      # node's mover stepped, and the node sat a step off centre when this came
+      # first.
+      #
+      # It points the camera as the node enters the tree, so the first frame
+      # already shows the node. It points it again each tick the node updates,
+      # so a scene uncovered by a pop takes back a camera the scene above it
+      # held. As the node leaves the tree, the camera stays where the node was,
+      # unless something else has pointed it since.
       class CameraFollow < Engine::Component
         def initialize(camera:, offset_x: 0.0, offset_y: 0.0)
           super()
@@ -29,15 +44,14 @@ module RGame
           @rgame_offset_y = offset_y
         end
 
-        # A node runs its components before its own `_update`, so this reads
-        # the node's world position from before whatever moves it this tick, and
-        # the camera trails the node's own movement by one step (a couple of
-        # pixels at walking speed). That is deliberate and uniform: everything
-        # drawn through this camera trails equally, so nothing drifts apart on
-        # screen. Reading it later — from the node's own hook, say — would put
-        # this component's ordering among its siblings on show instead.
-        def _update(_dt)
-          @rgame_camera.center_on(node.world_x + @rgame_offset_x, node.world_y + @rgame_offset_y)
+        def _attach = point_camera
+        def _update(_dt) = point_camera
+        def _detach = @rgame_camera.unfollow(node)
+
+        private
+
+        def point_camera
+          @rgame_camera.follow(node, offset_x: @rgame_offset_x, offset_y: @rgame_offset_y)
         end
       end
     end

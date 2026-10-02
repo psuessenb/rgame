@@ -140,6 +140,30 @@ RSpec.describe RGame::Engine::Components::Grab do
       expect([hero.y, crate.y]).to eq([84.0, 84.0])
     end
 
+    it 'holds the mover still when suspended, reporting the crate' do
+      hero = hero_at(100.0, 100.0)
+      crate = crate_at(116.0, 100.0)
+      reports = []
+      body(hero).on_blocked { |by, axis| reports << [by, axis] }
+      hold_grab
+      tick
+      crate.suspend
+      walk(hero, 1, 0)
+      tick(10)
+      expect([hero.x, crate.x, reports]).to eq([100.0, 116.0, [[collider(crate), :x]]])
+    end
+
+    it 'stays where it is when suspended, and the mover walks away from it' do
+      hero = hero_at(100.0, 100.0)
+      crate = crate_at(116.0, 100.0)
+      hold_grab
+      tick
+      crate.suspend
+      walk(hero, -1, 0)
+      tick(10)
+      expect([hero.x, crate.x, grab(hero).holding]).to eq([90.0, 116.0, crate])
+    end
+
     it 'stays in hand when the mover backs into a wall, and neither moves' do
       wall_at(84.0, 100.0)
       hero = hero_at(100.0, 100.0)

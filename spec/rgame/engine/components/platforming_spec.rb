@@ -19,6 +19,7 @@ RSpec.describe 'Top-down platforming' do # rubocop:disable RSpec/DescribeClass -
     end
   end
   let(:world) { root.get_component(parts::TileWorld) }
+  let(:still) { engine::Actions.new }
 
   def engine = RGame::Engine
   def parts = RGame::Engine::Components
@@ -49,6 +50,12 @@ RSpec.describe 'Top-down platforming' do # rubocop:disable RSpec/DescribeClass -
              parts::Respawn.new.set_point(60.0, 96.0)], order, x:, y:)
   end
 
+  # A hero that pushes crates, and nothing else of a platformer's.
+  def pusher(x, y)
+    node_of([parts::FeetCollider.new(width: 12, height: 6, layer: :hero),
+             parts::CharacterBody.new(speed: 60, blocked_by: %i[tiles crate], pushes: [:crate])], :forward, x:, y:)
+  end
+
   def npc(x, y, order)
     node_of([parts::FeetCollider.new(width: 12, height: 6, layer: :npc),
              parts::CharacterBody.new(speed: 30, blocked_by: %i[tiles gaps hero]),
@@ -70,6 +77,7 @@ RSpec.describe 'Top-down platforming' do # rubocop:disable RSpec/DescribeClass -
   def body(node) = node.get_component(parts::CharacterBody)
 
   def tick
+    root.control(still)
     root.update(dt)
     root.sweep_freed
   end
@@ -139,6 +147,19 @@ RSpec.describe 'Top-down platforming' do # rubocop:disable RSpec/DescribeClass -
         expect([fell, box.x, box.y, fall(box).falling?]).to eq([true, 370.0, 40.0, false])
       end
 
+      # A hero walking west pushes the crate over the edge and walks on. At 73a74a2 it
+      # pushed the falling crate on, from x 351 to 340.
+      it 'holds a hero pushing the crate into the chasm once it drops, as a fixed crate would' do
+        hero = pusher(390.0, 40.0)
+        body(hero).set_intent(-1, 0)
+        reports = []
+        body(hero).on_blocked { |by, axis| reports << [by.node.equal?(box), axis] }
+        ticks(26) # the crate drops on the 26th, at x 351
+        dropped = [box.x, fall(box).falling?]
+        ticks(10)
+        expect([dropped, box.x, hero.x, reports]).to eq([[351.0, true], 351.0, 365.0, [[true, :x]]])
+      end
+
       # A fall a game starts on the shuttle, as a trapdoor would: the hero leaves it
       # at once, holds still while the shuttle moves on, and comes back on the bank.
       it 'lets a hero fall from the shuttle, which carries it no further, and brings it back' do
@@ -152,6 +173,39 @@ RSpec.describe 'Top-down platforming' do # rubocop:disable RSpec/DescribeClass -
         ticks(20)
         expect([left, held, leaper.x, leaper.y, fall(leaper).falling?]).to eq([[true, true, 2], [x, true], 60.0, 96.0,
                                                                                false])
+      end
+
+      # A game brings a riding hero back with no fall before it. The shuttle updates
+      # before the hero, so it steps once more before the hero's Footing sees the bank.
+      it 'carries a hero respawned off the shuttle no further' do
+        leaper = heroes.first
+        ticks(60)
+        leaper.get_component(parts::Respawn).respawn
+        tick
+        expect([leaper.x, leaper.y, footing(leaper).platform.nil?, shuttle.riders.include?(footing(leaper))])
+          .to eq([60.0, 96.0, true, false])
+      end
+
+      # A cutscene suspends the hero before it brings it back, so the hero's Footing
+      # never updates, and only the shuttle can notice the hero is gone.
+      it 'carries a suspended hero respawned off the shuttle no further' do
+        leaper = heroes.first
+        ticks(60)
+        leaper.suspend
+        leaper.get_component(parts::Respawn).respawn
+        ticks(60)
+        expect([leaper.x, leaper.y, footing(leaper).platform.nil?, shuttle.riders.include?(footing(leaper))])
+          .to eq([60.0, 96.0, true, false])
+      end
+
+      it 'carries a suspended hero that stays on the shuttle, as a cutscene on board wants' do
+        rider = heroes.first
+        ticks(60)
+        rider.suspend
+        offset = rider.x - shuttle.node.x
+        ticks(60)
+        expect([rider.x - shuttle.node.x, footing(rider).platform.equal?(shuttle)])
+          .to match([be_within(1e-6).of(offset), true])
       end
     end
   end

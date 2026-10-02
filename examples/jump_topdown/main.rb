@@ -8,7 +8,7 @@
 #
 # Arrow keys, WASD, a d-pad or a left stick walk the hero; Space or the pad's A
 # button hops. The trees and the fence are solid. It exercises:
-#   - Components::Hop — a parabola in time, written to the node's elevation;
+#   - Components::Hop — a parabola in time, added to the node's elevation;
 #   - Node2D#elevation — how far a node's picture is drawn above where it stands;
 #   - Components::WalkingSprite — the picture that rises with it;
 #   - Components::FeetCollider and Components::CharacterBody — the shape and the
@@ -23,7 +23,7 @@
 # node up the screen: that would be walking north, and the feet box would go with
 # it, into whatever is north of the hero. What leaves the ground is the picture.
 #
-# `Hop` writes its height to `node.elevation`, and `elevation` is not part of the
+# `Hop` adds its height to `node.elevation`, and `elevation` is not part of the
 # transform: `y` does not change, `world_y` does not change, the feet box does not
 # move, and neither does the camera following them. `WalkingSprite` is the one
 # thing that reads it, and draws the sprite that far above the spot. Watch the red
@@ -110,7 +110,7 @@ module JumpTopdownExample
       add_component(Components::CharacterBody.new(speed: SPEED, blocked_by: [:tiles]))
       add_component(Components::PlayerController.new)
       # The one line that differs from `examples/collision_tiles`. It needs nothing
-      # from its siblings and none of them know it is here: it writes the node's
+      # from its siblings and none of them know it is here: it lifts the node's
       # elevation, and the sprite already draws lifted by whatever that is.
       @hop = add_component(Components::Hop.new(peak: HOP_PEAK, duration: HOP_DURATION))
       add_component(Components::CameraFollow.new(

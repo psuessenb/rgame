@@ -21,6 +21,10 @@ module RGame
       # opposite sides then hold it still. A crate that is not stopped by heroes is pushed
       # into the one on the far side, and an overlap that already exists stops nobody.
       #
+      # **A suspended crate stops its pusher as a wall does.** A Fall suspends it as it
+      # drops, and a cutscene may hold it the same way. No mover pushes or drags it until
+      # it resumes.
+      #
       # `pushes:` makes this crate push the crates behind it, up to Mover::PUSH_DEPTH in a
       # row. Its `on_blocked` and `on_unblocked` fire as any mover's do, and Mover#stopped?
       # says whether the last #push was cut short.
@@ -65,9 +69,10 @@ module RGame
         # pushes back nor is stopped by, and `depth` is how many crates stand between it and
         # the first pusher.
         #
-        # Movers call this through `pushes:`; a game may call it too, for a crate a spell
-        # shoves. It re-indexes the collider in the CollisionWorld straight away, so a mover
-        # resolving later in the same step meets the crate where it now is.
+        # Movers call this through `pushes:` and `grabbed`, never on a suspended node. A game
+        # may call it too, for a crate a spell shoves or a cutscene moves, and then it moves
+        # a suspended node as well. It re-indexes the collider in the CollisionWorld straight
+        # away, so a mover resolving later in the same step meets the crate where it now is.
         def push(dx, dy, by: nil, depth: 1)
           from_x = x
           from_y = y

@@ -14,6 +14,41 @@ RSpec.describe RGame::Engine::Components::Velocity do
     end
   end
 
+  # A step changes the velocity before it moves the node, so what sets an acceleration in
+  # `_control` moves the node that tick, in either add order.
+  describe 'acceleration, drag and top speed' do
+    def step(dt, **keywords)
+      velocity = described_class.new(**keywords)
+      RGame::Engine::Node2D.new.add_component(velocity)
+      velocity._update(dt)
+      [velocity.vx, velocity.vy, velocity.node.x, velocity.node.y]
+    end
+
+    it 'adds the acceleration to the velocity before it moves' do
+      expect(step(0.5, ax: 60.0, ay: -20.0)).to eq([30.0, -10.0, 15.0, -5.0])
+    end
+
+    it 'takes drag off the velocity before it moves' do
+      expect(step(0.5, vx: 100.0, vy: 40.0, drag: 1.0)).to eq([50.0, 20.0, 25.0, 10.0])
+    end
+
+    it 'stops a velocity whose drag outweighs the step, rather than turning it round' do
+      expect(step(0.5, vx: 100.0, drag: 3.0)).to eq([0.0, 0.0, 0.0, 0.0])
+    end
+
+    it 'clamps the speed to max_speed, keeping its direction' do
+      expect(step(1.0, vx: 30.0, vy: 40.0, max_speed: 10.0)).to eq([6.0, 8.0, 6.0, 8.0])
+    end
+
+    it 'clamps after it accelerates' do
+      expect(step(1.0, ax: 100.0, max_speed: 10.0)).to eq([10.0, 0.0, 10.0, 0.0])
+    end
+
+    it 'leaves the speed unbounded without max_speed' do
+      expect(step(1.0, vx: 3000.0)).to eq([3000.0, 0.0, 3000.0, 0.0])
+    end
+  end
+
   it 'defaults to no motion' do
     still = described_class.new
     RGame::Engine::Node2D.new(x: 7.0).tap { it.add_component(still) }

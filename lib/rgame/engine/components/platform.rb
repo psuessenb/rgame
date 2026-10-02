@@ -26,6 +26,12 @@ module RGame
       # moves this node hands its step to #carry, and every rider moves by it, through its
       # own Mover's blockers. So a platform carries whatever computed its step, and a rider
       # moves by exactly that step whichever of the two updates first.
+      #
+      # **A rider moved off it rides no further.** A Respawn, a cutscene or a game setting
+      # `x` can move a rider off between two of its Footing's updates, and a suspended
+      # rider's Footing does not update at all. So before each carry, the platform asks
+      # every rider whether it still stands there, by the test boarding uses. It lets go
+      # of one that does not. A suspended rider still on board rides along.
       class Platform < Engine::Component
         # The BoxCollider whose box is the floor.
         sealed_reader :collider
@@ -70,12 +76,14 @@ module RGame
         def leave(footing) = @rgame_riders.delete(footing)
 
         # Carries every rider by (dx, dy), front first along the step, so no rider runs
-        # into one the step has not moved yet. Its node's Mover calls it after each step.
+        # into one the step has not moved yet. It first lets go of every rider no longer
+        # aboard (Footing#aboard?). Its node's Mover calls it after each step.
         #
         # @api private
         def carry(dx, dy)
           return if (dx.zero? && dy.zero?) || @rgame_riders.empty?
 
+          let_go_of_riders_moved_off(dx, dy)
           order_front_first(dx, dy)
           i = 0
           while i < @rgame_riders.size
@@ -103,6 +111,18 @@ module RGame
         def bottom = @rgame_collider.aabb_y + @rgame_collider.aabb_h
 
         private
+
+        def let_go_of_riders_moved_off(dx, dy)
+          i = @rgame_riders.size - 1
+          while i >= 0
+            rider = @rgame_riders[i]
+            unless rider.aboard?(dx, dy)
+              @rgame_riders.delete_at(i)
+              rider.ride_ended
+            end
+            i -= 1
+          end
+        end
 
         def order_front_first(dx, dy)
           i = 1

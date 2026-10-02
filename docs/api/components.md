@@ -55,6 +55,10 @@ and before its children.
   component never learns there is more than one player. Its `pressed?` and
   `released?` answer only for
   [presses the node saw start](input.md#a-node-reads-only-the-presses-it-saw-start).
+  A controller that reads no input sets its intent here too, as
+  [`WanderController`](#wandercontroller) does. Every `_control` in the tree runs
+  before any `_update`, so a sibling that steps in `_update` takes the intent on
+  the same tick, whichever of the two was added first.
 - `_update(dt)` advances state over the timestep.
 - `_draw(renderer, view)` renders through the renderer interface into the
   [viewport being drawn](scene_graph.md#viewports-and-views). Most components
@@ -338,8 +342,12 @@ collider.on_hit { |other| collect if other.layer == :player }
   offsets shift the point the camera centres on, for a node whose origin should not
   sit mid-screen. A character drawn with the default `:bottom` anchor stands on its
   origin, so the camera centres on their feet with no offset.
-- **Phase:** `_update(dt)` calls `camera.center_on` with the node's world origin.
-  The camera trails the node's movement by one step, uniformly.
+- **Phase:** `_attach` hands the node to `Camera#follow`, and `_update(dt)` hands it
+  again each tick. The camera reads the node's world origin as the frame is drawn,
+  after every update. So it centres on where the node is now, from the node's first
+  frame, whichever sibling moves it and in either add order. Handing it again each
+  tick lets a node uncovered by a popped scene take its camera back. `_detach`
+  calls `Camera#unfollow`, and the camera stays where the node was.
 - **Example:** `examples/scroll_map`. The followed node is an invisible rig with a
   `CharacterBody` and a `PlayerController`. That is all "scroll the map with the
   arrow keys" takes.
@@ -995,7 +1003,9 @@ then carries it by every step it takes. The carry goes through the node's
 [`Mover`](#mover), so its own `blocked_by:` still stops it, or straight onto the
 node when it has none. The node leaves as its centre leaves the platform, as its
 `Fall` starts, and as it leaves the tree. `platform` is the one it rides, or `nil`.
-`Footing` finds the node's `Mover` on its first update, as it finds the `Hop`.
+`Footing` looks the `Mover` up at each carry, so a `Mover` added or removed while
+the node rides counts from the platform's next step. Once its `Mover` is gone,
+nothing stops the node, and the platform carries it straight.
 
 ### `Grab`
 
@@ -1045,17 +1055,26 @@ and child that reads its position.
   positive, or the constructor raises `ArgumentError`. `action` names the action
   whose **press edge** starts a hop, so holding it hops once. `action: nil` reads no
   input.
-- **State:** `height` (px above the ground now), `airborne?`, `peak`, `duration`.
+- **State:** `height` (px above the elevation the hop started from), `airborne?`,
+  `peak`, `duration`.
 - **Starting one:** press `action` during `control`, or call `jump`. `jump` does
   nothing while a hop is under way. NPCs and scripts call it.
-- **Phase:** `_update(dt)` advances the arc and writes the height to
-  [`node.elevation`](scene_graph.md#elevation). [`AnimatedSprite`](#animatedsprite)
-  and [`Sprite`](#sprite) draw lifted by it. The arc is an
+- **Phase:** `_update(dt)` advances the arc and sets
+  [`node.elevation`](scene_graph.md#elevation) to the height on top of the
+  elevation the hop started from. [`AnimatedSprite`](#animatedsprite) and
+  [`Sprite`](#sprite) draw lifted by it. The arc is an
   [`Engine::Tween`](toolbox.md#tween--a-value-that-moves-over-time) with the
   `:arc` ease, advanced in `update` and never read off a clock, so a paused node
   hangs in the air.
-- **Lifecycle:** `_attach` lands the node, so a pooled node reused mid-hop starts
-  on the ground.
+- **Lifecycle:** `_detach` lands a node in the air on the elevation it hopped
+  from. That covers a `Hop` removed mid-hop, and a node leaving the tree mid-hop,
+  as a pooled node does.
+
+**A hop lands where it started.** Each hop starts from the elevation the node has
+as it leaves the ground, and gives that elevation back as it lands. A node a game
+has raised to elevation 4 hops from 4 and lands on 4. Once the game sets it back
+to 0, the next hop starts from 0. The `Hop` sets the elevation on every tick of a
+hop, so a game's write to it in mid-air lasts until the next update.
 
 **The game decides what a hop crosses.** `Hop` knows nothing about tiles or
 colliders. A [`CharacterBody`](#characterbody) blocked by a wall stays blocked while
@@ -1408,6 +1427,13 @@ A `Pushable` may declare `pushes:` too, which is how a crate pushes a crate. One
 moves at most `Mover::PUSH_DEPTH` crates in a row, 4; the next one stops the chain as a
 wall would. A pushed node never pushes the node that pushed it.
 
+**A step pushes no [suspended](scene_graph.md#pausing-a-subtree) node.** A
+[`Fall`](#fall), a [`Cutscene`](#cutscene)'s `pause:` and a
+[room's move](scene_graph.md#a-move-lands-in-the-sweep) each suspend a node to take it
+out of play. A suspended crate stops a step as a crate against a wall does, and a
+crate pushed into it stops there too. `Pushable#push` itself still moves a suspended
+node, for a game that calls it.
+
 **A mover drags what it holds.** `grabbed` is a `Pushable` the mover moves with every
 step, or `nil`; [`Grab`](#grab) sets it. On each axis the crate moves first, passing
 through the mover, and the mover follows as far as the crate went, passing through
@@ -1419,6 +1445,8 @@ two always move together:
 - **A crate that cannot move holds the mover still**, and `on_blocked` reports the
   crate's collider. A mover backed into a wall holds the crate still, and reports
   the wall.
+- **A suspended crate is not dragged.** The mover takes a plain step instead: it
+  walks away from the crate freely, and walking into the crate stops it.
 
 **A platform's mover carries its riders.** A mover whose node holds a
 [`Platform`](#platform) measures the node's world position around each step, and
@@ -1499,8 +1527,7 @@ navigator.go_to(200.0, 360.0) # => true — the hero sets off; false when there 
   navigator that should stay off solid tiles while walking declares `:tiles`, like
   any mover.
 - **Lifecycle:** `_attach` raises when the scene has no `TileWorld` to plan over.
-  It also looks up the node's `BoxCollider`, if any. Calling `go_to` before the
-  node is in the tree raises too.
+  Calling `go_to` before the node is in the tree raises too.
 - **`go_to(world_x, world_y)`** plans from where the node stands and starts walking
   at once, from exactly there. A navigator halfway along one route turns onto the
   next without a jump. It returns `true`, or `false` when no route exists: the
@@ -1509,7 +1536,10 @@ navigator.go_to(200.0, 360.0) # => true — the hero sets off; false when there 
   `go_to`, even for a target in the node's own cell; it fires on the next step.
 - **The anchor.** The centre of the collider's box reaches the target: the feet,
   for a [`FeetCollider`](#feetcollider). On a node without a collider, the origin
-  does. The walk ends with the anchor on the centre of the target tile.
+  does. The walk ends with the anchor on the centre of the target tile. `go_to`
+  looks up the node's `BoxCollider` each time it plans, so a collider added or
+  removed later counts from the next route. A route under way keeps the anchor it
+  was planned for.
 - **Readers:** `cells` returns the route as the search found it,
   `[[col, row], ...]` from start tile to target, or `nil` before the first `go_to`.
   Use it to draw the route. `path` returns the smoothed
@@ -1742,6 +1772,11 @@ raft.add_component(RGame::Engine::Components::PathFollow.new(speed: 40, path: ro
   by exactly its own step, front first along the step, so no rider runs into one not
   yet moved. A rider moves by that step whichever of the two updates first. A node
   that boards on a tick the platform has already moved rides from the next one.
+- **It lets go of a rider moved off it.** Before each carry, it asks every rider
+  whether the centre of its box still stands on the platform, as boarding does. It
+  lets go of one that does not. So a node that a [`Respawn`](#respawn) brings back,
+  or that a game moves by setting `x`, rides no further, suspended or not. A
+  suspended rider still on board rides along.
 - **State:** `riders`, the `Footing`s standing on it now. `collider`, the box, and
   `left`, `top`, `right` and `bottom`, its edges in world pixels.
 - **Example:** `examples/moving_platforms` shuttles a raft across a chasm, read
@@ -1803,6 +1838,10 @@ from opposite sides then hold it still, and both stop against it. A crate that h
 do not stop is pushed into the hero on the far side, and neither stops the other
 while they overlap. Two players pushing side by side move it as far as one would.
 
+**A suspended crate stops its pusher as a wall does.** A [`Fall`](#fall) suspends it
+as it drops, and a cutscene may hold it the same way. No mover pushes or drags it
+until it resumes.
+
 - **Construct:** `Pushable.new(blocked_by:, pushes: [])`. `blocked_by:` is what stops
   the crate. `pushes:` makes it push the crates behind it, as for any
   [`Mover`](#mover).
@@ -1810,8 +1849,9 @@ while they overlap. Two players pushing side by side move it as far as one would
   [`BoxCollider`](#boxcollider), which is what a pusher runs into, or the scene has
   no [`CollisionWorld`](#collisionworld), which is where a pusher finds it.
 - **Push:** `push(dx, dy, by: nil, depth: 1)` moves the node as far as `blocked_by:`
-  allows. Movers call it through `pushes:` and `grabbed`, and a game may call it
-  directly, for a crate a spell shoves. `by` is the node pushing or pulling, which
+  allows. Movers call it through `pushes:` and `grabbed`, never on a suspended node.
+  A game may call it directly, for a crate a spell shoves or a cutscene moves, and
+  then it moves a suspended node as well. `by` is the node pushing or pulling, which
   the crate neither pushes back nor is stopped by.
   It re-indexes the collider at once, so a mover resolving later in the same step
   meets the crate where it now is.
@@ -2035,14 +2075,22 @@ two matches is one candidate.
 **Inertial ship flight on top of a `Velocity` sibling.** A turn axis rotates the
 node, and a thrust axis accelerates it along its heading.
 
-- **Construct:** `ThrustController.new(turn_speed:, accel:, max_speed:, drag: 0.0,
-  turn_action: :turn, thrust_action: :thrust)`.
+- **Construct:** `ThrustController.new(turn_speed:, accel:, turn_action: :turn,
+  thrust_action: :thrust)`. Drag and the top speed are the `Velocity`'s `drag:` and
+  `max_speed:`.
 - **Lifecycle:** `_attach` looks up the node's `Velocity` with `require_sibling`,
-  so a missing one raises at once instead of surfacing later as a `nil`.
-- **Phase:** `_control(actions)` reads intent: turn sets `velocity.spin`, and thrust
-  is stored. `_update(dt)` accelerates along the heading, applies drag, and clamps to
-  `max_speed`. Angle 0 points up, so forward is `(sin θ, −cos θ)`. Firing is not part
-  of this component.
+  so a missing one raises at once instead of surfacing later as a `nil`. `_detach`
+  gives the `Velocity` back the `spin`, `ax` and `ay` it had at attach, so a ship
+  whose controller is removed drifts on.
+- **Phase:** it writes in `_control(actions)` only. The turn axis times
+  `turn_speed` sets `velocity.spin`. The thrust axis times `accel` sets `velocity.ax`
+  and `velocity.ay`, along the heading. The `Velocity` integrates both in its own
+  step, so the first thrust moves the ship on the tick it starts, in either add
+  order.
+- **Heading:** angle 0 points along +x, so forward is `(cos θ, sin θ)`. Thrust
+  follows the angle the node has in `_control`, before that tick's turn.
+
+Firing is not part of this component.
 
 ### `TileWorld`
 
@@ -2223,15 +2271,26 @@ fade.value   # read in the node's _draw
 
 ### `Velocity`
 
-**Integrates linear and angular velocity into the node's transform each step.**
+**Integrates acceleration into the velocity, and the velocity into the node's
+transform, each step.**
 
-- **Construct:** `Velocity.new(vx: 0.0, vy: 0.0, spin: 0.0, blocked_by: [], pushes: [])`.
+- **Construct:** `Velocity.new(vx: 0.0, vy: 0.0, spin: 0.0, ax: 0.0, ay: 0.0,
+  drag: 0.0, max_speed: nil, blocked_by: [], pushes: [])`.
   [`Mover`](#mover) decides what may stop it, as for a `CharacterBody`.
-- **State:** `vx`, `vy` and `spin` are read/write. A controller, or the node's own
-  `_control` hook, writes them as movement intent.
-- **Phase:** `_update(dt)` moves the node by `vx*dt` and `vy*dt` through `apply_move`.
-  It adds `spin*dt` to `node.angle` directly: a collision box does not turn with its
-  node, so nothing can block a rotation.
+- **State:** `vx`, `vy`, `spin`, `ax` and `ay` are read/write. A controller, or the
+  node's own `_control` hook, writes them as movement intent.
+- **Phase:** `_update(dt)` changes the velocity first, and moves the node with the
+  result:
+  1. It adds `ax*dt` and `ay*dt` to `vx` and `vy`.
+  2. It keeps `1 - drag*dt` of the velocity, and none once that falls below zero.
+  3. It scales the velocity down to `max_speed`, if the speed is over it. `nil`
+     caps nothing.
+  4. It moves the node by `vx*dt` and `vy*dt` through `apply_move`.
+  5. It adds `spin*dt` to `node.angle` directly: a collision box does not turn with
+     its node, so nothing can block a rotation.
+
+  An acceleration set in `_control` therefore moves the node on the same tick,
+  whichever component was added first.
 - **Blocked:** a stopped step leaves `vx` and `vy` unchanged. They are the intent.
   The game decides what a stop does to them, whether nothing, zero or a bounce, in an
   `on_blocked` handler. To block a `ThrustController` ship, declare `blocked_by:` on
@@ -2286,11 +2345,18 @@ one of eight or idle, and holds it. A wall that blocks it triggers an early re-r
 - **Lifecycle:** `_attach` looks up the node's `CharacterBody` with
   `require_sibling`. With no `rng:`, it finds the root's `RandomSource`, and
   raises `KeyError` naming it when the root has none.
-- **Phase:** `_update(dt)` counts down and re-rolls on timeout or when blocked.
-  "Blocked" means the body meant to move and its [`stopped?`](#mover) is true: its
-  step was cut short on either axis. A body with nothing declared is never blocked.
+- **Phase:** `_control(actions)` re-rolls once the timer has run out, or when the
+  body is blocked, and ignores `actions`. `_update(dt)` only counts the timer down.
+  So the body steps along a new heading on the tick it is rolled, whichever of the
+  two components was added first.
+- **Blocked:** the body meant to move, and its [`stopped?`](#mover) is true: its
+  last step was cut short on either axis. The next `_control` re-rolls, and that
+  tick's step takes the new heading. A body with nothing declared is never blocked.
   One riding a [`Platform`](#platform) re-rolls at the platform's edge, though the
   platform moves it every tick.
+- **Not controlled:** a node nothing controls rolls nothing. Under a
+  [`SceneStack`](scene_graph.md#scenes-scenestack)'s reveal, a wanderer keeps its
+  heading, and one that has just arrived stands still, as its `CharacterBody` does.
 - **Example:** `examples/save_load`.
 
 ### `World`

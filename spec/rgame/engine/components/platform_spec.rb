@@ -144,6 +144,15 @@ RSpec.describe RGame::Engine::Components::Platform do
       expect([footing(node).platform, node.x - platform.node.x]).to match([platform, be_within(1e-9).of(-1.0)])
     end
 
+    it 'keeps a rider hopping from elevation 4 aboard, and lands it back on 4' do
+      platform = platform_at(80.0, 24.0, vx: 60)
+      node = rider_at(80.0, 24.0, hop: true)
+      node.elevation = 4
+      node.get_component(parts::Hop).jump
+      ticks(32)
+      expect([footing(node).platform, node.elevation]).to eq([platform, 4])
+    end
+
     it 'does not ride where the ground is under it, though the box covers it' do
       platform = platform_at(48.0, 24.0, vx: 60) # box 32..64: ground to 48
       node = rider_at(40.0, 24.0)
@@ -159,6 +168,15 @@ RSpec.describe RGame::Engine::Components::Platform do
       expect(node.x - platform.node.x).to be_within(1e-9).of(-5.0)
     end
 
+    it 'carries a rider straight by its step once its Mover is removed' do
+      platform = platform_at(80.0, 24.0, vx: 60)
+      node = rider_at(76.0, 24.0)
+      tick
+      node.remove_component(parts::CharacterBody)
+      ticks(20)
+      expect(node.x - platform.node.x).to be_within(1e-9).of(-5.0)
+    end
+
     it 'leaves the platform as the node steps off it onto the ground' do
       platform = platform_at(64.0, 24.0) # box 48..80, flush with the ground's edge at 48
       node = rider_at(52.0, 24.0)
@@ -166,6 +184,49 @@ RSpec.describe RGame::Engine::Components::Platform do
       node.get_component(parts::CharacterBody).set_intent(-1, 0)
       ticks(10)
       expect([footing(node).platform, platform.riders]).to eq([nil, []])
+    end
+
+    # The platform updates before the rider, so it steps before the rider's Footing sees
+    # the node gone.
+    it 'lets go of a rider a game moves off it, before carrying it' do
+      platform = platform_at(80.0, 24.0, vx: 60)
+      node = rider_at(80.0, 24.0)
+      tick
+      node.x = 20.0
+      tick
+      expect([node.x, footing(node).platform.nil?, platform.riders.empty?]).to eq([20.0, true, true])
+    end
+
+    # Over the gap behind the platform, which moves away from it. Suspended, the node
+    # neither falls nor leaves the platform by its own update.
+    it 'lets go of a suspended rider a game moves off it, whose Footing never updates' do
+      platform = platform_at(80.0, 24.0, vx: 60)
+      node = rider_at(80.0, 24.0)
+      tick
+      node.suspend
+      node.x = 52.0
+      ticks(30)
+      expect([node.x, footing(node).platform.nil?, platform.riders.empty?]).to eq([52.0, true, true])
+    end
+
+    it 'lets go of a suspended rider moved onto ground its box covers, as boarding would' do
+      platform = platform_at(56.0, 24.0, vx: 60) # box 40..72: ground to 48
+      node = rider_at(60.0, 24.0)
+      tick
+      node.suspend
+      node.x = 44.0
+      ticks(10)
+      expect([node.x, footing(node).platform.nil?, platform.riders.empty?]).to eq([44.0, true, true])
+    end
+
+    it 'carries a suspended rider that stays on it' do
+      platform = platform_at(80.0, 24.0, vx: 60)
+      node = rider_at(76.0, 24.0)
+      tick
+      node.suspend
+      ticks(20)
+      expect([node.x - platform.node.x, footing(node).platform.equal?(platform)])
+        .to match([be_within(1e-9).of(-5.0), true])
     end
   end
 
@@ -202,6 +263,15 @@ RSpec.describe RGame::Engine::Components::Platform do
       fall = node.add_component(parts::Fall.new)
       ticks(80)
       expect([node.x, platform.node.x, fall.falling?]).to match([116.0, be_within(1e-9).of(160.0), true])
+    end
+
+    it 'stops the rider through a Mover added after it boarded' do
+      platform_at(80.0, 24.0, width: 48, vx: 60)
+      node = rider_at(80.0, 24.0, body: false)
+      tick
+      node.add_component(parts::CharacterBody.new(speed: 60, blocked_by: [:wall]))
+      ticks(50)
+      expect(node.x).to eq(116.0)
     end
   end
 

@@ -29,7 +29,9 @@ module RGame
       #
       # So what is walked is measured from the **anchor** — the centre of the sibling
       # BoxCollider's box, or the node's origin on a node with none — and a route ends
-      # with the anchor on the centre of the target cell.
+      # with the anchor on the centre of the target cell. `go_to` looks the collider up
+      # each time it plans, so the two may be added in either order. A collider added or
+      # removed later counts from the next route.
       #
       # ## What it does not do
       #
@@ -56,7 +58,6 @@ module RGame
           @rgame_world = node.system(TileWorld) ||
                          raise("#{mover_name} plans routes over the scene's TileWorld, and the scene " \
                                'has none. Mount one, or use a PathFollow and hand it a path.')
-          @rgame_anchor = node.get_component(BoxCollider)
         end
 
         # Plan from where the node stands to the cell containing (world_x, world_y), and
@@ -92,7 +93,7 @@ module RGame
         private
 
         def measure_anchor
-          box = @rgame_anchor&.box
+          box = node.get_component(BoxCollider)&.box
           @rgame_box_w = box ? box.width : 0
           @rgame_box_h = box ? box.height : 0
           @rgame_anchor_x = node.world_x + (box ? box.offset_x + (@rgame_box_w / 2.0) : 0.0)

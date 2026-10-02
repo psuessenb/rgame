@@ -259,9 +259,9 @@ cell without a gap tile, plus the box of every `Platform` over a gap.
 
 Add order makes a `Footing` read its node's `Hop` and mover a tick late at most,
 and [`Footing`](components.md#footing) says what that tick costs. `Footing` finds
-the node's `Hop` and mover on its first update, and its `Fall` each time the node
-loses its footing. A mover finds its `Platform` on its first update too, so those
-may go on in any order.
+the node's `Hop` on its first update, its mover at each carry, and its `Fall` each
+time the node loses its footing. A mover finds its `Platform` on its first update
+too, so those may go on in any order.
 
 ### Layers
 
