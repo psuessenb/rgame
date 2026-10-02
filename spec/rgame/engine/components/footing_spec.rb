@@ -165,11 +165,13 @@ RSpec.describe RGame::Engine::Components::Footing do
       expect(falling?(node)).to be(true)
     end
 
-    it 'falls on the first tick off the floor with no coyote time' do
+    it 'falls on the first tick off the floor with no coyote time, where on_fell sees it' do
       node = hero(coyote: 0)
+      fell_at = nil
+      node.get_component(parts::Fall).on_fell { fell_at = node.x }
       walk_off(node)
 
-      expect(falling?(node)).to be(true)
+      expect([falling?(node), fell_at, node.x]).to eq([true, 64.0, 64.0])
     end
   end
 
@@ -196,7 +198,7 @@ RSpec.describe RGame::Engine::Components::Footing do
       ticks(30)
       expect([hop(node).airborne?, falling?(node)]).to eq([true, false])
 
-      ticks(2)
+      tick
       expect([hop(node).airborne?, falling?(node)]).to eq([false, true])
     end
 
@@ -303,6 +305,85 @@ RSpec.describe RGame::Engine::Components::Footing do
       ticks(40)
 
       expect([falling?(node), node.world_x]).to eq([false, 104.0])
+    end
+  end
+
+  # The Footing reads what its Hop and its mover did this tick only when they update
+  # before it, as they do in every other group here. Added after it, each is read a
+  # tick late, and the mover still takes its step on the tick the fall starts.
+  describe 'a sibling added after it' do
+    let(:hop_after) { %i[body footing hop fall shrink] }
+    let(:mover_after) { %i[hop footing body fall shrink] }
+
+    it 'falls on the tick after it lands on a gap, with the Hop after it' do
+      node = hero(order: hop_after, x: 110.0)
+      body(node).set_intent(1, 0)
+      hop(node).jump
+      ticks(31)
+      expect([hop(node).airborne?, falling?(node)]).to eq([false, false])
+
+      tick
+      expect(falling?(node)).to be(true)
+    end
+
+    it 'falls on the second tick off the floor with no coyote time, a step past on_fell, with the mover after it' do
+      node = hero(order: mover_after, coyote: 0)
+      fell_at = nil
+      node.get_component(parts::Fall).on_fell { fell_at = node.x }
+      walk_off(node)
+      expect(falling?(node)).to be(false)
+
+      tick
+      expect([falling?(node), fell_at, node.x]).to eq([true, 64.0, 65.0])
+    end
+
+    it 'crosses with a hop seven ticks after the step off, with the mover after it' do
+      node = hero(order: mover_after)
+      walk_off(node)
+      ticks(6)
+      hop(node).jump
+      ticks(40)
+
+      expect([falling?(node), node.world_x]).to eq([false, 110.0])
+    end
+
+    it 'falls when the hop comes eight ticks after the step off, with the mover after it' do
+      node = hero(order: mover_after)
+      walk_off(node)
+      ticks(7)
+      hop(node).jump
+
+      expect(falling?(node)).to be(true)
+    end
+  end
+
+  # From 48 the hop lands on tick 31 at 79, a step inside the narrow gap's far edge
+  # at 80. From 49 it lands at 80, on the floor past it. With the Hop on one side
+  # of the Footing and the mover on the other, the Footing judges the landing where
+  # the node stood a step away.
+  describe "a landing a step from a gap's edge" do
+    def hop_from(x, order)
+      node = hero(order: order, x: x)
+      body(node).set_intent(1, 0)
+      hop(node).jump
+      ticks(35)
+      node
+    end
+
+    it 'falls landing inside the edge, with the Hop and the mover before it' do
+      expect(falling?(hop_from(48.0, %i[body hop footing fall shrink]))).to be(true)
+    end
+
+    it 'stands landing inside the edge, with only the Hop after it' do
+      expect(falling?(hop_from(48.0, %i[body footing hop fall shrink]))).to be(false)
+    end
+
+    it 'stands landing past the edge, with the Hop and the mover before it' do
+      expect(falling?(hop_from(49.0, %i[body hop footing fall shrink]))).to be(false)
+    end
+
+    it 'falls landing past the edge, with only the mover after it' do
+      expect(falling?(hop_from(49.0, %i[hop footing body fall shrink]))).to be(true)
     end
   end
 end

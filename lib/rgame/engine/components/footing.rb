@@ -9,19 +9,27 @@ module RGame
       # a gap loses its footing, and its Components::Fall starts, if it has one.
       #
       #   hero.add_component(FeetCollider.new(width: 12, height: 6))
+      #   hero.add_component(CharacterBody.new(speed: 80))
       #   hero.add_component(Hop.new(peak: 18, duration: 0.5))
       #   hero.add_component(Footing.new(coyote: 0.1))
       #   hero.add_component(Fall.new)
       #   hero.add_component(Shrink.new)
       #
       # **A node in the air never falls.** A node with a Hop that is `airborne?` crosses
-      # a gap, and one that lands on a gap loses its footing on the tick it lands. That
-      # is all a jump over a chasm needs: Hop knows nothing of gaps, and this reads only
-      # whether the node is in the air.
+      # a gap. One that lands on a gap loses its footing on the tick it lands, or on the
+      # next with the Hop added after this. That is all a jump over a chasm needs: Hop
+      # knows nothing of gaps, and this reads only whether the node is in the air.
       #
       # **Coyote time.** A node that walks off the floor loses its footing once it has
       # been off it for more than `coyote` seconds, so a hop pressed just after the edge
-      # still counts. #coyote_left says how much is left, for a game that shows it.
+      # still counts. With its mover added after this, the node loses it a tick later.
+      # #coyote_left says how much is left, for a game that shows it.
+      #
+      # **A sibling added after this is read a tick late.** With the mover on one side of
+      # this and the Hop on the other, this judges a landing where the node stood a step
+      # away. So a landing within a step of a gap's edge can count on the other side of
+      # it. A mover added after this still takes its step on the tick the fall starts,
+      # after `on_fell`, so the node falls a step past where `on_fell` saw it.
       #
       # **The fall is the node's Fall.** This looks it up each time the node loses its
       # footing, so it may be added in any order, or later. A node with none stands over
@@ -54,7 +62,8 @@ module RGame
         sealed_reader :platform
 
         # `coyote` is in seconds, 0 or more, or it raises ArgumentError. `coyote: 0`
-        # drops the node on the first tick off the floor.
+        # drops the node on the first tick off the floor, with its mover added before
+        # this. With the mover after, it drops on the second, a step further on.
         def initialize(coyote: 0.1)
           super()
           self.coyote = coyote

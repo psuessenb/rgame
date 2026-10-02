@@ -952,6 +952,7 @@ footing, and its [`Fall`](#fall) starts, if it has one.
 
 ```ruby
 hero.add_component(RGame::Engine::Components::FeetCollider.new(width: 12, height: 6))
+hero.add_component(RGame::Engine::Components::CharacterBody.new(speed: 80))
 hero.add_component(RGame::Engine::Components::Hop.new(peak: 18, duration: 0.5))
 hero.add_component(RGame::Engine::Components::Footing.new(coyote: 0.1))
 hero.add_component(RGame::Engine::Components::Fall.new)
@@ -969,7 +970,8 @@ hero.add_component(RGame::Engine::Components::Shrink.new)
   [`Platform`](#platform) the node rides, or `nil`.
 
 **A node in the air never falls.** A node whose [`Hop`](#hop) is `airborne?`
-crosses a gap, and one that lands on a gap loses its footing on the tick it lands.
+crosses a gap. One that lands on a gap loses its footing on the tick it lands,
+with the `Hop` added before the `Footing`, and on the next tick with it added after.
 `Footing` finds the node's `Hop` on its first update, so a `Hop` added after it
 still counts.
 
@@ -979,7 +981,13 @@ At 0.1 s and 60 ticks a second, a hop pressed in any of the six ticks after the
 step off still crosses. That holds with the `Footing` added after the node's
 mover. Added before it, the `Footing` sees the step off a tick later, and the
 window runs seven ticks. `coyote: 0` drops the node on its first tick off the
-floor.
+floor, or on its second with the `Footing` added before the mover.
+
+**The `Footing` reads a sibling added after it a tick late.** With the mover on
+one side of it and the `Hop` on the other, it judges a landing where the node stood
+a step away. So a landing within a step of a gap's edge can count on the other side
+of it. A mover added after the `Footing` still takes its step on the tick the fall
+starts, after `on_fell`, so the node falls a step past where `on_fell` saw it.
 
 **The fall is the node's `Fall`.** `Footing` looks it up each time the node loses
 its footing, so it may be added in any order, or later. A node with none stands

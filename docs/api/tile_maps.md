@@ -243,8 +243,8 @@ cell without a gap tile, plus the box of every `Platform` over a gap.
   [`FeetCollider`](components.md#feetcollider).
 - **A [`Footing`](components.md#footing) drops a node off the floor**, once it
   has been off for more than `coyote` seconds, by starting the node's
-  [`Fall`](components.md#fall). A node that lands on a gap drops on the tick it
-  lands, and a node in the air never falls. The `Fall` takes the node out of play
+  [`Fall`](components.md#fall). A node that lands on a gap drops with no coyote
+  time, and a node in the air never falls. The `Fall` takes the node out of play
   for its `duration`, then brings it back or frees it. A node with no `Fall` stands
   over the gap.
 - **A node rides the `Platform` under its centre**, where the cell is a gap. The
@@ -257,11 +257,11 @@ cell without a gap tile, plus the box of every `Platform` over a gap.
   gap, even one a platform covers. A checkpoint moves only the point of the node
   that touches it.
 
-Add order changes a result by one tick at most. `Footing` finds the node's `Hop`
-on its first update, its mover at each carry, and its `Fall` each time the node
-loses its footing.
-A mover finds its `Platform` on its first update too, so those may go on in any
-order.
+Add order makes a `Footing` read its node's `Hop` and mover a tick late at most,
+and [`Footing`](components.md#footing) says what that tick costs. `Footing` finds
+the node's `Hop` on its first update, its mover at each carry, and its `Fall` each
+time the node loses its footing. A mover finds its `Platform` on its first update
+too, so those may go on in any order.
 
 ### Layers
 
