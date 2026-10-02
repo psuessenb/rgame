@@ -989,12 +989,13 @@ example the doc specs run, and `Grab` and `Interactor` are Targetings that
 **Why not now.** The single-concept examples plan that found the gap is done,
 and no caller asks for one. The
 [component review](research/component-review-findings.md) found two defects in
-`ThrustController`: it answers which actions steer a ship as well as how the
-ship handles, and it writes its `Velocity` in the phase that `Velocity` reads.
-An example built now would be built on the shape their fixes change.
+`ThrustController`. Pull request #184 fixed one: it wrote its `Velocity` in the
+phase that `Velocity` reads. The other stands: it answers which actions steer a
+ship as well as how the ship handles. An example built now would be built on
+the shape that fix changes.
 
-**Trigger.** A fix for either finding, which then has no example to check it
-against, or a reader asking how to fly something.
+**Trigger.** A fix for the finding that stands, which then has no example to
+check it against, or a reader asking how to fly something.
 
 ### A snapshot of the loaded translation tables
 

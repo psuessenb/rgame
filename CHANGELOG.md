@@ -235,8 +235,9 @@ index, not the argument.
   layers a step moves instead of stopping at, and each must be in `blocked_by:`
   too. `RGame::Engine::Components::Pushable` is the thing pushed: a mover with no
   step of its own, stopped by its own `blocked_by:`, and able to push the crates
-  behind it up to `Mover::PUSH_DEPTH` in a row. A mover that declares no
-  `pushes:` moves exactly as before. See
+  behind it up to `Mover::PUSH_DEPTH` in a row. No mover pushes or drags a
+  suspended crate, such as a falling one. A mover that declares no `pushes:`
+  moves exactly as before. See
   [docs/api/components.md](docs/api/components.md#pushable).
 - **A held button drags a crate.** `Components::Grab` holds the nearest
   `Pushable` in range while its action is held, and the node's mover pulls it
@@ -475,6 +476,15 @@ index, not the argument.
   flags an ivar starting with `@rgame_`, read or written, and a literal name
   starting with it given to `instance_variable_get` and its siblings. See
   [docs/api/cli.md](docs/api/cli.md#the-generated-rubocop-configuration).
+- **`Velocity` accelerates.** `Components::Velocity` takes `ax:` and `ay:`, read
+  and written as `ax` and `ay`, and adds them to its velocity each step before it
+  moves the node. `drag:` slows the velocity, and `max_speed:` caps its speed.
+  See [docs/api/components.md](docs/api/components.md#velocity).
+- **A camera follows a node.** `Camera#follow(target, offset_x:, offset_y:)`
+  looks at anything answering `world_x` and `world_y`, read each time the
+  camera resolves, and `Camera#unfollow` lets go and keeps looking where the
+  target was. `Camera#center_on` stops following. See
+  [docs/api/toolbox.md](docs/api/toolbox.md#camera--follow-a-point-clamp-to-the-world).
 
 ### Changed
 
@@ -659,6 +669,11 @@ index, not the argument.
   walker, it writes `WalkingSprite.new(sheet:)`. That faces its mover's heading
   as before, and raises at attach for a sheet missing a walk. See
   [docs/api/components.md](docs/api/components.md#animatedsprite).
+- **A `ThrustController` ship's drag and top speed are its `Velocity`'s.**
+  `ThrustController.new` no longer takes `max_speed:` or `drag:`; pass them to
+  `Velocity.new` instead. A removed `ThrustController` gives the `Velocity` back
+  the spin and acceleration it found. See
+  [docs/api/components.md](docs/api/components.md#thrustcontroller).
 
 ### Removed
 
@@ -745,6 +760,31 @@ index, not the argument.
 - **`TileMap#solid_tile?` allocates nothing on a solid cell.** It allocated an
   object each time it answered `true`, and a mover asks it for every cell its
   box touches.
+- **A `ThrustController` ship moves on the tick its thrust starts**, whichever of
+  it and its `Velocity` was added first. With the `Velocity` added first, it
+  moved a tick late.
+- **`WanderController` moves its body on the tick it rolls a heading, whichever
+  was added first.** It rolled in `_update`, so a `CharacterBody` added before it
+  took each heading a tick late. It now rolls in `_control`, and rolls nothing
+  while its node is not controlled, as under a `SceneStack`'s reveal. See
+  [docs/api/components.md](docs/api/components.md#wandercontroller).
+- **A hop lands on the elevation it started from.** `Components::Hop` set
+  `Node2D#elevation` to 0 as it attached and as it landed, whatever the game had
+  set. A `Hop` removed mid-hop left its node in the air. A hop now starts from
+  the elevation the node has as it jumps, and gives that back as it lands, and
+  when the `Hop` or its node leaves mid-hop. See
+  [docs/api/components.md](docs/api/components.md#hop).
+- **A `Navigator` plans for the collider its node holds when `go_to` runs.** It
+  looked up the node's `BoxCollider` once, at attach. On a node already in the
+  tree, a collider added after the `Navigator` went unseen, and one removed was
+  still measured. See
+  [docs/api/components.md](docs/api/components.md#navigator).
+- **A camera centres on where its node is now.** `Components::CameraFollow`
+  copied its node's position during `update`, so with the component added
+  before the node's mover the camera trailed a step and drew the node off
+  centre. The camera now reads the node as the frame is drawn, in either add
+  order, and from the first frame the node is in the tree. See
+  [docs/api/components.md](docs/api/components.md#camerafollow).
 
 ## [0.4.0] - 2026-09-16
 
