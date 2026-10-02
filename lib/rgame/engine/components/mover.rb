@@ -109,6 +109,13 @@ module RGame
       # chain stops at PUSH_DEPTH, and a pushed node never pushes the node that pushed it, so
       # a ring of crates ends rather than recursing.
       #
+      # **A step neither pushes nor drags a suspended node.** A Fall, a cutscene's `pause:`
+      # and a door's move each suspend a node to take it out of play. So a suspended crate
+      # stops a step as a crate against a wall does, and a crate pushed into it stops there
+      # too. A mover holding one takes a plain step instead: it walks away freely, and
+      # walking into the crate stops it. Pushable#push itself still moves a suspended node,
+      # for a game that calls it.
+      #
       # ## A platform's mover carries its riders
       #
       # A mover whose node is a Platform carries every node standing on it by the step it
@@ -258,7 +265,8 @@ module RGame
         def pushes?(name) = @rgame_pushes.include?(name)
 
         # The Pushable this mover drags with every step, or nil. Grab sets it from
-        # `_control`, before the step that reads it.
+        # `_control`, before the step that reads it. A step drags it only while its node
+        # is not suspended.
         sealed_accessor :grabbed
 
         # Where a step lands. Public, and kept separate from `take_step`, so a mover that
@@ -269,7 +277,7 @@ module RGame
         # writes straight to the node, and a blocked one hands *itself* to its resolver as
         # the actor being moved (see the adapter below).
         def apply_move(dx, dy)
-          return drag(dx, dy) if @rgame_grabbed
+          return drag(dx, dy) if dragging?
 
           unless @rgame_collision
             node.x += dx
@@ -479,10 +487,12 @@ module RGame
           return nil if @rgame_push_depth >= PUSH_DEPTH || !@rgame_pushes.include?(by.layer)
 
           other = by.node
-          return nil if other.nil? || other.equal?(@rgame_pushed_by)
+          return nil if other.nil? || other.equal?(@rgame_pushed_by) || other.suspended?
 
           other.get_component(Pushable)
         end
+
+        def dragging? = @rgame_grabbed && !@rgame_grabbed.node.suspended?
 
         def record_blocker(by, axis)
           return if by.nil? || @rgame_stopped_by.touching?(by)

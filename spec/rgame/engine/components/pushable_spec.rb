@@ -198,6 +198,48 @@ RSpec.describe RGame::Engine::Components::Pushable do
     end
   end
 
+  # Suspended as a cutscene's `pause:` or a door's move holds a node, or a Fall.
+  describe 'a suspended crate' do
+    it 'holds the pusher flush against it, reporting the crate once' do
+      hero = hero_at(100.0, 100.0)
+      crate = crate_at(116.0, 100.0).suspend
+      reports = blocks_of(body(hero))
+      tick(10)
+      expect([hero.x, crate.x, reports]).to eq([100.0, 116.0, [[collider(crate), :x]]])
+    end
+
+    it 'stops a crate pushed into it, as a wall would' do
+      hero = hero_at(100.0, 100.0)
+      first = crate_at(116.0, 100.0, pushes: [:crate])
+      second = crate_at(132.0, 100.0, pushes: [:crate]).suspend
+      tick(10)
+      expect([hero.x, first.x, second.x]).to eq([100.0, 116.0, 132.0])
+    end
+
+    it 'is pushed again once it resumes' do
+      hero_at(100.0, 100.0)
+      crate = crate_at(116.0, 100.0).suspend
+      tick(5)
+      crate.resume
+      tick(10)
+      expect(crate.x).to eq(126.0)
+    end
+
+    it 'allocates nothing on a step it holds still' do
+      hero = hero_at(100.0, 100.0)
+      crate_at(116.0, 100.0).suspend
+      tick(10)
+      expect { body(hero)._update(dt) }.to allocate_nothing
+    end
+
+    # A cutscene that paused the crate may move it from a `run` step.
+    it 'moves when a game pushes it' do
+      crate = crate_at(116.0, 100.0).suspend
+      pushable(crate).push(-4.0, 0.0)
+      expect(crate.x).to eq(112.0)
+    end
+  end
+
   describe 'two pushers' do
     it 'move a crate side by side as far as one would, not twice as far' do
       heroes = [hero_at(100.0, 100.0), hero_at(100.0, 116.0)]

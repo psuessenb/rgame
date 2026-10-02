@@ -26,17 +26,18 @@
 #      translates;
 #   5. **`Falls: 1` in the pad's row only, from tick 617**, while the keyboard's
 #      row keeps `Falls: 0`;
-#   6. **`Checkpoint: second` from tick 798 and `Checkpoint: last` from tick
+#   6. **`Checkpoint: second` from tick 799 and `Checkpoint: last` from tick
 #      1618, in the keyboard's row only**;
 #   7. **`NPC` drawn 3297 times**: once in the whole window for 11 ticks, then
 #      once in each row on all 1643 ticks after. The walker never left the ring.
 #
 # The ticks were read off a traced run. The heroes hop on ticks 143, 191 and
 # 239. The keyboard's hero pushes the crate over the edge on tick 414, and it
-# comes back on 438. The heroes hop for the shuttle on ticks 477 and 482 and
-# land aboard on 507 and 512. The pad's hero steps off on 611 and is back at
-# `first` on 641. The keyboard's hero hops off the shuttle on 732 and lands on
-# 762, hops for the ring on 982 and lands aboard on 1012, and hops off it on
+# comes back on 438. The hero holds east until tick 416, and the falling crate
+# stops it as a wall would. The heroes hop for the shuttle on ticks 477 and 482
+# and land aboard on 507 and 512. The pad's hero steps off on 611 and is back
+# at `first` on 641. The keyboard's hero hops off the shuttle on 732 and lands
+# on 762, hops for the ring on 982 and lands aboard on 1012, and hops off it on
 # 1462, landing on 1492. The walker wanders by the game's RandomSource, and
 # runs with seeds 1 to 5 reach `last` on the same tick.
 
