@@ -1,7 +1,7 @@
 # Respawn across rooms
 
-**Status:** planned at `cee120c`. Steps 0 to 3 are detailed. Steps 4 and 5 are
-rough, and get re-planned once step 3 lands. No step is implemented.
+**Status:** planned at `cee120c`. Step 0 is implemented. Steps 1 to 3 are
+detailed. Steps 4 and 5 are rough, and get re-planned once step 3 lands.
 
 A node with a `Respawn` comes back to the room its point is in. In its own room
 it comes back at once, as today. From another room, the rooms move it there
@@ -429,6 +429,32 @@ The doors in `examples/doors` and `adventure` keep their Tiled property
 doors' Tiled property. `ruby tools/drive_test_project.rb examples/doors/main.rb`
 and the same for `test_projects/adventure/main.rb` enter the same scenes as
 before.
+
+**Landed.** One commit renames the keyword, `Move`'s member, `ask`'s parameter
+and all 8 `_arrive` parameters. It changes 17 files, 128 lines in and 126 out.
+`rake spec` ran 4763 examples with 0 failures in 45.2 s, and `rake spec:core`
+ran 555 with 0 failures. `rake drive:allocations` passed all 44 projects.
+Both room games, driven at the tick counts their scripts name, gave reports
+byte-identical to `main`'s:
+
+| Run | Scenes |
+|---|---|
+| `examples/doors`, `--seed 1 --texts --ticks 900` | 3 builds, 5 moves, 2 frees |
+| `test_projects/adventure`, `--seed 4242 --texts --ticks 1640` | 3 builds, 7 moves, 2 frees |
+
+Where it differed from the sketch:
+
+- **`scene_stack_spec.rb` keeps its `entrance:`.** It is a keyword of the
+  spec's own scene builder, passed through `SceneStack#replace`, and not the
+  move's. `scene_graph.md:820` is the same case. So the grep in **Verify** also
+  lists those 4 lines, beside the doors' property.
+- **Prose that names an entrance stays wherever every move names one.** The
+  town's header, the doors' `_arrive` comment, `examples.md` and "A room built
+  over a Tiled map finds its entrances" are each still true. Step 1c revisits
+  how those rooms look a name up.
+- **The default 240-tick run of each game walks through no door.** It lands
+  only the first move, so the comparison used the scripts' own tick counts.
+- **`Room`'s header example names its table `LOCATIONS`**, not `ENTRANCES`.
 
 ### 1. Named locations on `TileWorld` (pure)
 
