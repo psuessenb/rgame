@@ -103,6 +103,63 @@ RSpec.describe RGame::Engine::Components::Hop do
     expect([hop.airborne?, node.elevation]).to eq([false, 0])
   end
 
+  it 'lands a node whose Hop leaves it mid-hop' do
+    hop.jump
+    10.times { node.update(1.0 / 60) }
+    node.remove_component(described_class)
+    expect([hop.airborne?, node.elevation]).to eq([false, 0])
+  end
+
+  context 'with the node standing at elevation 4' do
+    let(:node) { RGame::Engine::Node2D.new(x: 10, y: 30).tap { it.elevation = 4 } }
+
+    it 'leaves the elevation alone as it attaches' do
+      expect(node.elevation).to eq(4)
+    end
+
+    it 'leaves the elevation alone as the node leaves the tree on the ground' do
+      node.exit_tree
+      expect(node.elevation).to eq(4)
+    end
+
+    it 'adds its arc to the elevation it found' do
+      hop.jump
+      node.update(0.25)
+      expect([hop.height, node.elevation]).to eq([20.0, 24.0])
+    end
+
+    it 'lands on the elevation it found' do
+      hop.jump
+      node.update(0.5)
+      expect([hop.airborne?, hop.height, node.elevation]).to eq([false, 0.0, 4])
+    end
+
+    it 'hops from the elevation the node has as each hop starts' do
+      hop.jump
+      node.update(0.5)
+      node.elevation = 0
+      hop.jump
+      node.update(0.25)
+      peak = node.elevation
+      node.update(0.25)
+      expect([peak, node.elevation]).to eq([20.0, 0])
+    end
+
+    it 'gives the elevation back when it leaves the node mid-hop' do
+      hop.jump
+      10.times { node.update(1.0 / 60) }
+      node.remove_component(described_class)
+      expect([hop.airborne?, node.elevation]).to eq([false, 4])
+    end
+
+    it 'gives the elevation back when the node leaves the tree mid-hop' do
+      hop.jump
+      node.update(0.2)
+      node.exit_tree
+      expect([hop.airborne?, node.elevation]).to eq([false, 4])
+    end
+  end
+
   it 'does not allocate per frame, in the air or on the ground' do
     dt = 1.0 / 60.0
     expect do

@@ -144,6 +144,15 @@ RSpec.describe RGame::Engine::Components::Platform do
       expect([footing(node).platform, node.x - platform.node.x]).to match([platform, be_within(1e-9).of(-1.0)])
     end
 
+    it 'keeps a rider hopping from elevation 4 aboard, and lands it back on 4' do
+      platform = platform_at(80.0, 24.0, vx: 60)
+      node = rider_at(80.0, 24.0, hop: true)
+      node.elevation = 4
+      node.get_component(parts::Hop).jump
+      ticks(32)
+      expect([footing(node).platform, node.elevation]).to eq([platform, 4])
+    end
+
     it 'does not ride where the ground is under it, though the box covers it' do
       platform = platform_at(48.0, 24.0, vx: 60) # box 32..64: ground to 48
       node = rider_at(40.0, 24.0)

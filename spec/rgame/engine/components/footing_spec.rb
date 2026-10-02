@@ -199,6 +199,28 @@ RSpec.describe RGame::Engine::Components::Footing do
       ticks(2)
       expect([hop(node).airborne?, falling?(node)]).to eq([false, true])
     end
+
+    context 'with the node standing at elevation 4' do
+      it 'crosses a gap and lands back on its elevation' do
+        node = hero(x: 50.0)
+        node.elevation = 4
+        body(node).set_intent(1, 0)
+        hop(node).jump
+        ticks(32)
+
+        expect([node.world_x, falling?(node), node.elevation]).to eq([82.0, false, 4])
+      end
+
+      it 'falls at its elevation as it lands on a gap' do
+        node = hero(x: 110.0)
+        node.elevation = 4
+        body(node).set_intent(1, 0)
+        hop(node).jump
+        ticks(32)
+
+        expect([falling?(node), node.elevation]).to eq([true, 4])
+      end
+    end
   end
 
   describe 'with no Fall' do

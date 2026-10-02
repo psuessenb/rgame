@@ -1041,17 +1041,26 @@ and child that reads its position.
   positive, or the constructor raises `ArgumentError`. `action` names the action
   whose **press edge** starts a hop, so holding it hops once. `action: nil` reads no
   input.
-- **State:** `height` (px above the ground now), `airborne?`, `peak`, `duration`.
+- **State:** `height` (px above the elevation the hop started from), `airborne?`,
+  `peak`, `duration`.
 - **Starting one:** press `action` during `control`, or call `jump`. `jump` does
   nothing while a hop is under way. NPCs and scripts call it.
-- **Phase:** `_update(dt)` advances the arc and writes the height to
-  [`node.elevation`](scene_graph.md#elevation). [`AnimatedSprite`](#animatedsprite)
-  and [`Sprite`](#sprite) draw lifted by it. The arc is an
+- **Phase:** `_update(dt)` advances the arc and sets
+  [`node.elevation`](scene_graph.md#elevation) to the height on top of the
+  elevation the hop started from. [`AnimatedSprite`](#animatedsprite) and
+  [`Sprite`](#sprite) draw lifted by it. The arc is an
   [`Engine::Tween`](toolbox.md#tween--a-value-that-moves-over-time) with the
   `:arc` ease, advanced in `update` and never read off a clock, so a paused node
   hangs in the air.
-- **Lifecycle:** `_attach` lands the node, so a pooled node reused mid-hop starts
-  on the ground.
+- **Lifecycle:** `_detach` lands a node in the air on the elevation it hopped
+  from. That covers a `Hop` removed mid-hop, and a node leaving the tree mid-hop,
+  as a pooled node does.
+
+**A hop lands where it started.** Each hop starts from the elevation the node has
+as it leaves the ground, and gives that elevation back as it lands. A node a game
+has raised to elevation 4 hops from 4 and lands on 4. Once the game sets it back
+to 0, the next hop starts from 0. The `Hop` sets the elevation on every tick of a
+hop, so a game's write to it in mid-air lasts until the next update.
 
 **The game decides what a hop crosses.** `Hop` knows nothing about tiles or
 colliders. A [`CharacterBody`](#characterbody) blocked by a wall stays blocked while
