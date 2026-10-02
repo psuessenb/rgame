@@ -7,9 +7,9 @@
 #   ruby examples/save_load/main.rb
 #
 # Arrow keys walk the dog. **F5** saves, **F9** loads, **Delete** throws the save
-# away. Quit and run it again: the dog and the sheep are where you left them,
-# because a save found at startup is loaded before the first frame. It
-# exercises:
+# away. Quit and run it again: the dog and the sheep are back where they were at
+# the last F5. Quitting saves nothing, and a save found at startup is loaded
+# before the first frame. It exercises:
 #   - Util::SaveFile — one JSON file, written atomically, read forgivingly;
 #   - the same Node2D + CharacterBody + controller composition as
 #     `examples/walk`, with the flock on a WanderController instead;
