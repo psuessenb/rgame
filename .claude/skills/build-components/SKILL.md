@@ -69,9 +69,10 @@ By where the second half runs:
 
 **Never a sibling that writes into another in the same phase.** Which one runs
 first is then the add order, as with the `Blocking` sibling above. Reading what
-a sibling changed this phase lags a tick in one add order. That is accepted where
-a tick shows nowhere, as for a camera. Where it shows, the docs state it, as
-`components.md` states the tick it costs `Footing`'s coyote window.
+a sibling changed this phase lags a tick in one add order, and the tick can
+show: a camera that read its node so drew it a step off centre. Where such a lag
+stays, the docs state it, as `components.md` states the tick it costs
+`Footing`'s coyote window.
 
 ## Siblings
 

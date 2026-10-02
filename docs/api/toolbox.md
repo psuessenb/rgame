@@ -537,14 +537,25 @@ for a scrolling view.** It splits the work into two calls:
 
 ```ruby
 camera = RGame::Engine::Camera.new(world_width: map.pixel_width, world_height: map.pixel_height)
-camera.center_on(player_x, player_y)   # in update: what to look at
+camera.follow(player)                   # what to look at, wherever it moves
+camera.center_on(400, 300)              # or a fixed point, which stops following
 camera.resolve(view_width, view_height) # at draw: the offset for *this* viewport
 camera.x, camera.y                      # the resolved offset
 ```
 
-`center_on` records the target, and `target_x` and `target_y` read it back.
-`resolve` computes the offset, clamped so the
-view never shows past the world's edges. `world_width` and `world_height` are
+**`follow(target, offset_x: 0.0, offset_y: 0.0)` looks at anything answering
+`world_x` and `world_y`, such as a node.** The camera keeps the target and reads
+it each time it resolves, so it never trails it. The offsets shift the point
+looked at. A target without both methods raises `TypeError`. `center_on` looks at
+a fixed point instead, and the later of the two calls wins. `unfollow(target)`
+stops following `target` and keeps looking where it is now. While the camera
+follows something else, it does nothing.
+
+`target_x` and `target_y` answer the point looked at: the target's position plus
+the offsets, read at that moment, or the point given to `center_on`.
+
+`resolve` computes the offset, clamped so the view never shows past the world's
+edges. `world_width` and `world_height` are
 optional and writable: a scene sets them when it loads a map. Left `nil`, the
 camera is unbounded and follows its target exactly. With bounds, the target drifts
 off centre near a corner.

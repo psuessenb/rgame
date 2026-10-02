@@ -15,10 +15,9 @@
 #     gap, and through. A body that dropped the whole step instead of the blocked
 #     half would still be standing against the fence with the camera where it
 #     started;
-#   - **the first `tilemap` call at camera (0.0, 0.0), and the second at
-#     (72.0, 51.0).** The first frame is drawn before anything has updated, so the
-#     camera is still at its origin; 72 and 51 are where `CameraFollow` puts it
-#     once it has run once — the hero's start, less half the window, plus the
+#   - **the first `tilemap` call at camera (72.0, 51.0).** The first frame is
+#     drawn before anything has updated, and `CameraFollow` pointed the camera as
+#     the hero entered the tree: the hero's start, less half the window, plus the
 #     offset that centres the camera on the feet rather than the head;
 #   - **translates spanning x −72..434 and y −160..394.** A translate carries the
 #     camera as its opposite, so −72 and −160 are the two camera positions above,

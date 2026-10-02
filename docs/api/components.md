@@ -342,8 +342,12 @@ collider.on_hit { |other| collect if other.layer == :player }
   offsets shift the point the camera centres on, for a node whose origin should not
   sit mid-screen. A character drawn with the default `:bottom` anchor stands on its
   origin, so the camera centres on their feet with no offset.
-- **Phase:** `_update(dt)` calls `camera.center_on` with the node's world origin.
-  The camera trails the node's movement by one step, uniformly.
+- **Phase:** `_attach` hands the node to `Camera#follow`, and `_update(dt)` hands it
+  again each tick. The camera reads the node's world origin as the frame is drawn,
+  after every update. So it centres on where the node is now, from the node's first
+  frame, whichever sibling moves it and in either add order. Handing it again each
+  tick lets a node uncovered by a popped scene take its camera back. `_detach`
+  calls `Camera#unfollow`, and the camera stays where the node was.
 - **Example:** `examples/scroll_map`. The followed node is an invisible rig with a
   `CharacterBody` and a `PlayerController`. That is all "scroll the map with the
   arrow keys" takes.
