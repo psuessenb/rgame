@@ -385,8 +385,8 @@ RSpec.describe RGame::Engine::Components::Cutscene do
       rooms.define(:town) { SpecRoom.new }
       rooms.define(:garden) { SpecRoom.new }
       root.enter_tree
-      rooms.move(hero, to: :town, entrance: 'gate')
-      rooms.move(other_hero, to: :garden, entrance: 'well')
+      rooms.move(hero, to: :town, location: 'gate')
+      rooms.move(other_hero, to: :garden, location: 'well')
       tick
     end
 
@@ -401,7 +401,7 @@ RSpec.describe RGame::Engine::Components::Cutscene do
       moved = rooms
       rooms[:garden].add_component(described_class.new(script do
         wait 0.25
-        run { moved.move(it.first, to: :town, entrance: 'gate') }
+        run { moved.move(it.first, to: :town, location: 'gate') }
       end, context: [other_hero], camera:, pause: [other_hero]))
       tick
       during = [viewports.solo_room.name, town.suspended?, players.accepting_joins, clips]
@@ -414,7 +414,7 @@ RSpec.describe RGame::Engine::Components::Cutscene do
     it 'gives all of it back when a door in a middle step frees its room' do
       moved = rooms
       cutscene = described_class.new(script do
-        run { moved.move(it.first, to: :town, entrance: 'gate') }
+        run { moved.move(it.first, to: :town, location: 'gate') }
         wait 1
       end, context: [other_hero], camera:, pause: [other_hero])
       rooms[:garden].add_component(cutscene)
@@ -426,7 +426,7 @@ RSpec.describe RGame::Engine::Components::Cutscene do
 
     it 'leaves the hero running once both a move and a cutscene that stop it have ended' do
       rooms.transition = RGame::Engine::Scene::Fade.new(cover: 0.25, reveal: 0.25)
-      rooms.move(hero, to: :garden, entrance: 'well')
+      rooms.move(hero, to: :garden, location: 'well')
       3.times { tick }
       rooms[:garden].add_component(described_class.new(script { wait 0.5 }, pause: [hero]))
       during = hero.suspended?

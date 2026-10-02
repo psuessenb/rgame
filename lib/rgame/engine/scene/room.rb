@@ -11,18 +11,19 @@ module RGame
       #       @actors = add_node(RGame::Engine::WorldView.new)
       #     end
       #
-      #     def _arrive(node, entrance)
-      #       node.x, node.y = ENTRANCES.fetch(entrance)
+      #     def _arrive(node, location)
+      #       node.x, node.y = LOCATIONS.fetch(location)
       #       @actors.add_node(node)
       #     end
       #   end
       #
       # **`_arrive` places each node a move brings.** Rooms calls it as the move
-      # lands, after the room entered the tree, with the node and the entrance
-      # the move named. The node is in no room when it comes from another one,
-      # and the hook adds it to a node in this room. It is still here when the
-      # move was a warp inside this room, and adding it to its own parent again
-      # changes nothing. A node `_arrive` leaves outside the room raises.
+      # lands, after the room entered the tree, with the node and the location
+      # the move named, such as an entrance. The node is in no room when it
+      # comes from another one, and the hook adds it to a node in this room. It
+      # is still here when the move was a warp inside this room, and adding it
+      # to its own parent again changes nothing. A node `_arrive` leaves outside
+      # the room raises.
       #
       # A room is its own `scene`, so its systems are found first by the nodes
       # in it. A system it lacks is looked for on the world scene that holds the
@@ -44,9 +45,9 @@ module RGame
           @rgame_players = []
         end
 
-        # Places `node`, which a move brought to this room at `entrance`.
+        # Places `node`, which a move brought to this room at `location`.
         # Empty here, so a room that does not place what arrives raises.
-        def _arrive(node, entrance); end
+        def _arrive(node, location); end
       end
     end
   end

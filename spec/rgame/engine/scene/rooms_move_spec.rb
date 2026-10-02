@@ -78,14 +78,14 @@ RSpec.describe RGame::Engine::Scene::Rooms do
     rooms.define(:town) { SpecRoom.new }
     rooms.define(:garden) { SpecRoom.new }
     root.enter_tree
-    rooms.move([hero, other_hero], to: :town, entrance: 'gate')
+    rooms.move([hero, other_hero], to: :town, location: 'gate')
     tick
     rooms.transition = fade
   end
 
   # Rules 1 and 3.
   it 'covers the moving player\'s region alone, lands once it is covered, and reveals' do
-    rooms.move(hero, to: :garden, entrance: 'well')
+    rooms.move(hero, to: :garden, location: 'well')
     expect(run(9)).to eq([[[0.25, 0], :town, true], [[0.5, 0], :town, true], [[0.75, 0], :town, true],
                           [[1.0, 0], :garden, true], [[0.75, 0], :garden, true], [[0.5, 0], :garden, true],
                           [[0.25, 0], :garden, true], [[0, 0], :garden, false], [[0, 0], :garden, false]])
@@ -94,29 +94,29 @@ RSpec.describe RGame::Engine::Scene::Rooms do
   # Rule 3.
   it 'stops the node with suspend, and leaves its own paused alone' do
     hero.paused = true
-    rooms.move(hero, to: :garden, entrance: 'well')
+    rooms.move(hero, to: :garden, location: 'well')
     expect(run(9) { [hero.paused, hero.suspended?] }.uniq).to eq([[true, true], [true, false]])
   end
 
   it 'leaves a hold another owner keeps on the node, whichever ends first' do
     hero.suspend
-    rooms.move(hero, to: :garden, entrance: 'well')
+    rooms.move(hero, to: :garden, location: 'well')
     run(2)
     hero.resume
     held = run(7) { hero.suspended? }
-    rooms.move(hero, to: :town, entrance: 'gate')
+    rooms.move(hero, to: :town, location: 'gate')
     hero.suspend
     run(9)
     expect([held.uniq, hero.suspended?]).to eq([[true, false], true])
   end
 
   it 'leaves the other player\'s hero running' do
-    rooms.move(hero, to: :garden, entrance: 'well')
+    rooms.move(hero, to: :garden, location: 'well')
     expect(run(9) { other_hero.suspended? }.uniq).to eq([false])
   end
 
   it 'covers both regions for a move of both heroes, and lands them together' do
-    rooms.move([hero, other_hero], to: :garden, entrance: 'well')
+    rooms.move([hero, other_hero], to: :garden, location: 'well')
     expect(run(5) { [covers, rooms.room_of(second)&.name] })
       .to eq([[[0.25, 0.25], :town], [[0.5, 0.5], :town], [[0.75, 0.75], :town], [[1.0, 1.0], :garden],
               [[0.75, 0.75], :garden]])
@@ -126,34 +126,34 @@ RSpec.describe RGame::Engine::Scene::Rooms do
     lost = RGame::Engine::Player.new(id: 2, device: RGame::Util::Controls.gamepad(1))
     players.add(lost)
     newcomer = RGame::Engine::Node2D.new(input_owner: lost)
-    rooms.move(newcomer, to: :garden, entrance: 'well')
+    rooms.move(newcomer, to: :garden, location: 'well')
     tick
     expect(rooms.room_of(lost)&.name).to eq(:garden)
   end
 
   it 'runs a move\'s own transition in place of the rooms\', and none for nil' do
-    rooms.move(hero, to: :garden, entrance: 'well', transition: nil)
+    rooms.move(hero, to: :garden, location: 'well', transition: nil)
     expect(run(1)).to eq([[[0, 0], :garden, false]])
   end
 
   # Rule 10.
   it 'covers again from where the reveal got to, for a move asked during it' do
-    rooms.move(hero, to: :garden, entrance: 'well')
+    rooms.move(hero, to: :garden, location: 'well')
     run(6)
-    rooms.move(hero, to: :town, entrance: 'gate')
+    rooms.move(hero, to: :town, location: 'gate')
     expect(run(3).map { it.first.first }).to eq([0.625, 0.75, 0.875])
   end
 
   it 'keeps the cover under way for a second move asked during it, and lands only that one' do
-    rooms.move(hero, to: :garden, entrance: 'well')
+    rooms.move(hero, to: :garden, location: 'well')
     run(2)
-    rooms.move(hero, to: :town, entrance: 'well')
+    rooms.move(hero, to: :town, location: 'well')
     expect(run(3).map { [it.first.first, it[1]] }).to eq([[0.75, :town], [1.0, :town], [0.75, :town]])
     expect(rooms[:garden]).to be_nil
   end
 
   it 'reports a transition under way' do
-    rooms.move(hero, to: :garden, entrance: 'well')
+    rooms.move(hero, to: :garden, location: 'well')
     under_way = run(8) { rooms.transitioning? }
     expect(under_way).to eq([true] * 7 + [false])
   end
@@ -164,7 +164,7 @@ RSpec.describe RGame::Engine::Scene::Rooms do
     let(:other_bag) { root.add_node(FireListener.new(input_owner: second)) }
 
     it 'is suspended from the request until the reveal ends, and nobody else\'s is' do
-      rooms.move(hero, to: :garden, entrance: 'well')
+      rooms.move(hero, to: :garden, location: 'well')
       suspended = [first.input_suspended?] + run(8) { first.input_suspended? }
 
       expect(suspended).to eq([true] * 8 + [false])
@@ -174,7 +174,7 @@ RSpec.describe RGame::Engine::Scene::Rooms do
     it 'reaches no node of that player under the cover, while the other player\'s still reads theirs' do
       bag
       other_bag
-      rooms.move(hero, to: :garden, entrance: 'well')
+      rooms.move(hero, to: :garden, location: 'well')
       tick
       backend.hold(RGame::Util::Controls::KEY_SPACE)
              .hold(RGame::Util::Controls::PAD_A, device: RGame::Util::Controls.gamepad(0))
@@ -185,7 +185,7 @@ RSpec.describe RGame::Engine::Scene::Rooms do
 
     it 'refuses, once the reveal ends, a press begun under the cover' do
       bag
-      rooms.move(hero, to: :garden, entrance: 'well')
+      rooms.move(hero, to: :garden, location: 'well')
       tick
       backend.hold(RGame::Util::Controls::KEY_SPACE)
       run(8)
@@ -199,7 +199,7 @@ RSpec.describe RGame::Engine::Scene::Rooms do
     end
 
     it 'resumes as the rooms leave the tree mid-move' do
-      rooms.move(hero, to: :garden, entrance: 'well')
+      rooms.move(hero, to: :garden, location: 'well')
       root.remove_node(world)
 
       expect(first.input_suspended?).to be(false)

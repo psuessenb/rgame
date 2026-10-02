@@ -45,7 +45,7 @@ RSpec.describe RGame::Engine::Scene::Rooms do
       rooms.define(:forest, music: :forest, priority: 3) { SpecRoom.new }
       rooms.define(:cellar) { SpecRoom.new }
       root.enter_tree
-      rooms.move([hero, other_hero], to: :town, entrance: 'gate')
+      rooms.move([hero, other_hero], to: :town, location: 'gate')
       tick
       audio.clear
       rooms.transition = fade
@@ -56,7 +56,7 @@ RSpec.describe RGame::Engine::Scene::Rooms do
     end
 
     it 'plays the room of the highest priority, of the rooms players stand in' do
-      rooms.move(other_hero, to: :garden, entrance: 'well', transition: nil)
+      rooms.move(other_hero, to: :garden, location: 'well', transition: nil)
       tick
 
       expect(playing).to eq(%i[garden])
@@ -64,7 +64,7 @@ RSpec.describe RGame::Engine::Scene::Rooms do
     end
 
     it 'is claimed as the move is asked for, and crossfades over the cover and the reveal' do
-      rooms.move(other_hero, to: :garden, entrance: 'well')
+      rooms.move(other_hero, to: :garden, location: 'well')
       asked = out.claimed_music
       4.times { tick }
       halfway = volumes
@@ -76,9 +76,9 @@ RSpec.describe RGame::Engine::Scene::Rooms do
     end
 
     it 'comes back over the move\'s transition once the player of the higher room leaves it' do
-      rooms.move(other_hero, to: :garden, entrance: 'well', transition: nil)
+      rooms.move(other_hero, to: :garden, location: 'well', transition: nil)
       tick
-      rooms.move(other_hero, to: :town, entrance: 'gate')
+      rooms.move(other_hero, to: :town, location: 'gate')
       4.times { tick }
       halfway = volumes
       4.times { tick }
@@ -91,24 +91,24 @@ RSpec.describe RGame::Engine::Scene::Rooms do
     it 'is claimed already as requested fires' do
       claimed = []
       rooms.on_requested { claimed << out.claimed_music }
-      rooms.move(other_hero, to: :garden, entrance: 'well')
+      rooms.move(other_hero, to: :garden, location: 'well')
 
       expect(claimed).to eq(%i[garden])
     end
 
     it 'goes straight to the song every hero ends under, for a move of several' do
-      rooms.move(hero, to: :forest, entrance: 'well', transition: nil)
-      rooms.move(other_hero, to: :garden, entrance: 'well', transition: nil)
+      rooms.move(hero, to: :forest, location: 'well', transition: nil)
+      rooms.move(other_hero, to: :garden, location: 'well', transition: nil)
       tick
       audio.clear
-      rooms.move([hero, other_hero], to: :town, entrance: 'gate', transition: nil)
+      rooms.move([hero, other_hero], to: :town, location: 'gate', transition: nil)
 
       expect(plays).to eq(%w[town.ogg])
       expect(playing).to eq(%i[town])
     end
 
     it 'goes silent once every player stands in rooms that claim nothing' do
-      rooms.move([hero, other_hero], to: :cellar, entrance: 'gate', transition: nil)
+      rooms.move([hero, other_hero], to: :cellar, location: 'gate', transition: nil)
       tick
 
       expect(playing).to be_empty
@@ -123,7 +123,7 @@ RSpec.describe RGame::Engine::Scene::Rooms do
     end
 
     it 'starts nothing again for a warp inside the room' do
-      rooms.move(hero, to: :town, entrance: 'well')
+      rooms.move(hero, to: :town, location: 'well')
       8.times { tick }
 
       expect(plays).to be_empty
@@ -132,7 +132,7 @@ RSpec.describe RGame::Engine::Scene::Rooms do
 
     it 'yields to a claim a game makes over every room' do
       out.claim_music(:battle, :battle, priority: 10)
-      rooms.move(other_hero, to: :forest, entrance: 'well', transition: nil)
+      rooms.move(other_hero, to: :forest, location: 'well', transition: nil)
       tick
 
       expect(playing).to eq(%i[battle])
@@ -161,7 +161,7 @@ RSpec.describe RGame::Engine::Scene::Rooms do
   it 'fades a room\'s song in over the reveal alone, for a player in no room, whose cover is complete at once' do
     rooms.define(:garden, music: :garden, priority: 2) { SpecRoom.new }
     root.enter_tree
-    rooms.move(hero, to: :garden, entrance: 'well', transition: fade)
+    rooms.move(hero, to: :garden, location: 'well', transition: fade)
     4.times { tick }
 
     expect(volumes).to eq(garden: 1.0)
@@ -175,12 +175,12 @@ RSpec.describe RGame::Engine::Scene::Rooms do
       out.claim_music(:primary, room.name) if rooms.room_of(players.primary).equal?(room)
     end
     root.enter_tree
-    rooms.move([hero, other_hero], to: :town, entrance: 'gate')
+    rooms.move([hero, other_hero], to: :town, location: 'gate')
     tick
-    rooms.move(other_hero, to: :garden, entrance: 'well')
+    rooms.move(other_hero, to: :garden, location: 'well')
     tick
     unmoved = playing
-    rooms.move(hero, to: :garden, entrance: 'well')
+    rooms.move(hero, to: :garden, location: 'well')
     tick
 
     expect(unmoved).to eq(%i[town])

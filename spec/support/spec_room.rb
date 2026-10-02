@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 # A Scene::Room that logs what reached it, and places what arrives at a spot
-# per entrance, under a WorldView of its own. The rooms specs build their rooms
+# per location, under a WorldView of its own. The rooms specs build their rooms
 # from it. It logs only when handed a log, so a room built without one
 # allocates nothing.
 class SpecRoom < RGame::Engine::Scene::Room
@@ -17,10 +17,10 @@ class SpecRoom < RGame::Engine::Scene::Room
 
   def _enter_tree = @actors = add_node(RGame::Engine::WorldView.new)
 
-  def _arrive(node, entrance)
-    @arrivals << [node, entrance]
-    node.x = SPOTS.fetch(entrance).first
-    node.y = SPOTS.fetch(entrance).last
+  def _arrive(node, location)
+    @arrivals << [node, location]
+    node.x = SPOTS.fetch(location).first
+    node.y = SPOTS.fetch(location).last
     @actors.add_node(node)
   end
 

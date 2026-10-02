@@ -51,9 +51,9 @@ RSpec.describe DriveTestProject::Report do
       rooms.define(:garden) { SpecRoom.new }
       root.enter_tree
       hero = RGame::Engine::Node2D.new
-      rooms.move(hero, to: :town, entrance: 'gate')
+      rooms.move(hero, to: :town, location: 'gate')
       root.sweep_freed
-      rooms.move(hero, to: :garden, entrance: 'gate')
+      rooms.move(hero, to: :garden, location: 'gate')
       root.sweep_freed
 
       expect(section('scenes')).to eq(<<~SCENES)

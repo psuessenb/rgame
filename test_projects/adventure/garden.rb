@@ -38,8 +38,8 @@ module Adventure
       @actors = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new))['actors']
     end
 
-    def _arrive(hero, entrance)
-      spot = @map.object_named(entrance)
+    def _arrive(hero, location)
+      spot = @map.object_named(location)
       hero.x = spot.x + (Town::SPACING * hero.input_owner.id)
       hero.y = spot.y
       @actors.add_node(hero)

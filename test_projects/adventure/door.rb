@@ -42,6 +42,6 @@ module Adventure
 
     def destination = @to
 
-    def move(hero) = @rooms.move(@party ? @rooms.node.heroes : hero, to: destination, entrance: @entrance)
+    def move(hero) = @rooms.move(@party ? @rooms.node.heroes : hero, to: destination, location: @entrance)
   end
 end

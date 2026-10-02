@@ -95,8 +95,8 @@ module Adventure
       @look.tap { it.follow(Engine::Path.new([[from.x, from.y], [to.x, to.y]])) }
     end
 
-    def _arrive(hero, entrance)
-      spot = @map.object_named(entrance)
+    def _arrive(hero, location)
+      spot = @map.object_named(location)
       hero.x = spot.x + (SPACING * hero.input_owner.id)
       hero.y = spot.y
       @actors.add_node(hero)

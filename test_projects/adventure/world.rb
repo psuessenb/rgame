@@ -73,7 +73,7 @@ module Adventure
       @heroes << hero
       add_node(Engine::PlayerLayer.new(player: player)).add_node(Bag.new(hero: hero, x: 8, y: 8))
       room = @rooms.room_of(@players.primary)
-      @rooms.move(hero, to: room ? room.name : :town, entrance: 'start', transition: room ? nil : ARRIVAL)
+      @rooms.move(hero, to: room ? room.name : :town, location: 'start', transition: room ? nil : ARRIVAL)
     end
   end
 end
