@@ -36,8 +36,11 @@ module RGame
       # leaves as the centre leaves the platform, as its Fall starts, and as it leaves the
       # tree.
       #
-      # It finds the node's Hop and Mover on its first update rather than at attach, so
-      # either added after it, from an `_enter_tree`, still counts.
+      # It looks the Mover up at each carry, so one added or removed while the node rides
+      # counts from the platform's next step. A node whose Mover is gone has nothing left
+      # to stop it, so the platform moves it straight. It finds the Hop, which it reads
+      # every tick, on its first update rather than at attach. So a Hop added after it,
+      # from an `_enter_tree`, still counts.
       class Footing < Engine::Component
         # How far over `coyote` the time off the floor must run before the node loses
         # its footing, in seconds. Six ticks of 1/60 add up to 0.09999999999999999, and
@@ -59,8 +62,7 @@ module RGame
           @rgame_airborne = false
           @rgame_lost = false
           @rgame_hop = nil
-          @rgame_mover = nil
-          @rgame_siblings_known = false
+          @rgame_hop_known = false
           @rgame_platform = nil
         end
 
@@ -80,7 +82,7 @@ module RGame
           @rgame_world = node.system(TileWorld) ||
                          raise("#{self.class} reads the floor from the scene's TileWorld, and the scene has none. " \
                                'Mount one.')
-          @rgame_siblings_known = false
+          @rgame_hop_known = false
           @rgame_left = @rgame_coyote
           @rgame_airborne = false
           @rgame_lost = false
@@ -103,7 +105,7 @@ module RGame
 
         # hot-path
         def _update(dt)
-          find_siblings unless @rgame_siblings_known
+          find_hop unless @rgame_hop_known
           x = @rgame_collider.cx
           y = @rgame_collider.cy
           platform = @rgame_world.platform_under(x, y)
@@ -128,8 +130,9 @@ module RGame
         #
         # @api private
         def ride(dx, dy)
-          if @rgame_mover
-            @rgame_mover.ride(dx, dy)
+          mover = node.get_component(Mover)
+          if mover
+            mover.ride(dx, dy)
           else
             node.world_x += dx
             node.world_y += dy
@@ -160,10 +163,9 @@ module RGame
 
         private
 
-        def find_siblings
-          @rgame_siblings_known = true
+        def find_hop
+          @rgame_hop_known = true
           @rgame_hop = node.get_component(Hop)
-          @rgame_mover = node.get_component(Mover)
         end
 
         def board(platform)
