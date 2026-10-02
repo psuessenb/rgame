@@ -102,6 +102,72 @@ RSpec.describe RGame::Engine::Components::Targeting do
     end
   end
 
+  describe '#target (policy: :facing)' do
+    # A guard at (100, 100) that headed (x, y) for a tick and then stood still. Its body
+    # has no speed, so it turns on the spot.
+    def guard(x, y)
+      body = RGame::Engine::Components::CharacterBody.new(speed: 0.0)
+      targeting = described_class.new(range: 100, having: SpecHostile, policy: :facing)
+      node_at(100, 100, body, RGame::Engine::Components::Facing.new, targeting)
+      body.set_intent(x, y)
+      tick
+      body.set_intent(0.0, 0.0)
+      tick
+      targeting
+    end
+
+    it 'is the nearest enemy in front, over a nearer one behind' do
+      enemy(80, 100)
+      ahead = enemy(160, 100)
+      expect(guard(1.0, 0.0).target).to be(ahead)
+    end
+
+    it 'passes over a nearer enemy to the side' do
+      enemy(100, 85)
+      ahead = enemy(150, 100)
+      expect(guard(1.0, 0.0).target).to be(ahead)
+    end
+
+    it 'is nil when every enemy in range is behind or to the side, however near' do
+      enemy(90, 100)
+      enemy(100, 110)
+      expect(guard(1.0, 0.0).target).to be_nil
+    end
+
+    it 'picks the nearest of several in front' do
+      enemy(100, 30)
+      near = enemy(110, 60)
+      expect(guard(0.0, -1.0).target).to be(near)
+    end
+
+    it 'picks for a node with no mover, the way the game turned it' do
+      facing = RGame::Engine::Components::Facing.new(x: 1)
+      targeting = described_class.new(range: 100, having: SpecHostile, policy: :facing)
+      enemy(160, 100)
+      above = enemy(100, 50)
+      node_at(100, 100, facing, targeting)
+      facing.face(0, -1)
+      tick
+      expect(targeting.target).to be(above)
+    end
+
+    it 'raises at attach for a node with no Facing' do
+      body = RGame::Engine::Components::CharacterBody.new(speed: 0.0)
+      targeting = described_class.new(range: 100, having: SpecHostile, policy: :facing)
+      expect { node_at(100, 100, body, targeting) }
+        .to raise_error(RuntimeError, /Targeting needs a .*Facing on the same node, and there is none/)
+    end
+
+    # Reaches each filter: an enemy behind, one to the side and the one in front.
+    it 'selects without allocating per update' do
+      enemy(80, 100)
+      enemy(100, 110)
+      enemy(150, 100)
+      targeting = guard(1.0, 0.0)
+      expect { targeting._update(1.0 / 60) }.to allocate_nothing
+    end
+  end
+
   describe 'having:, matched by is_a?' do
     it 'finds a subclass of the class it names' do
       boss = node_at(150, 100, circle, SpecBoss.new)

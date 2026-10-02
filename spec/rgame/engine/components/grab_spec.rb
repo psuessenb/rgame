@@ -34,12 +34,13 @@ RSpec.describe RGame::Engine::Components::Grab do
 
   # 60 px/s is a pixel a step. The node's origin is its box's top-left, which is what
   # Targeting measures range from: a crate flush beside it has its centre 25.3 px away.
-  def hero_at(x, y, player: one, blocked_by: %i[tiles wall crate])
+  def hero_at(x, y, player: one, blocked_by: %i[tiles wall crate], policy: :nearest)
     node = RGame::Engine::Node2D.new(x:, y:)
     node.input_owner = player
     node.add_component(components::BoxCollider.new(width: 16, height: 16, layer: :hero))
     node.add_component(components::CharacterBody.new(speed: 60.0, blocked_by:))
-    node.add_component(described_class.new(range: 32))
+    node.add_component(components::Facing.new) if policy == :facing
+    node.add_component(described_class.new(range: 32, policy:))
     scene.add_node(node)
   end
 
@@ -217,6 +218,31 @@ RSpec.describe RGame::Engine::Components::Grab do
       walk(hero, 0, 1)
       tick(10)
       expect([hero.y, movable.y, grab(hero).holding]).to eq([110.0, 110.0, movable])
+    end
+
+    # The crate behind is 11.3 px from the hero's origin, and the one in front 25.3 px.
+    it 'does not hold a nearer crate behind it under policy: :facing' do
+      hero = hero_at(100.0, 100.0, policy: :facing)
+      crate_at(84.0, 100.0)
+      ahead = crate_at(116.0, 100.0)
+      walk(hero, 1, 0)
+      tick
+      walk(hero, 0, 0)
+      hold_grab
+      tick
+      expect(grab(hero).holding).to be(ahead)
+    end
+
+    # Walking back turns the hero away, so the crate it pulls is behind it.
+    it 'keeps hold of a crate it turns away from to pull, under policy: :facing' do
+      hero = hero_at(100.0, 100.0, policy: :facing)
+      crate = crate_at(116.0, 100.0)
+      walk(hero, 1, 0)
+      tick
+      hold_grab
+      walk(hero, -1, 0)
+      tick(10)
+      expect([hero.x, crate.x, grab(hero).holding]).to eq([90.0, 106.0, crate])
     end
 
     it 'lets go of a crate that is freed' do

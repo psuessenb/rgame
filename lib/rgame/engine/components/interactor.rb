@@ -23,6 +23,10 @@ module RGame
       # nothing is in reach. A game draws its prompt over it. #target_for names
       # the node one action would reach.
       #
+      # Under `policy: :facing` it reaches only for nodes in front of its node's
+      # Facing, as Targeting does. A chest behind the hero is never pressed, however
+      # near it is.
+      #
       # The actions are read from whoever owns the node, so two players each
       # press their own target and neither is told the other exists.
       #
@@ -70,6 +74,7 @@ module RGame
 
             interaction = candidate.get_component(Interaction)
             next unless interaction
+            next if @rgame_facing && !@rgame_facing.in_front?(collider.cx, collider.cy)
 
             dx = collider.cx - x
             dy = collider.cy - y

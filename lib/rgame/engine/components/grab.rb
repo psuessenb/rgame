@@ -16,6 +16,10 @@ module RGame
       # A node with no Pushable is never a target, whatever its layer, so a fixed crate
       # does not hide a movable one behind it.
       #
+      # Under `policy: :facing` it takes hold only of a crate in front of its node's
+      # Facing. It keeps that crate while the node turns away to pull it, since a held
+      # crate stays held whatever the target becomes.
+      #
       # It hands the crate to the sibling Mover in `_control`, and the mover moves it in
       # `_update`. Every `_control` in the tree runs before any `_update`, so the crate is
       # always in hand before the step that drags it, whatever order the two components

@@ -606,12 +606,14 @@ shape by answering the same few methods.
     the collider's size, so it reads like a range ring. It skips freed nodes'
     colliders, and may yield a collider more than once, which is fine for selecting.
     Filter by `collider.layer` in the block.
-  - `nearest(x, y, r, layer: nil, having: nil, except: nil)` returns the closest
-    such collider, or `nil`. `layer` keeps the colliders on that layer. `having`
-    keeps those whose node holds that component class or module, matched by
-    `is_a?`, and a node holding two counts once. `except` leaves out one node,
-    such as the asker's own. Both allocate nothing, so a targeting component can
-    call them every frame.
+  - `nearest(x, y, r, layer: nil, having: nil, except: nil, in_front_of: nil)`
+    returns the closest such collider, or `nil`. `layer` keeps the colliders on
+    that layer. `having` keeps those whose node holds that component class or
+    module, matched by `is_a?`, and a node holding two counts once. `except`
+    leaves out one node, such as the asker's own. `in_front_of` takes a
+    [`Facing`](#facing), and keeps only the colliders whose centre lies in front of
+    its node. Both allocate nothing, so a targeting component can call them every
+    frame.
 - **Cell occupancy (grid games):** `cell_empty?(x, y)` answers whether the cell
   containing the **world** point `(x, y)` is free, for questions like "may a pickup
   spawn on this square?". It takes a point, not a region; pass any coordinate inside
@@ -730,6 +732,69 @@ margin reaches half its extent.
 - **One response to the edge per node.** It raises at attach beside a `ScreenWrap`
   or a mover declaring `blocked_by: [:bounds]`; see
   [`WorldBounds.one_response!`](#world).
+
+### `Facing`
+
+**Says which way its node faces.** A game turns it with `face`, and a node with a
+[`Mover`](#mover) also turns as it moves. While the mover heads somewhere, the
+facing is that heading. Once the mover stops, the facing keeps the last heading.
+So a character that walked up to a sign and stopped still faces the sign, and a
+guard with no mover faces wherever the game last turned it.
+[`Targeting`](#targeting)'s `:facing` policy picks through it, and so do
+[`Interactor`](#interactor)'s and [`Grab`](#grab)'s.
+
+```ruby
+require 'rgame'
+
+components = RGame::Engine::Components
+scene = RGame::Engine::Node2D.new.tap { it.scene = it }
+hero = scene.add_node(RGame::Engine::Node2D.new(x: 100, y: 100))
+body = hero.add_component(components::CharacterBody.new(speed: 60))
+facing = hero.add_component(components::Facing.new(y: 1))
+guard = scene.add_node(RGame::Engine::Node2D.new(x: 160, y: 40))
+watch = guard.add_component(components::Facing.new)
+scene.enter_tree
+
+[facing.x, facing.y] # => [0.0, 1.0] — down, as it started
+
+body.set_intent(0, -1) # walk up for a tick, then stop
+scene.update(1.0 / 60)
+body.set_intent(0, 0)
+scene.update(1.0 / 60)
+
+[facing.x, facing.y]                # => [0, -1] — still facing up
+facing.in_front?(hero.world_x, 60)  # => true
+facing.in_front?(140, hero.world_y) # => false — to the side
+
+# The guard has no mover, so it turns only when told: here, towards the hero.
+watch.face(hero.world_x - guard.world_x, hero.world_y - guard.world_y)
+watch.in_front?(hero.world_x, hero.world_y) # => true
+```
+
+- **Construct:** `Facing.new(x: 0.0, y: 0.0)`, the facing it starts with, as
+  `face` takes it. The default faces nowhere.
+- **Turning:** `face(x, y)` turns the node to the direction `(x, y)`, scaled so its
+  larger axis is ±1. So a game may pass the offset to whatever the node should
+  face. `(0, 0)` faces nowhere. While the node's mover heads somewhere, its heading
+  wins, and the next update or answer takes the facing back.
+- **Its mover:** a node needs none. `Facing` finds the node's `Mover` on first use
+  after each attach, so the two may be added in either order. A `Mover` added after
+  that first use goes unseen until the node enters the tree again. A node with two
+  movers raises `ArgumentError` on that first use.
+- **State:** `x` and `y` are the facing, each axis in -1..1. The facing survives the
+  node moving to another parent.
+- **In front:** `in_front?(x, y)` says whether the world point lies within 45°
+  either side of the facing, measured from the node's world origin. A point at 45°
+  counts as in front. A point behind or to the side does not, and neither does the
+  origin itself. While the node faces nowhere, nothing is in front.
+- **Phase:** `_update(dt)` keeps the mover's heading when it is not `0, 0`. Every
+  answer takes the heading as it is asked, so a heading set in `_control` counts at
+  once, whichever of the two components updates first. Once the mover is found,
+  nothing here allocates.
+
+**Only a node that holds one pays for it.** Remembering reads the mover's heading
+every update, and a `Velocity` works its heading out on each read. A bullet that
+never asks which way it faces holds no `Facing`.
 
 ### `Facts`
 
@@ -1024,7 +1089,9 @@ is in hand for the step that drags it, whatever order the two components were ad
 in.
 
 - **Construct:** `Grab.new(range:, action: :grab, policy: :nearest)`. The range
-  and policy are `Targeting`'s, measured from the node's origin.
+  and policy are `Targeting`'s, measured from the node's origin. Under `:facing`,
+  it takes hold only of a crate in front of the node's [`Facing`](#facing). It keeps
+  that crate while the node turns away to pull it.
   `:grab` is in [`InputMap.default`](input.md#defaults-and-rebinding) on Left Shift
   and the pad's Y.
 - **Lifecycle:** `_attach` raises when the node has no `Mover`. `_detach` lets go.
@@ -1200,7 +1267,9 @@ hero.add_component(RGame::Engine::Components::Interactor.new(range: 56, actions:
 ```
 
 - **Construct:** `Interactor.new(range:, actions: [:interact], policy: :nearest)`.
-  The range and policy are `Targeting`'s, measured from the node's origin.
+  The range and policy are `Targeting`'s, measured from the node's origin. Under
+  `:facing`, each action reaches only for nodes in front of the node's
+  [`Facing`](#facing).
   `actions` are read from whoever owns the node, and `:interact` is in
   [`InputMap.default`](input.md#defaults-and-rebinding) on E and the pad's X. An
   empty list, a name that is not a Symbol, or a name given twice raises
@@ -1481,11 +1550,12 @@ another.
   a mover with nothing declared.
 - **Heading:** `heading_x` and `heading_y` give the step's direction, each axis in
   -1..1, and `0, 0` when the mover is not trying to move.
-  [`WalkingSprite`](#walkingsprite) faces by it. It is a facing, not a velocity: a
-  mover pressed into a wall still heads into it. A [`CharacterBody`](#characterbody)
-  answers its intent. A [`Velocity`](#velocity) answers its velocity, scaled so the
-  larger axis is ±1. A [`PathFollow`](#pathfollow) answers the unit direction of its
-  current segment. Reading it allocates nothing.
+  [`WalkingSprite`](#walkingsprite) faces by it, and a [`Facing`](#facing) keeps it
+  once the mover stops. It is a facing, not a velocity: a mover pressed into a wall
+  still heads into it. A [`CharacterBody`](#characterbody) answers its intent. A
+  [`Velocity`](#velocity) answers its velocity, scaled so the larger axis is ±1. A
+  [`PathFollow`](#pathfollow) answers the unit direction of its current segment.
+  Reading it allocates nothing.
 - **Seam:** `apply_move(dx, dy)` lands a step. With nothing declared, it writes
   straight onto the node. With declarations, it goes through the resolver. A mover
   may call it several times in one step, and still reports the edges once.
@@ -2043,12 +2113,15 @@ targeting.target == ship   # => true — the rock is nearer, and holds no Hostil
   `having` is the component class or module a target's node must hold. It is
   required, and one that is not a Module raises `ArgumentError`, as an unknown
   `policy` does.
-- **Policies:** `:nearest`, the default and only policy, picks the closest candidate
-  in range with one broadphase lookup.
+- **Policies:** `:nearest`, the default, picks the closest candidate in range with
+  one broadphase lookup. `:facing` picks the closest candidate in front of the
+  node's [`Facing`](#facing). It never picks one behind or to the side, however
+  near, so `target` is `nil` when nothing in range is in front.
 - **State:** `target` is the chosen **node**, or `nil` when nothing is in range. It
   refreshes every `update`, so a freed or out-of-range target clears itself. It is a
   node, not a collider, so the owner can read its position and components.
-- **Lifecycle:** `_attach` looks up the scene's `CollisionWorld`.
+- **Lifecycle:** `_attach` looks up the scene's `CollisionWorld`. Under `:facing`
+  it also finds the node's `Facing`, and raises when the node has none, or two.
 - **Phase:** `_update(dt)` selects the target again. It allocates nothing, so it runs
   every frame.
 

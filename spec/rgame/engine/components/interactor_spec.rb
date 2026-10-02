@@ -230,6 +230,77 @@ RSpec.describe RGame::Engine::Components::Interactor do
     end
   end
 
+  describe 'policy: :facing' do
+    # A hero at (100, 100) that headed (x, y) for a tick and then stood still. Its body
+    # has no speed, so it turns on the spot.
+    def facing_hero(x, y, **)
+      body = RGame::Engine::Components::CharacterBody.new(speed: 0.0)
+      node = RGame::Engine::Node2D.new(x: 100, y: 100)
+      node.add_component(body)
+      node.add_component(RGame::Engine::Components::Facing.new)
+      interactor = node.add_component(described_class.new(range: 56, policy: :facing, **))
+      scene.add_node(node)
+      body.set_intent(x, y)
+      tick
+      body.set_intent(0.0, 0.0)
+      tick
+      interactor
+    end
+
+    it 'reaches for the nearest node in front, over a nearer one behind' do
+      lever(80, 100)
+      box = chest(140, 100)
+      expect(facing_hero(1.0, 0.0).target).to be(box)
+    end
+
+    it 'passes over a nearer node to the side for each action' do
+      lever(100, 90)
+      chest(100, 80)
+      box = chest(140, 100)
+      interactor = facing_hero(1.0, 0.0, actions: %i[interact search])
+
+      expect([interactor.target_for(:interact), interactor.target_for(:search)]).to eq([box, box])
+    end
+
+    it 'presses nothing behind it' do
+      chest(80, 100)
+      facing_hero(1.0, 0.0)
+
+      backend.hold(controls::KEY_E)
+      tick
+
+      expect(log).to be_empty
+    end
+
+    it 'presses what it turned to' do
+      box = chest(80, 100)
+      facing_hero(-1.0, 0.0)
+
+      backend.hold(controls::KEY_E)
+      tick
+
+      expect(log).to eq([[:opened, box]])
+    end
+
+    it 'raises at attach for a node with no Facing' do
+      node = RGame::Engine::Node2D.new(x: 100, y: 100)
+      node.add_component(RGame::Engine::Components::CharacterBody.new(speed: 0.0))
+      node.add_component(described_class.new(range: 56, policy: :facing))
+
+      expect { scene.add_node(node) }
+        .to raise_error(RuntimeError, /Interactor needs a .*Facing on the same node, and there is none/)
+    end
+
+    it 'allocates nothing to find the targets' do
+      lever(80, 100)
+      chest(100, 80)
+      chest(140, 100)
+      interactor = facing_hero(1.0, 0.0, actions: %i[interact search])
+
+      expect { interactor._update(1.0 / 60) }.to allocate_nothing
+    end
+  end
+
   # Rule 5. Actions answers only for what its map declares, so a misspelled action
   # raises rather than reading as never pressed, with or without a target.
   describe 'an action the map does not declare' do

@@ -22,9 +22,13 @@ module RGame
       #
       # Policies say how to choose among the candidates in range:
       #   - :nearest, the closest candidate, and the default.
+      #   - :facing, the closest candidate in front of the node, by the node's Facing. A
+      #     candidate behind or to the side is never the target, however near it is, so
+      #     the target is nil when nothing in range is in front. Attach raises for a node
+      #     with no Facing.
       # More policies, such as furthest along a path, arrive with the state they need.
       class Targeting < Engine::Component
-        POLICIES = %i[nearest].freeze
+        POLICIES = %i[nearest facing].freeze
 
         # `having` is the component class, or module, a target's node must hold. Raises
         # ArgumentError for an unknown policy, and for a `having` that is not a Module.
@@ -44,8 +48,12 @@ module RGame
         # The chosen node, or nil when nothing is in range. Refreshed every update.
         sealed_reader :target
 
-        # Pull the broadphase once it's reachable (scene scope, resolved up the tree).
-        def _attach = @rgame_world = node.system(CollisionWorld)
+        # Pull the broadphase once it's reachable (scene scope, resolved up the tree), and,
+        # under `:facing`, the node's Facing.
+        def _attach
+          @rgame_world = node.system(CollisionWorld)
+          @rgame_facing = (require_sibling(Facing) if @rgame_policy == :facing)
+        end
 
         def _update(_dt)
           collider = pick
@@ -55,10 +63,8 @@ module RGame
         private
 
         def pick
-          case @rgame_policy
-          when :nearest
-            @rgame_world.nearest(node.world_x, node.world_y, @rgame_range, having: @rgame_having, except: node)
-          end
+          @rgame_world.nearest(node.world_x, node.world_y, @rgame_range,
+                               having: @rgame_having, except: node, in_front_of: @rgame_facing)
         end
       end
     end
