@@ -1,6 +1,6 @@
 # Additional features for 0.5.0
 
-Research for four features that join 0.5.0 once the object-layers and smooth-art
+Research for three features that join 0.5.0 once the object-layers and smooth-art
 plans finish. It is not a plan: it has no roadmap. It records what the code does
 today, what each feature resembles, the traps found while reading, and the
 questions a plan has to settle first. When a plan takes these features up, it
@@ -10,12 +10,11 @@ Everything here was read or measured at commit `99442bf`, on Ruby 4.0.5.
 
 ## Verdict
 
-**All four fit 0.5.0, and none needs a GL loader or a new dependency.** All four
-are small: the multiply blend, the sprite colour, the pushed platform and the
-respawn point per room.
+**All three fit 0.5.0, and none needs a GL loader or a new dependency.** All
+three are small: the multiply blend, the sprite colour and the pushed platform.
 
-**Compatibility constrains one of the four.** `Respawn`, `Rooms`, `Pushable` and
-`Platform` do not exist at the `v0.4.0` tag, so 0.5.0 is their first release and
+**Compatibility constrains one of the three.** `Pushable` and `Platform` do not
+exist at the `v0.4.0` tag, so 0.5.0 is their first release and
 they may take whatever shape works best. `Renderer#sprite` shipped in 0.4.0, and
 every change proposed to it below is an addition.
 
@@ -36,15 +35,16 @@ As it arrived:
 > * Respawn resetting when a room move lands
 > * Tinting a character. renderer.sprite still has no color
 
-Facing-aware interaction has landed, as `Components::Facing` and the `:facing`
-targeting policy, and this file no longer covers it.
+Two of the five have left this file. Facing-aware interaction has landed, as
+`Components::Facing` and the `:facing` targeting policy. The respawn point per
+room has a plan of its own, [respawn-rooms.md](../respawn-rooms.md), which took
+over this file's section on it.
 
 ## What was measured
 
 | | |
 |---|---|
 | Projects putting `Pushable` and `Platform` on one node | 0. `Pushable` is in `block_puzzle`, `push_pull`, `adventure` and `topdownplatformer`; `Platform` in `moving_platforms` and `topdownplatformer`'s raft |
-| Projects mounting `Respawn` beside `Rooms` | 0. `Respawn` is in `moving_platforms`, `pits` and `topdownplatformer`; `Rooms` in `doors` and `adventure` |
 | Blend modes | 2, `:alpha` and `:add` |
 | Places that use `:multiply` as the example of an unknown mode | 2: `spec/support/shared_examples/a_renderer.rb:756`, `docs/api/values.md:298` |
 | Specs tying `Util::Blend::MODES` to the C enum | 0 |
@@ -143,43 +143,7 @@ refuses a blend mode, and it refuses multiply for the same reason. A night tint
 is then a rect drawn under `blended(:multiply)` over a `WorldView`, and a shadow
 is a dark sprite drawn the same way.
 
-## 3. The respawn point follows a room move
-
-**Today.** `Respawn#_attach` (`respawn.rb:68`) records the point on the first
-attach only. Every later attach keeps it and checks it for a gap. The header says
-so (`respawn.rb:16-18`), `docs/api/components.md:1606-1608` repeats it, and
-`respawn_spec.rb:28` pins it: "stays when the node attaches again somewhere
-else".
-
-**A game cannot work around it today.** `Rooms#land` (`rooms.rb:356-366`) takes
-the node out of its old room and calls the new room's `_arrive`. `_arrive`
-places the node and adds it, and the add runs `Respawn#_attach`, which raises
-for an old point over a gap in the new room. `on_arrived` fires after that. So a
-handler that calls `set_point` on arrival comes too late: the raise came first.
-
-**What exercises it.** No project mounts both. That is CLAUDE.md's case of two
-systems green in isolation and never composed, and the scene to write first is a
-hero with a `Respawn` walking through a door into a room with gaps.
-
-**Where the reset could live.**
-
-- **A. In `Respawn#_attach`.** On an attach under a different `Scene::Room`, take
-  where the node stands. It depends on `_arrive` placing the node before adding
-  it. All six implementations do, but nothing enforces it, and one that adds
-  first would record the old room's position.
-- **B. In `Rooms#land`, after `_arrive`.** The position is final there. `Rooms`
-  sets the point of the moving node's `Respawn`, and `Respawn#_attach` stops
-  checking on a later attach, since `set_point` checks instead. A move to a room
-  with a gap under the entrance still raises, and names the entrance. `Rooms` and
-  `Respawn` are both engine classes, so the reference is allowed. A warp, a move
-  to the node's own room, also passes through `land`.
-
-B puts the reset where the landing is known, and does not depend on a habit.
-
-**Open:** does a warp reset the point? And does a checkpoint survive leaving its
-room and coming back? A reset on every landing forgets it.
-
-## 4. Tinting a character
+## 3. Tinting a character
 
 **Today.** `Renderer#sprite(id, row, col, x, y, flip_x:, z:)` (`renderer.rb:103`)
 takes no colour. It calls `SpriteSheet#draw`, which calls `image_at`, and
@@ -229,31 +193,30 @@ tint this way (`canvas.c:324-331`).
 **Open:** node-wide, per call, or both. Node-wide answers "tint a character".
 `color:` on `sprite` is parity with `image` and costs almost nothing.
 
-## How the four relate
+## How the three relate
 
 None depends on another, so each is one branch and one pull request. One pair
 touches the same code and is easier in sequence: **multiply and tint** both
 change `graphics/canvas.c` and the renderer's shared contract.
 
-The pushed platform and the respawn point are loose ends of the top-down
-platforming plan, and share `topdownplatformer` as the place to drive them.
+The pushed platform is a loose end of the top-down platforming plan, and
+`topdownplatformer` is the place to drive it.
 
 ## Open questions
 
-1. **Whether a warp resets the respawn point**, and whether a checkpoint survives
-   a room move and a return. Blocks feature 3.
-2. **A blocker that keeps a pushed raft over the gaps**, or colliders the game
+1. **A blocker that keeps a pushed raft over the gaps**, or colliders the game
    places. Does not block the carrying fix.
-3. **A node-wide tint, `color:` on `sprite`, or both.** Blocks feature 4.
+2. **A node-wide tint, `color:` on `sprite`, or both.** Blocks feature 3.
 
 ## Where these came from
 
-Three of the four are in `docs/plans/possible-todos.md`. Remove each entry as its
-feature lands:
+Two of the three are in `docs/plans/possible-todos.md`. Remove each entry as
+its feature lands:
 
 - "Blend modes beyond `:add`": the multiply blend.
-- "Loose ends from top-down platforming", two bullets: the pushed platform and
-  the respawn point in a room left behind.
+- "Loose ends from top-down platforming": the pushed platform. The bullet
+  beside it, the respawn point in a room left behind, belongs to
+  [respawn-rooms.md](../respawn-rooms.md).
 
 Tinting a character has no entry there.
 "Per-layer parallax, offset and tint" under the Tiled loose ends is a different
