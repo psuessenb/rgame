@@ -16,6 +16,10 @@ module Adventure
   # A Grab on the default `:grab` action, Left Shift or the pad's Y, drags a crate
   # the other way.
   #
+  # The Interactor and the Grab pick by the hero's Facing, so a press reaches only
+  # what the hero faces. A chest at the hero's back or side stays shut, however
+  # near it is.
+  #
   # ## A tap opens and a hold searches, on one button
   #
   # The Interactor reads two actions on the same buttons: `interact`, which this
@@ -57,12 +61,13 @@ module Adventure
       add_component(Components::CharacterBody.new(
                       speed: SPEED, blocked_by: %i[tiles crate], pushes: [:crate]
                     ))
+      add_component(Components::Facing.new)
       add_component(Components::PlayerController.new)
       add_component(Components::CameraFollow.new(
                       camera: camera, offset_y: CAMERA_OFFSET_Y
                     ))
-      add_component(Components::Interactor.new(range: REACH, actions: %i[interact search]))
-      add_component(Components::Grab.new(range: GRIP))
+      add_component(Components::Interactor.new(range: REACH, actions: %i[interact search], policy: :facing))
+      add_component(Components::Grab.new(range: GRIP, policy: :facing))
       @carried = []
       @worn = {}
       @revision = 0

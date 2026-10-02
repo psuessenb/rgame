@@ -111,9 +111,10 @@ module RGame
         # qualifies. `layer` keeps only the colliders on that layer. `having` keeps only
         # those whose node holds that component class or module, matched by `is_a?`. A node
         # holding two such components is one candidate. `except` leaves out one node, such
-        # as the asker's own. Dup-safe — it keeps the running minimum, so #query_circle's
-        # possible multi-cell repeats don't matter. Allocation-free.
-        def nearest(x, y, r, layer: nil, having: nil, except: nil)
+        # as the asker's own. `in_front_of` is a Facing, and keeps only the colliders whose
+        # centre lies in front of its node. Dup-safe — it keeps the running minimum, so
+        # #query_circle's possible multi-cell repeats don't matter. Allocation-free.
+        def nearest(x, y, r, layer: nil, having: nil, except: nil, in_front_of: nil)
           best = nil
           best_d2 = nil
           query_circle(x, y, r) do |collider|
@@ -126,6 +127,7 @@ module RGame
             dy = collider.cy - y
             d2 = (dx * dx) + (dy * dy)
             next unless best_d2.nil? || d2 < best_d2
+            next if in_front_of && !in_front_of.in_front?(collider.cx, collider.cy)
 
             best = collider
             best_d2 = d2

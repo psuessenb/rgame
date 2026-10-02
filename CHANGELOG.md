@@ -243,6 +243,14 @@ index, not the argument.
   `Pushable` in range while its action is held, and the node's mover pulls it
   as well as pushing it. `:grab` joins `InputMap::DEFAULT_ACTIONS` on Left Shift
   and the pad's Y. See [docs/api/components.md](docs/api/components.md#grab).
+- **Targets in front.** `Components::Facing` says which way its node faces. A
+  game turns it with `face(x, y)` or `Facing.new(x:, y:)`, and a node with a
+  mover also turns as it moves. `in_front?(x, y)` says whether a point lies
+  within 45° of the facing. `Targeting`, `Interactor` and `Grab` take `policy: :facing`, which
+  picks the nearest candidate in front of the node's `Facing`, and nothing when
+  none is, however near one behind or to the side. `CollisionWorld#nearest`
+  takes `in_front_of:`. See
+  [docs/api/components.md](docs/api/components.md#facing).
 - **Two examples of moving things by walking into them.** `examples/push_pull`
   pushes and pulls crates, and `examples/block_puzzle` shoves blocks a cell at a
   time onto their squares with the components that already existed. See

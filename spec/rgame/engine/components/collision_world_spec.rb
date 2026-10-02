@@ -432,6 +432,42 @@ RSpec.describe RGame::Engine::Components::CollisionWorld do
         expect { world.nearest(100, 100, 100, except: own.node) }.to allocate_nothing
       end
     end
+
+    describe 'in_front_of:' do
+      # The Facing of a node at (100, 100) heading right. Its body has no speed, so it
+      # stays where it stands.
+      def facing_right
+        node = RGame::Engine::Node2D.new(x: 100, y: 100)
+        body = node.add_component(RGame::Engine::Components::CharacterBody.new(speed: 0.0))
+        facing = node.add_component(RGame::Engine::Components::Facing.new)
+        scene.add_node(node)
+        body.set_intent(1.0, 0.0)
+        facing
+      end
+
+      it 'passes over nearer colliders behind and to the side' do
+        place(90, 100, :enemy)
+        place(100, 110, :enemy)
+        ahead = place(140, 100, :enemy)
+        tick
+        expect(world.nearest(100, 100, 100, in_front_of: facing_right)).to be(ahead)
+      end
+
+      it 'is nil when nothing in range is in front' do
+        place(90, 100, :enemy)
+        tick
+        expect(world.nearest(100, 100, 100, in_front_of: facing_right)).to be_nil
+      end
+
+      it 'allocates nothing per lookup' do
+        place(90, 100, :enemy)
+        place(100, 110, :enemy)
+        place(140, 100, :enemy)
+        tick
+        facing = facing_right
+        expect { world.nearest(100, 100, 100, in_front_of: facing) }.to allocate_nothing
+      end
+    end
   end
 
   # The rectangular query a blocker source asks: "what is bucketed near this box". No
