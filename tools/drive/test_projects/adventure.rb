@@ -10,6 +10,11 @@
 # The joins stay closed until the cutscene ends, so both tracks start about 80
 # ticks later than they would without it.
 #
+# The heroes reach only for what they face. The keyboard's hero taps right to
+# face the chest, which it reaches walking up and left, and the pad's taps right to
+# face the crate before pulling it. Without the taps, the chest stays shut and the
+# pad's first pull takes hold of nothing.
+#
 # The budget is 90 objects a second, over the default 80, because the pad joins
 # after the warm-up. Spawning its hero and bag at tick 142 is counted, about 315
 # objects, and the garden sign's scene about 60 more.
@@ -35,7 +40,8 @@ on controls::KEYBOARD do
   hold [controls::KEY_UP, controls::KEY_LEFT], 10
   hold [controls::KEY_UP, controls::KEY_LEFT, controls::KEY_F4], 2
   hold [controls::KEY_UP, controls::KEY_LEFT], 78
-  idle 8
+  idle 6
+  press controls::KEY_RIGHT
   press controls::KEY_E
   idle 20
   hold controls::KEY_E, 50
@@ -105,7 +111,8 @@ on controls.gamepad(0) do
   idle 10
   hold controls::PAD_DPAD_DOWN, 60
   hold [controls::PAD_DPAD_DOWN, controls::PAD_DPAD_RIGHT], 80
-  idle 5
+  idle 3
+  press controls::PAD_DPAD_RIGHT
   hold [controls::PAD_Y, controls::PAD_DPAD_LEFT], 30
   idle 20
   idle 13
