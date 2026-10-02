@@ -1760,6 +1760,11 @@ raft.add_component(RGame::Engine::Components::PathFollow.new(speed: 40, path: ro
   by exactly its own step, front first along the step, so no rider runs into one not
   yet moved. A rider moves by that step whichever of the two updates first. A node
   that boards on a tick the platform has already moved rides from the next one.
+- **It lets go of a rider moved off it.** Before each carry, it asks every rider
+  whether the centre of its box still stands on the platform, as boarding does. It
+  lets go of one that does not. So a node that a [`Respawn`](#respawn) brings back,
+  or that a game moves by setting `x`, rides no further, suspended or not. A
+  suspended rider still on board rides along.
 - **State:** `riders`, the `Footing`s standing on it now. `collider`, the box, and
   `left`, `top`, `right` and `bottom`, its edges in world pixels.
 - **Example:** `examples/moving_platforms` shuttles a raft across a chasm, read
