@@ -52,10 +52,12 @@
 #
 # ## Position is not the whole of where something is
 #
-# The sheep resume standing still, because a WanderController's timer is not
-# saved. That is a deliberate simplification and worth naming, because the real
-# version of this bug is not funny: a game that saves a falling player's position
-# and not their velocity restores them hanging in the air.
+# The save holds where each sheep stands, not which way it walks: nothing saves a
+# WanderController's heading or its timer. After F9, a sheep keeps the heading it
+# had before the load. In a new run, it rolls a fresh one as soon as the game
+# starts. Saving position alone is a deliberate simplification and worth naming,
+# because the real version of this bug is not funny: a game that saves a falling
+# player's position and not their velocity restores them hanging in the air.
 
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
