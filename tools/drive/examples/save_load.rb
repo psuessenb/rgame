@@ -7,12 +7,12 @@
 #
 # What the report should show:
 #
-#   - **`circle` first() and last() with different dog coordinates**, and the
-#     last one back near where the save was taken. The dog is drawn last, so it
-#     is the `circle` row's last() argument;
-#   - a steady 9 `circle` calls per frame — one dog, eight sheep — and two
-#     `text`. The flock is a fixed size, which is the assumption that lets an
-#     array index stand in for identity;
+#   - **`circle` last() is the dog, back near where the save was taken**, though
+#     the script walks it away after saving. The flock is drawn first, so first()
+#     is a sheep: radius 9 to the dog's 11;
+#   - a steady 9 `circle` calls per frame — one dog, eight sheep — and three
+#     `text`: help, keys and status. The flock is a fixed size, which is the
+#     assumption that lets an array index stand in for identity;
 #   - **one clip per frame, at the logical 640x480.** That is the presentation,
 #     which every game pushes under the default `:letterbox`; nothing in this
 #     example clips anything;
@@ -22,19 +22,21 @@
 #     their coordinates: a transform is pushed because a node was *reached*, not
 #     because it drew anything.
 #
-# **Run it twice to see the interesting half.** The first run leaves a save in
-# the platform's data directory; the second loads it before the first frame and
-# starts the dog where the first run left it. That is the half a single driven
-# run cannot show, and the reason the example prints its status on screen.
+# **Run the example twice by hand to see the interesting half.** Press F5 in the
+# first run, and it leaves a save in the platform's data directory. The second
+# run loads it before the first frame and starts the dog where the first run
+# saved it. That is the half no driven run can show, and the reason the example
+# prints its status on screen.
 #
-# It ends by discarding the save, so a driven run leaves nothing behind for the
-# next one to find — which would otherwise make this script's own output depend
-# on whether it had been run before.
-#
-# The harness gives the run a fresh save directory, so it does not write into
-# the home directory of whoever is running it:
+# The harness gives each run a fresh save directory and removes it afterwards.
+# So a driven run starts with no save, and does not write into the home
+# directory of whoever is running it:
 #
 #   ruby tools/drive_test_project.rb examples/save_load/main.rb --ticks 200
+#
+# The script ends by discarding the save, and with `--texts` the report lists
+# "save deleted" as the last status. A run given its own `RGAME_SAVE_DIR` keeps
+# that directory but not the save, so the next run with it starts fresh too.
 
 idle 10
 hold controls::KEY_RIGHT, 30
