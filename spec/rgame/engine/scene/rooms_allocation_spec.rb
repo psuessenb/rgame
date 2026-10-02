@@ -20,8 +20,8 @@ RSpec.describe RGame::Engine::Scene::Rooms do
     rooms.define(:garden) { SpecRoom.new }
     rooms.transition = RGame::Engine::Scene::Fade.new(cover: 0.1, reveal: 0.1)
     root.enter_tree
-    rooms.move(RGame::Engine::Node2D.new(input_owner: first), to: :town, entrance: 'gate')
-    rooms.move(RGame::Engine::Node2D.new(input_owner: second), to: :garden, entrance: 'gate')
+    rooms.move(RGame::Engine::Node2D.new(input_owner: first), to: :town, location: 'gate')
+    rooms.move(RGame::Engine::Node2D.new(input_owner: second), to: :garden, location: 'gate')
     [root, players]
   end
 
@@ -51,7 +51,7 @@ RSpec.describe RGame::Engine::Scene::Rooms do
     30.times { tick(root, players, renderer, view) }
     rooms = root.children.first.get_component(described_class)
     hero = rooms[:town].actors.children.first
-    rooms.move(hero, to: :garden, entrance: 'well', transition: RGame::Engine::Scene::Fade.new(cover: 0.5, reveal: 1.0))
+    rooms.move(hero, to: :garden, location: 'well', transition: RGame::Engine::Scene::Fade.new(cover: 0.5, reveal: 1.0))
     60.times { tick(root, players, renderer, view) }
     suspended = players.primary.input_suspended?
 

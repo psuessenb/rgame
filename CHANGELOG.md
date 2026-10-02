@@ -97,7 +97,7 @@ index, not the argument.
 - **Rooms that players stand apart in.** `RGame::Engine::Scene::Rooms` runs
   every room a player stands in, each a `Scene::Room` built anew as it starts
   running. `define(name) { Room.new }` names a room, and `move(hero, to:,
-  entrance:)` moves one node or an Array of them, landing in the sweep under a
+  location:)` moves one node or an Array of them, landing in the sweep under a
   cover over each moving player's region alone. A room's `_arrive` places what
   arrives, and a move to a node's own room is a warp. `hold` keeps a room
   running with nobody in it, and `running` lists the rooms that run. A room's

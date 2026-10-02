@@ -460,8 +460,8 @@ class Grounds < RGame::Engine::Scene::Room
     @actors = RGame::Engine::TileMapLayer.mount(add_node(RGame::Engine::WorldView.new))['actors']
   end
 
-  def _arrive(node, entrance)
-    spot = @map.object_named(entrance)
+  def _arrive(node, location)
+    spot = @map.object_named(location)
     node.x = spot.x
     node.y = spot.y
     @actors.add_node(node)
@@ -478,7 +478,7 @@ class Door < RGame::Engine::Node2D
     @entrance = entrance
     add_component(RGame::Engine::Components::BoxCollider.new(width:, height:, offset_x: -width / 2.0,
                                                              offset_y: -height, layer: :door))
-      .on_hit { |other| @rooms.move(other.node, to: destination, entrance: @entrance) if other.layer == :hero }
+      .on_hit { |other| @rooms.move(other.node, to: destination, location: @entrance) if other.layer == :hero }
   end
 
   def _enter_tree = @rooms = system!(RGame::Engine::Scene::Rooms)

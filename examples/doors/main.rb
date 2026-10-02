@@ -46,7 +46,7 @@
 #
 # ## A warp and a door are the same call
 #
-# A door calls `rooms.move(hero, to: :garden, entrance: 'gate_in')`. A pad calls
+# A door calls `rooms.move(hero, to: :garden, location: 'gate_in')`. A pad calls
 # the same with the room the hero already stands in, and the rooms tell the two
 # apart: moving into the room a node stands in only calls `_arrive` again, so
 # nothing is built or freed, and the hero's components keep their systems.
@@ -123,7 +123,7 @@ module DoorsExample
 
     def destination = @to
 
-    def move(hero) = @rooms.move(@party ? @rooms.node.heroes : hero, to: destination, entrance: @entrance)
+    def move(hero) = @rooms.move(@party ? @rooms.node.heroes : hero, to: destination, location: @entrance)
   end
 
   # A warp pad: a door into the room it stands in. A room is its own scene, so
@@ -157,8 +157,8 @@ module DoorsExample
     end
 
     # A hero arrives standing on the entrance the move named.
-    def _arrive(node, entrance)
-      spot = @map.object_named(entrance)
+    def _arrive(node, location)
+      spot = @map.object_named(location)
       node.x = spot.x
       node.y = spot.y
       @actors.add_node(node)
@@ -195,7 +195,7 @@ module DoorsExample
       MAPS.each_value { root.context.assets.tilemap(it) }
       @player = system!(Engine::Players).primary
       @heroes << Hero.new(camera: @player.camera)
-      @rooms.move(@heroes.first, to: :town, entrance: 'start')
+      @rooms.move(@heroes.first, to: :town, location: 'start')
     end
 
     def _draw(renderer, _view)

@@ -16,8 +16,8 @@ module RGame
       #     end
       #   end
       #
-      #   rooms.move(hero, to: :garden, entrance: 'gate_in')   # one hero, under its player's cover
-      #   rooms.move(heroes, to: :town, entrance: 'square')    # every hero given, from whichever room
+      #   rooms.move(hero, to: :garden, location: 'gate_in')   # one hero, under its player's cover
+      #   rooms.move(heroes, to: :town, location: 'square')    # every hero given, from whichever room
       #   rooms.room_of(player)                                # => the Room they stand in, or nil
       #   rooms[:garden]                                       # => the running Room of that name, or nil
       #   rooms.hold(:garden)                                  # runs with nobody in it, until released
@@ -80,7 +80,7 @@ module RGame
         # `_arrive` placed it.
         signal :arrived, :node, :room
 
-        Move = Data.define(:node, :name, :entrance, :player)
+        Move = Data.define(:node, :name, :location, :player)
         Held = Data.define(:node, :player)
         Song = Data.define(:key, :id, :priority)
         private_constant :Move, :Held, :Song
@@ -173,21 +173,21 @@ module RGame
         end
 
         # Asks for `nodes`, one node or an Array of them, to go to the room named
-        # `to`, at `entrance`, which reaches the room's `_arrive` as it is. A name
+        # `to`, at `location`, which reaches the room's `_arrive` as it is. A name
         # the rooms were not given raises `KeyError` here.
         #
         # `transition:` is a Scene::Fade for this move in place of the rooms',
         # or nil for none. A second move asked for a node before its first
         # lands replaces the first.
-        def move(nodes, to:, entrance: nil, transition: @rgame_transition)
+        def move(nodes, to:, location: nil, transition: @rgame_transition)
           named_for(to)
           transition = checked_transition(transition)
           if nodes.is_a?(Array)
             nodes.all? { checked_node(it) }
-            claim_songs(nodes.map { ask(it, to, entrance, transition) }.max || 0)
+            claim_songs(nodes.map { ask(it, to, location, transition) }.max || 0)
             nodes.each { requested_signal.emit(node: it, name: to) }
           else
-            claim_songs(ask(checked_node(nodes), to, entrance, transition))
+            claim_songs(ask(checked_node(nodes), to, location, transition))
             requested_signal.emit(node: nodes, name: to)
           end
           self
@@ -253,10 +253,10 @@ module RGame
 
         private
 
-        def ask(moving, name, entrance, transition)
+        def ask(moving, name, location, transition)
           player = player_of(moving)
           @rgame_moves.delete_if { it.node.equal?(moving) }
-          @rgame_moves << Move.new(moving, name, entrance, player)
+          @rgame_moves << Move.new(moving, name, location, player)
           hold_still(moving, player)
           suspend(player) if player
           at_once = player && @rgame_room_of[player].nil?
@@ -357,7 +357,7 @@ module RGame
           room = @rgame_by_name[move.name] || build(move.name)
           moving = move.node
           moving.parent&.remove_node(moving) unless inside?(moving, room)
-          room._arrive(moving, move.entrance)
+          room._arrive(moving, move.location)
           unless inside?(moving, room)
             raise "#{room.class}#_arrive left #{moving.class} outside the room. Add it to a node in the room"
           end

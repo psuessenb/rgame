@@ -897,8 +897,8 @@ class Town < RGame::Engine::Scene::Room
     @actors = add_node(RGame::Engine::WorldView.new)
   end
 
-  def _arrive(node, entrance)
-    node.x, node.y = SPOTS.fetch(entrance)
+  def _arrive(node, location)
+    node.x, node.y = SPOTS.fetch(location)
     @actors.add_node(node)
   end
 end
@@ -926,12 +926,12 @@ stack.push(world)
 root.sweep_freed
 
 hero = RGame::Engine::Node2D.new
-world.rooms.move(hero, to: :town, entrance: 'square')
+world.rooms.move(hero, to: :town, location: 'square')
 root.sweep_freed                            # a move lands in the sweep
 world.rooms.room_of(players.primary)        # => Town
 [hero.x, hero.y]                            # => [160, 120]
 
-world.rooms.move(hero, to: :garden, entrance: 'gate')
+world.rooms.move(hero, to: :garden, location: 'gate')
 root.sweep_freed
 world.rooms.room_of(players.primary)        # => Garden
 world.rooms[:town]                          # => nil — nobody stands in it, so it was freed
@@ -940,10 +940,11 @@ world.rooms[:town]                          # => nil — nobody stands in it, so
 - `define(name) { Room.new }` names a room. The block takes no parameters, and
   builds a new `Scene::Room` each time the room starts running. A name is a
   Symbol, defined once.
-- `move(nodes, to:, entrance:)` asks for one node, or an Array of them, to go to
-  the room named `to`. `entrance` reaches the room's `_arrive` as it is: a
-  String, since a designer names it on the map and a programmer types the same
-  word. A name the rooms were not given raises `KeyError` when asked.
+- `move(nodes, to:, location:)` asks for one node, or an Array of them, to go to
+  the room named `to`. `location` names where in that room they arrive, such as
+  an entrance. It reaches the room's `_arrive` as it is: a String, since a
+  designer names it on the map and a programmer types the same word. A name the
+  rooms were not given raises `KeyError` when asked.
 - `room_of(player)` is the room a player stands in, or nil. `rooms[name]` is the
   running room of that name, or nil, and `running` lists the running rooms in
   the order they were built. `Room#players` lists who stands in a room, and
@@ -957,7 +958,7 @@ world.rooms[:town]                          # => nil — nobody stands in it, so
 
 ### A room places what arrives
 
-**`Room#_arrive(node, entrance)` is the room's hook for placing a node.** The
+**`Room#_arrive(node, location)` is the room's hook for placing a node.** The
 rooms call it as a move lands, after the room entered the tree. A node from
 another room arrives in no room, and `_arrive` adds it to a node in this one. A
 node `_arrive` leaves outside the room raises. The builder is the wrong place
@@ -1009,8 +1010,8 @@ in the room the node goes to, and covers that player's region only. A node
 owned by `Players#everyone` stands nobody anywhere and moves under no cover.
 
 ```ruby
-rooms.move(hero, to: :garden, entrance: 'gate_in')   # the player who walked through
-rooms.move(heroes, to: :town, entrance: 'square')    # every hero, from whichever room
+rooms.move(hero, to: :garden, location: 'gate_in')   # the player who walked through
+rooms.move(heroes, to: :town, location: 'square')    # every hero, from whichever room
 ```
 
 ### Which rooms run
@@ -1033,7 +1034,7 @@ when they do. Holding a name the rooms were not given raises `KeyError`.
 
 ```ruby
 rooms.transition = RGame::Engine::Scene::Fade.new(cover: 0.25, reveal: 0.25)
-rooms.move(hero, to: :garden, entrance: 'gate_in', transition: nil)   # this move without one
+rooms.move(hero, to: :garden, location: 'gate_in', transition: nil)   # this move without one
 ```
 
 **A transition covers each moving player's region, and nobody else's.** Each

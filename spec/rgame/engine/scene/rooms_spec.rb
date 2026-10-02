@@ -37,21 +37,21 @@ RSpec.describe RGame::Engine::Scene::Rooms do
   # Rules 1 and 4.
   describe 'a move' do
     it 'lands in the next sweep, not when asked' do
-      rooms.move(hero, to: :town, entrance: 'gate')
+      rooms.move(hero, to: :town, location: 'gate')
       asked = [rooms[:town], rooms.pending?]
       sweep
       expect(asked + [rooms[:town].class, rooms.pending?]).to eq([nil, true, SpecRoom, false])
     end
 
-    it 'builds the room, and hands the node to its _arrive with the entrance' do
-      rooms.move(hero, to: :town, entrance: 'gate')
+    it 'builds the room, and hands the node to its _arrive with the location' do
+      rooms.move(hero, to: :town, location: 'gate')
       sweep
       town = rooms[:town]
       expect([town.arrivals, town.name, town.in_tree?, town.scene]).to eq([[[hero, 'gate']], :town, true, town])
     end
 
     it 'places the node where _arrive puts it' do
-      rooms.move(hero, to: :town, entrance: 'well')
+      rooms.move(hero, to: :town, location: 'well')
       sweep
       expect([hero.parent, hero.x, hero.y]).to eq([rooms[:town].actors, 30, 40])
     end
@@ -59,13 +59,13 @@ RSpec.describe RGame::Engine::Scene::Rooms do
     it 'takes the node from its parent first' do
       holder = world.add_node(RGame::Engine::Node2D.new)
       holder.add_node(hero)
-      rooms.move(hero, to: :town, entrance: 'gate')
+      rooms.move(hero, to: :town, location: 'gate')
       sweep
       expect(holder.children).to be_empty
     end
 
     it 'moves every node of an Array' do
-      rooms.move([hero, other_hero], to: :town, entrance: 'gate')
+      rooms.move([hero, other_hero], to: :town, location: 'gate')
       sweep
       expect(rooms[:town].arrivals.map(&:first)).to eq([hero, other_hero])
     end
@@ -95,7 +95,7 @@ RSpec.describe RGame::Engine::Scene::Rooms do
   # Rule 2.
   describe 'whose move it is' do
     it 'stands the player the node\'s input_owner names in the room' do
-      rooms.move(other_hero, to: :town, entrance: 'gate')
+      rooms.move(other_hero, to: :town, location: 'gate')
       sweep
       expect([rooms.room_of(first), rooms.room_of(second), rooms[:town].players]).to eq([nil, rooms[:town], [second]])
     end
@@ -103,19 +103,19 @@ RSpec.describe RGame::Engine::Scene::Rooms do
     it 'finds the player through the node\'s parents' do
       holder = RGame::Engine::Node2D.new(input_owner: second)
       holder.add_node(RGame::Engine::Node2D.new)
-      rooms.move(holder.children.first, to: :town, entrance: 'gate')
+      rooms.move(holder.children.first, to: :town, location: 'gate')
       sweep
       expect(rooms.room_of(second)).to be(rooms[:town])
     end
 
     it 'means the primary player for a node nobody owns' do
-      rooms.move(RGame::Engine::Node2D.new, to: :town, entrance: 'gate')
+      rooms.move(RGame::Engine::Node2D.new, to: :town, location: 'gate')
       sweep
       expect(rooms.room_of(first)).to be(rooms[:town])
     end
 
     it 'stands nobody anywhere for a node everyone owns, so its room is freed' do
-      rooms.move(RGame::Engine::Node2D.new(input_owner: players.everyone), to: :town, entrance: 'gate')
+      rooms.move(RGame::Engine::Node2D.new(input_owner: players.everyone), to: :town, location: 'gate')
       sweep
       expect([rooms.room_of(first), rooms[:town]]).to eq([nil, nil])
     end
@@ -132,20 +132,20 @@ RSpec.describe RGame::Engine::Scene::Rooms do
         define_method(:_detach) { calls << :detach }
       end
       hero.add_component(component.new)
-      rooms.move(hero, to: :town, entrance: 'gate')
+      rooms.move(hero, to: :town, location: 'gate')
       sweep
       attached.clear
     end
 
     it 'calls _arrive again in the same room' do
       town = rooms[:town]
-      rooms.move(hero, to: :town, entrance: 'well')
+      rooms.move(hero, to: :town, location: 'well')
       sweep
       expect([rooms[:town], town.arrivals.map(&:last), hero.x]).to eq([town, %w[gate well], 30])
     end
 
     it 'leaves the node in the tree, so its components keep their systems' do
-      rooms.move(hero, to: :town, entrance: 'well')
+      rooms.move(hero, to: :town, location: 'well')
       sweep
       expect([attached, hero.in_tree?]).to eq([[], true])
     end
@@ -154,29 +154,29 @@ RSpec.describe RGame::Engine::Scene::Rooms do
   # Rule 6.
   describe 'which rooms run' do
     it 'frees a room in the sweep its last player leaves it' do
-      rooms.move(hero, to: :town, entrance: 'gate')
+      rooms.move(hero, to: :town, location: 'gate')
       sweep
       town = rooms[:town]
-      rooms.move(hero, to: :garden, entrance: 'gate')
+      rooms.move(hero, to: :garden, location: 'gate')
       sweep
       expect([rooms[:town], town.in_tree?, town.parent]).to eq([nil, false, nil])
     end
 
     it 'keeps a room another player still stands in' do
-      rooms.move([hero, other_hero], to: :town, entrance: 'gate')
+      rooms.move([hero, other_hero], to: :town, location: 'gate')
       sweep
-      rooms.move(hero, to: :garden, entrance: 'gate')
+      rooms.move(hero, to: :garden, location: 'gate')
       sweep
       expect([rooms[:town].players, rooms[:garden].players]).to eq([[second], [first]])
     end
 
     it 'builds a room anew on a later move' do
-      rooms.move(hero, to: :town, entrance: 'gate')
+      rooms.move(hero, to: :town, location: 'gate')
       sweep
       town = rooms[:town]
-      rooms.move(hero, to: :garden, entrance: 'gate')
+      rooms.move(hero, to: :garden, location: 'gate')
       sweep
-      rooms.move(hero, to: :town, entrance: 'gate')
+      rooms.move(hero, to: :town, location: 'gate')
       sweep
       expect(rooms[:town]).not_to be(town)
     end
@@ -193,9 +193,9 @@ RSpec.describe RGame::Engine::Scene::Rooms do
 
     it 'keeps a held room its last player leaves' do
       rooms.hold(:town)
-      rooms.move(hero, to: :town, entrance: 'gate')
+      rooms.move(hero, to: :town, location: 'gate')
       sweep
-      rooms.move(hero, to: :garden, entrance: 'gate')
+      rooms.move(hero, to: :garden, location: 'gate')
       sweep
       expect(rooms[:town].players).to eq([])
     end
@@ -208,9 +208,9 @@ RSpec.describe RGame::Engine::Scene::Rooms do
   # Rule 7.
   describe 'each tick' do
     it 'controls and updates each running room once, in the order they were built' do
-      rooms.move(other_hero, to: :garden, entrance: 'gate')
+      rooms.move(other_hero, to: :garden, location: 'gate')
       sweep
-      rooms.move(hero, to: :town, entrance: 'gate')
+      rooms.move(hero, to: :town, location: 'gate')
       sweep
       log.clear
       tick
@@ -218,7 +218,7 @@ RSpec.describe RGame::Engine::Scene::Rooms do
     end
 
     it 'sweeps inside each room' do
-      rooms.move(hero, to: :town, entrance: 'gate')
+      rooms.move(hero, to: :town, location: 'gate')
       sweep
       leaf = rooms[:town].actors.add_node(RGame::Engine::Node2D.new)
       leaf.queue_free
@@ -230,8 +230,8 @@ RSpec.describe RGame::Engine::Scene::Rooms do
   # Rule 10.
   describe 'a second move asked for a node before its first lands' do
     it 'replaces the first' do
-      rooms.move(hero, to: :town, entrance: 'gate')
-      rooms.move(hero, to: :garden, entrance: 'well')
+      rooms.move(hero, to: :town, location: 'gate')
+      rooms.move(hero, to: :garden, location: 'well')
       sweep
       expect([rooms[:town], rooms[:garden].arrivals]).to eq([nil, [[hero, 'well']]])
     end
@@ -247,12 +247,12 @@ RSpec.describe RGame::Engine::Scene::Rooms do
     end
 
     it 'fires requested once per node as a move is asked for' do
-      rooms.move([hero, other_hero], to: :town, entrance: 'gate')
+      rooms.move([hero, other_hero], to: :town, location: 'gate')
       expect(seen).to eq([[:requested, hero, :town, true], [:requested, other_hero, :town, true]])
     end
 
     it 'fires arrived once per node as it lands, once _arrive placed it' do
-      rooms.move([hero, other_hero], to: :town, entrance: 'gate')
+      rooms.move([hero, other_hero], to: :town, location: 'gate')
       seen.clear
       sweep
       sweep
@@ -282,7 +282,7 @@ RSpec.describe RGame::Engine::Scene::Rooms do
           @actors = add_node(RGame::Engine::WorldView.new)
         end
 
-        def _arrive(node, _entrance)
+        def _arrive(node, _location)
           node.x = 256.0
           node.y = 100.0
           @actors.add_node(node)
@@ -385,7 +385,7 @@ RSpec.describe RGame::Engine::Scene::Rooms do
 
   describe 'a host leaving and entering the tree' do
     it 'takes its rooms with it, and brings them back' do
-      rooms.move(hero, to: :town, entrance: 'gate')
+      rooms.move(hero, to: :town, location: 'gate')
       sweep
       town = rooms[:town]
       root.remove_node(world)
