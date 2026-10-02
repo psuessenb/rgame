@@ -26,11 +26,12 @@
 #     node.y += vy * dt
 #     node.angle += spin * dt
 #
-# That is the whole of Components::Velocity. Nothing writes to it after the
-# rectangles are built, nothing reads input, and they drift for as long as the
-# program runs. The two components are siblings rather than rivals —
-# `ThrustController` is the third of the family, and it *accelerates* a velocity
-# rather than setting one, which is how a ship differs from both.
+# With no acceleration, drag or top speed, that is all Components::Velocity does.
+# Nothing writes to it after the rectangles are built, nothing reads input, and
+# they drift for as long as the program runs. The two components are siblings
+# rather than rivals. `ThrustController` is the third of the family: it sets a
+# velocity's *acceleration* rather than the velocity, which is how a ship differs
+# from both.
 #
 # ## `spin` is an angle, and the shape does not know
 #

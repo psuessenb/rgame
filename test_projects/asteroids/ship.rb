@@ -21,10 +21,8 @@ module Asteroids
 
     def initialize
       super
-      add_component(Components::Velocity.new)
-      add_component(Components::ThrustController.new(
-                      turn_speed: TURN_SPEED, accel: ACCEL, max_speed: MAX_SPEED, drag: DRAG
-                    ))
+      add_component(Components::Velocity.new(drag: DRAG, max_speed: MAX_SPEED))
+      add_component(Components::ThrustController.new(turn_speed: TURN_SPEED, accel: ACCEL))
       add_component(Components::ScreenWrap.new(margin: RADIUS))
       add_component(Components::Sprite.new(id: :ship, anchor: :center))
       trigger = add_component(Components::ActionTrigger.new(fire: FIRE_COOLDOWN))
