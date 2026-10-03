@@ -853,7 +853,7 @@ end
 [`Footing`](#footing) starts one as its node walks into a gap, and a game or a
 cutscene starts one anywhere with `start`. It suspends the node and shows its
 [`FallLook`](#falllook), if it has one. After `duration` seconds, a node with a
-[`Respawn`](#respawn) stands on its respawn point, and any other node is freed.
+[`Respawn`](#respawn) goes back to its respawn point, and any other node is freed.
 
 ```ruby
 require 'rgame'
@@ -883,7 +883,9 @@ hero.suspended?                        # => true
   With none under way it does nothing. `falling?` says whether one is.
 - **Signals:** `on_fell` fires as the fall starts, before the look starts. That
   is where a game takes a life. `on_finished` fires once the fall has ended,
-  after the respawn or the free.
+  after the `Respawn`'s `respawn` or the free. A respawn into another room lands
+  later, under the move's cover, so its `on_respawned` comes after
+  `on_finished`.
 - **Lifecycle:** `_detach` ends a fall under way. The node is resumed, its look
   finished, and `on_finished` does not fire. So a node taken out of the tree
   mid-fall, through a door or freed, stops falling at once, and so does a node
