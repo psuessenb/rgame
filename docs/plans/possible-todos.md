@@ -410,6 +410,35 @@ or a slice of each tick, and the tile map loader does neither.
 **Trigger.** A room whose build shows as a hitch under the cover, or a map too
 big to load at once. `Rooms#hold` is the seam a nearness policy calls.
 
+### Animated tiles in a driven game
+
+**What.** Tiles that animate, on a map one of `test_projects/adventure`'s rooms
+draws, so a driven run shows them and `rake drive:allocations` measures them in
+a whole game.
+
+**What exists instead.** `TileMap#animated_tiles` and `#frame_tile` read Tiled's
+tile animations, and `Core::TileMapRenderer` draws the frame showing at the
+`elapsed:` it is handed, which `TileMapLayer` takes from `TileWorld#elapsed`.
+`spec/rgame/engine/tile_map_allocation_spec.rb` holds `frame_tile` to allocating
+nothing, and `spec_core/rgame/core/tile_map_renderer_spec.rb` draws an animated
+tile from a stub map. No driven game draws one. Neither tileset under
+`examples/assets/` animates a tile: `tileset.tsx` puts no animation on Kenney's
+Tiny Town, and `pits.tsx` is two gap tiles. The one game that drew animated
+tiles was a test project on a map from `media/`, which CI never had. It was
+removed with the other test projects but `adventure`. Driven by hand, it found
+`frame_tile` allocating for every animated tile in view, every frame, with
+every spec green.
+
+**Why not now.** An asset under `examples/assets/` ships in the gem, so it is
+CC0 or drawn here. Tiny Town draws grass, trees, roofs, walls, fences and
+items, and no tile as a frame of a motion, such as water or a torch. Nothing
+else in the folder has tiles.
+
+**Trigger.** A tileset under `examples/assets/` whose art has frames for an
+animated tile. Adventure's town and garden maps are `examples/doors`' too, so
+the animated tiles go on the course's map, which is adventure's own, or on a
+map of a new room.
+
 ---
 
 ## Movement, collision and pathfinding
