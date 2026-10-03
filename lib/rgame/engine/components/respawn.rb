@@ -27,7 +27,9 @@ module RGame
       #   location it lands the node at, before the room's `_arrive`.
       #
       # Later attaches and later moves keep the point, so a door leaves it where
-      # it was set. #set_point moves it, which is what a Checkpoint calls.
+      # it was set. A node that attached outside the rooms before its first move
+      # keeps the Point it took there, and its first fall in a room raises, as
+      # below. #set_point moves the point, which is what a Checkpoint calls.
       #
       # **A point belongs to a room.** A RoomPoint's room is its own. A point
       # whose `room` is nil, a Point among them, belongs to the Scene::Room the
@@ -39,10 +41,12 @@ module RGame
       # **A respawn into another room is a move.** A RoomPoint asks the rooms to
       # move the node to its room, under the rooms' transition, as a door does.
       # Its `place` answers false, and the respawn waits. The node's next attach
-      # in the point's room ends the wait and fires `on_respawned`, once the
-      # room's `_arrive` has placed it. A move that lands the node in another
-      # room first ends the wait with no signal. In the node's own room, a
-      # RoomPoint calls the room's `_arrive` at once: a warp, without the cover.
+      # in the point's room ends the wait and fires `on_respawned`, as the
+      # room's `_arrive` adds the node. A move that replaced the respawn's own
+      # ends it so too, wherever in that room it placed the node. A move that
+      # lands the node in another room first ends the wait with no signal. In
+      # the node's own room, a RoomPoint calls the room's `_arrive` at once: a
+      # warp, without the cover.
       #
       # **The point stands on ground.** With a TileWorld on the scene, each attach
       # and each #set_point on an attached Respawn raises ArgumentError for a point
@@ -131,7 +135,7 @@ module RGame
         ANSWERS = %i[room place check_ground].freeze
         private_constant :ANSWERS
 
-        # Fired once the node stands on its respawn point.
+        # Fired as a respawn ends, with the node in its point's room.
         signal :respawned
 
         # The point, nil until the first attach or the first #set_point.
@@ -185,8 +189,8 @@ module RGame
           self
         end
 
-        # Places the node on its point, and emits `on_respawned` once it stands
-        # there: at once when the point's `place` answers true, and otherwise as
+        # Places the node on its point, and emits `on_respawned` as the respawn
+        # ends: at once when the point's `place` answers true, and otherwise as
         # the node attaches in the point's room. Raises for a point with no room
         # while the node stands in another room than the one it stood in as the
         # point was set.

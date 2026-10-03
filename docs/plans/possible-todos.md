@@ -464,7 +464,7 @@ from:
 
 ### Loose ends from top-down platforming
 
-Five things the top-down platforming plan found and left. `Footing`, `Platform`,
+Four things the top-down platforming plan found and left. `Footing`, `Platform`,
 `Respawn` and `Checkpoint` are in `docs/api/components.md`:
 
 - **Platforms that wait at their ends.** A platform that pauses at a dock is
@@ -478,10 +478,6 @@ Five things the top-down platforming plan found and left. `Footing`, `Platform`,
   to someone playing it.
 - **A pushed platform.** `Pushable` replaces `Mover#_update`, so a raft a hero
   pushes carries nobody. **Trigger:** a game with a raft to push.
-- **A respawn point in a room left behind.** A `Rooms` move does not touch
-  `Respawn`, so a hero who walks through a door keeps the old room's point.
-  `Respawn` checks its point at every attach, so a gap under that point in the
-  new room raises there. **Trigger:** a game with gaps in two rooms.
 - **Platforms as Tiled tile objects.** A platform draws its own tiles in code.
   Once a tile object draws as a node, a platform could draw the one a designer
   placed. [object-layers/](object-layers/README.md) collects what
