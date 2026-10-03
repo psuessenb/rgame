@@ -54,7 +54,10 @@ index, not the argument.
   `duration`, started by a `Footing`, a game or a cutscene's `hold`, and fires
   `on_fell` as it starts. `Components::Respawn` then puts the node back on its
   respawn point and emits `on_respawned`, and a node without one is freed. A
-  respawn point stands on ground: `Respawn` raises for one over a gap. See
+  point is an object that places the node: `Respawn::Point` stands it at world
+  coordinates, and a game may bring its own. A respawn point stands on ground:
+  `Respawn` raises for one over a gap, and for a point taken in one room and
+  used from another. See
   [docs/api/components.md](docs/api/components.md#fall).
 - **What a fall looks like.** A `Components::FallLook` on the falling node shows
   the fall from how far through it is. `Components::Shrink` shrinks the node
@@ -99,10 +102,10 @@ index, not the argument.
   running. `define(name) { Room.new }` names a room, and `move(hero, to:,
   location:)` moves one node or an Array of them, landing in the sweep under a
   cover over each moving player's region alone. A room's `_arrive` places what
-  arrives, and a move to a node's own room is a warp. `hold` keeps a room
-  running with nobody in it, and `running` lists the rooms that run. A room's
-  `WorldView` draws only into its players' views, and each player's camera
-  takes their room's limits. See
+  arrives, and a move to a node's own room is a warp. `Room.of(node)` names the
+  room a node stands in. `hold` keeps a room running with nobody in it, and
+  `running` lists the rooms that run. A room's `WorldView` draws only into its
+  players' views, and each player's camera takes their room's limits. See
   [docs/api/scene_graph.md](docs/api/scene_graph.md#rooms-scenerooms).
 - **A room finds a place by its name.** `Components::TileWorld#location(name)`
   answers where a named place is, in world pixels: the origin of the map's

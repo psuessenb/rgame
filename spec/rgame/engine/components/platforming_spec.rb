@@ -47,7 +47,7 @@ RSpec.describe 'Top-down platforming' do # rubocop:disable RSpec/DescribeClass -
              parts::Footing.new(coyote: 0.1),
              parts::Fall.new,
              parts::Shrink.new,
-             parts::Respawn.new.set_point(60.0, 96.0)], order, x:, y:)
+             parts::Respawn.new.set_point(parts::Respawn::Point.new(x: 60.0, y: 96.0))], order, x:, y:)
   end
 
   # A hero that pushes crates, and nothing else of a platformer's.

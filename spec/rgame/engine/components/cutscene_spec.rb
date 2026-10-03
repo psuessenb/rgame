@@ -351,7 +351,8 @@ RSpec.describe RGame::Engine::Components::Cutscene do
       def finishes
         heard = []
         fall.on_finished { heard << stage.tick }
-        prop.add_component(RGame::Engine::Components::Respawn.new.set_point(5.0, 6.0))
+        respawn = RGame::Engine::Components::Respawn
+        prop.add_component(respawn.new.set_point(respawn::Point.new(x: 5.0, y: 6.0)))
         heard
       end
 

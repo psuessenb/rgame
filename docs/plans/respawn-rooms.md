@@ -1,7 +1,7 @@
 # Respawn across rooms
 
-**Status:** planned at `cee120c`. Steps 0 and 1 are implemented. Steps 2 and 3
-are detailed. Steps 4 and 5 are rough, and get re-planned once step 3 lands.
+**Status:** planned at `cee120c`. Steps 0 to 2 are implemented. Step 3 is
+detailed. Steps 4 and 5 are rough, and get re-planned once step 3 lands.
 
 A node with a `Respawn` comes back to the room its point is in. In its own room
 it comes back at once, as today. From another room, the rooms move it there
@@ -652,6 +652,54 @@ and `.y`. The docs for `Respawn` and `Checkpoint` in `components.md` follow.
 **Verify.** `rake spec` and `rake spec:core`. Driving `topdownplatformer`,
 `pits` and `moving_platforms` with `--seed 1` reports the same draw counts and
 sounds as before the step.
+
+**Landed.** One commit changes 14 files, with 389 lines in and 70 out. `rake
+spec` ran 4797 examples with 0 failures in 37.5 s. The 18 new ones are 9 in
+`respawn_spec.rb`, 5 in the shared group's run for `Point` and 4 for `Room.of`.
+`rake spec:core` ran 555 with 0 failures, and `rake drive:allocations` passed
+all 44 projects. Every existing case in `respawn_spec.rb`, `fall_spec.rb`,
+`checkpoint_spec.rb` and `platforming_spec.rb` passed with only `set_point`'s
+argument and the point readers changed. Each of six mutations of `Respawn`
+failed its specs, among them checking the point on every attach and recording
+the room of a point set out of the tree at once.
+
+The three games that respawn, driven with `--seed 1 --texts` at their scripts'
+tick counts, gave reports identical to `main`'s, twice on each side. Only the
+load path in each report's header differed:
+
+| Run | Ticks | Against `main` |
+|---|---|---|
+| `examples/pits` | 650 | identical, with 590 hero sprites: two respawns, each with a blink |
+| `examples/moving_platforms` | 1020 | identical |
+| `test_projects/topdownplatformer` | 1654 | identical: a hero joining on the primary hero's point, three checkpoints, and a fall back to `first` |
+
+Where it differed from the sketch:
+
+- **A point set while the node is out of the tree belongs to the room of its
+  next attach.** Rule 3 covered only the first attach. The same rule holds for
+  a point set between a detach and the next attach.
+- **The raise at the respawn does not name a room point yet.** `RoomPoint` comes
+  in step 3, so the message says to set a point in the node's new room as it
+  arrives there. Step 3 adds `RoomPoint` to that message.
+- **`respawn` already honours `place`'s answer.** It fires `on_respawned` only
+  when `place` answers true, and a spec pins that with a game's own point. The
+  wait that a false answer starts is still step 3's.
+- **A point's `check_ground` does not know the node.** `Respawn` puts the
+  node's class in front of the point's `ArgumentError`, so the message reads as
+  it did before.
+- **`set_point` and `Point#place` each disable one RuboCop naming cop inline.**
+  A `set_` method with one argument reads to RuboCop as a writer, but
+  `set_point` returns self to chain into `add_component`. `place` answers a
+  Boolean and is still a command.
+- **The shared group runs from `spec/rgame/engine/components/respawn/point_spec.rb`.**
+  Run inside `respawn_spec.rb`, the file's `before` built a `Point` as its
+  component. The group's scene is a `Scene::Room` named `:yard`, with a map
+  that names `ground` and `gap`. So step 3's `RoomPoint` can run it as it is,
+  given a room whose `_arrive` places arrivals through `TileWorld#location`.
+- **`Room.of` got its own spec**, `spec/rgame/engine/scene/room_spec.rb`, which
+  the test list did not name.
+- **The changelog changed now.** The unreleased `Fall` and `Respawn` entry says
+  a point is an object, and the `Rooms` entry names `Room.of`.
 
 ### 3. A point in a room
 

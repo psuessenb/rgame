@@ -36,7 +36,7 @@ RSpec.describe RGame::Engine::Components::Checkpoint do
   end
 
   def checkpoint(node) = node.get_component(described_class)
-  def point(node) = node.get_component(parts::Respawn).then { [it.point_x, it.point_y] }
+  def point(node) = node.get_component(parts::Respawn).then { [it.point.x, it.point.y] }
   def walk(node, direction) = node.get_component(parts::CharacterBody).set_intent(direction, 0)
 
   def tick

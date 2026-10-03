@@ -72,7 +72,7 @@ module RGame
           respawn = other.node.get_component(Respawn) ||
                     raise("#{other.node.class} on :#{@rgame_by} touched a Checkpoint, and has no Respawn to " \
                           'set. A game that ends on a fall removes the Respawn in Fall#on_fell instead.')
-          respawn.set_point(node.world_x, node.world_y)
+          respawn.set_point(Respawn::Point.new(x: node.world_x, y: node.world_y))
           reached_signal.emit(other)
         end
       end
