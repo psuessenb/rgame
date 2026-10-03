@@ -1,6 +1,6 @@
 # Input script for examples/doors. Run it for its whole length:
 #
-#   ruby tools/drive_test_project.rb examples/doors/main.rb --texts --ticks 900
+#   ruby tools/drive_test_project.rb examples/doors/main.rb --texts
 #
 # Walks the hero from the town's start to the gate, into the garden, onto the
 # first pad, onto the second, and back through the garden's gate to the town.
@@ -29,6 +29,8 @@
 # Each move stops the hero from the request until its reveal ends, so every
 # hold that reaches a door is followed by an idle long enough for the cover and
 # the reveal. A key still held once the reveal ends walks the hero on.
+
+ticks 900
 
 idle 20
 hold controls::KEY_UP, 12 # off the start, onto the open row north of the trees

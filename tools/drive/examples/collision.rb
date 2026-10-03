@@ -47,4 +47,4 @@ hold controls::KEY_RIGHT, 25  # visit 2
 hold controls::KEY_LEFT, 30   # away, while the drifter falls through the crate
 idle 50
 hold controls::KEY_RIGHT, 30  # back once the crate is untouched again — visit 3
-idle 60
+idle 30

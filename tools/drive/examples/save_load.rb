@@ -32,11 +32,13 @@
 # So a driven run starts with no save, and does not write into the home
 # directory of whoever is running it:
 #
-#   ruby tools/drive_test_project.rb examples/save_load/main.rb --ticks 200
+#   ruby tools/drive_test_project.rb examples/save_load/main.rb
 #
 # The script ends by discarding the save, and with `--texts` the report lists
 # "save deleted" as the last status. A run given its own `RGAME_SAVE_DIR` keeps
 # that directory but not the save, so the next run with it starts fresh too.
+
+ticks 200
 
 idle 10
 hold controls::KEY_RIGHT, 30

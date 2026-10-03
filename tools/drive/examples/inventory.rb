@@ -1,6 +1,6 @@
 # Input script for examples/inventory.
 #
-#   ruby tools/drive_test_project.rb examples/inventory/main.rb --ticks 400 --texts
+#   ruby tools/drive_test_project.rb examples/inventory/main.rb --texts
 #
 # Walk right along the bag's first row to the Hammer, and right once more into
 # the verbs. Use it, step down to Drop and drop it. Come back left into the bag,
@@ -45,6 +45,8 @@
 #
 # Also, at 400: 400 ticks against 400 frames, no scene entered, one clip per
 # frame. Nothing here is random, so no seed is needed.
+
+ticks 400
 
 idle 20
 press controls::KEY_RIGHT

@@ -63,11 +63,24 @@ module DriveTestProject
   # Repeating the leading `idle` is the price of being able to read one player's
   # whole timeline top to bottom, which beats tracking a shared cursor in your
   # head across two blocks.
+  #
+  # ## How long a run plays
+  #
+  # A run plays the whole script, and at least MINIMUM_TICKS. A script whose
+  # game still acts after its last input, such as a move landing under its
+  # cover, declares the ticks its run needs:
+  #
+  #   ticks 900
+  #
+  # A count shorter than the script raises as the script loads. That run would
+  # cut the script's end, and a report of the part it played looks as healthy as
+  # a report of the whole. `--ticks` runs any count, for a check at one tick.
   class Script
     NOTHING = [].freeze
     NO_AXES = {}.freeze
     Frame = Struct.new(:held, :axes)
     RESTING = Frame.new(NOTHING, NO_AXES).freeze
+    MINIMUM_TICKS = 240
 
     # One device's timeline, indexed by absolute tick.
     class Track
@@ -94,7 +107,23 @@ module DriveTestProject
       @tracks = {}
       @device = nil
       @budget = {}
+      @ticks = nil
     end
+
+    # The ticks a run of this script plays, past its last input. See "How long
+    # a run plays".
+    def ticks(count)
+      unless count.is_a?(Integer) && count.positive?
+        raise ArgumentError, "ticks is a positive Integer, not #{count.inspect}"
+      end
+
+      @ticks = count
+      self
+    end
+
+    # How many ticks a run plays when `--ticks` names none: what `ticks`
+    # declared, or else the whole script and at least MINIMUM_TICKS.
+    def run_length = @ticks || [length, MINIMUM_TICKS].max
 
     # What a run of this script may allocate once it is warm, for
     # `--allocations`: the objects a second, and the share of its ticks that
@@ -156,10 +185,14 @@ module DriveTestProject
 
     # Read only after rgame is loaded — a script names Controls ids, so the
     # constants have to exist before it is evaluated.
+    # Raises ArgumentError for a `ticks` that stops before the script ends.
     def self.load(path)
       script = new
       script.instance_eval(File.read(path), path)
-      script
+      return script if script.run_length >= script.length
+
+      raise ArgumentError, "#{path} declares ticks #{script.run_length}, and its script runs " \
+                           "#{script.length}. Declare at least #{script.length}, or pass --ticks for a shorter run."
     end
 
     private
@@ -721,8 +754,9 @@ module DriveTestProject
     #
     # `allocations:` counts what the run allocates instead of what it drew; see
     # AllocationProbe. It records nothing, because recording would allocate far
-    # more than any game. `ticks: nil` runs 240 ticks, and with `allocations:`
-    # the whole script or AllocationProbe::WARMUP and 300 more, the longer.
+    # more than any game. `ticks: nil` runs the script's Script#run_length, and
+    # with `allocations:` the whole script or AllocationProbe::WARMUP and 300
+    # more, the longer.
     def run(project:, script_path:, ticks: nil, gamepad: false, texts: false, installed: false,
             allocations: false, out: $stdout)
       fresh = ENV['RGAME_SAVE_DIR'].nil?
@@ -743,7 +777,7 @@ module DriveTestProject
       report.loaded_from = loaded_binaries
       report.saves = fresh ? 'a fresh directory, removed after the run' : ENV.fetch('RGAME_SAVE_DIR')
       report.allocations = AllocationProbe.new(**script.budget) if allocations
-      ticks ||= allocations ? [script.length, AllocationProbe::WARMUP + 300].max : 240
+      ticks ||= allocations ? [script.length, AllocationProbe::WARMUP + 300].max : script.run_length
       if gamepad
         require_relative '../spec_core/support/virtual_gamepad'
         install(report, nil, ticks, pad: ScriptedGamepad.new(script))
@@ -858,7 +892,7 @@ if $PROGRAM_NAME == __FILE__
   options = { ticks: nil, script: nil, gamepad: false, seed: nil, texts: false, installed: false, allocations: false }
   parser = OptionParser.new do |o|
     o.banner = 'Usage: ruby tools/drive_test_project.rb PROJECT_MAIN [options]'
-    o.on('--ticks N', Integer, 'Stop after N simulation ticks (default 240, or the script with --allocations)') do |n|
+    o.on('--ticks N', Integer, 'Stop after N simulation ticks (default: the script\'s run length)') do |n|
       options[:ticks] = n
     end
     o.on('--script PATH', 'Input script (default: tools/drive/<project path>.rb)') { options[:script] = it }

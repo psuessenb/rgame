@@ -8,7 +8,7 @@
 # and comes back at `first`, while the keyboard's hero rides on and hops onto the
 # far bank as the shuttle turns. It reaches `second`, waits at the next chasm for
 # the ring's west leg, rides the ring round its north side, hops off onto the
-# far bank, and reaches `last`. Run it with `--seed 1 --texts --ticks 1654`.
+# far bank, and reaches `last`. Run it with `--seed 1 --texts`.
 #
 # What the report should show:
 #

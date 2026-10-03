@@ -6,7 +6,7 @@
 # The harness gives the run a fresh save directory, so it does not write into
 # the home directory of whoever is running it:
 #
-#   ruby tools/drive_test_project.rb examples/save_load_ids/main.rb --ticks 200
+#   ruby tools/drive_test_project.rb examples/save_load_ids/main.rb
 #
 # What the report should show:
 #
@@ -28,6 +28,8 @@
 # processes, and this harness runs one. Run it twice with the same
 # `RGAME_SAVE_DIR` set, which keeps the save between the runs, and read the
 # second run's status line, or check the ids in the JSON by hand.
+
+ticks 200
 
 idle 15
 press controls::KEY_TAB   # target sheep 2

@@ -5,7 +5,7 @@
 # saves it. Run it with --texts; the draw-call section alone cannot show a
 # switch:
 #
-#   ruby tools/drive_test_project.rb examples/localization/main.rb --ticks 140 --texts
+#   ruby tools/drive_test_project.rb examples/localization/main.rb --texts
 #
 # What the report should show under "texts drawn", read off a run with
 # LANG=en_US.UTF-8 and no save:
@@ -30,6 +30,8 @@
 # harness removes after the run. To see the save read back, set
 # `RGAME_SAVE_DIR` for this run and for tools/drive/examples/localization_saved.rb
 # after it.
+
+ticks 140
 
 idle 10
 

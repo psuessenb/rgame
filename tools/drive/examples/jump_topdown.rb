@@ -1,7 +1,7 @@
 # Input script for examples/jump_topdown.
 #
 # One hop standing still, a walk south into the fence, and a second hop against
-# it while still holding south. Run it with `--ticks 170`.
+# it while still holding south.
 #
 # What the report should show:
 #
@@ -28,6 +28,8 @@
 #     presentation, and no audio.
 #
 # Nothing here needs a seed: the map is a file and the timestep is fixed.
+
+ticks 170
 
 idle 10
 press controls::KEY_SPACE # a hop standing still

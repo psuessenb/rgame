@@ -34,7 +34,7 @@
 # example loads its settings file before the first frame, so one left by an
 # earlier run would change what this script does.
 #
-#   ruby tools/drive_test_project.rb examples/menu_navigation/main.rb --ticks 320
+#   ruby tools/drive_test_project.rb examples/menu_navigation/main.rb
 #
 # Under `--allocations` it allocates about 78 objects a second, on 4% of ticks,
 # over the default 60. The warm-up ends before Play, so the run measures the
@@ -43,6 +43,8 @@
 # one runs allocates nothing, which
 # `spec/rgame/engine/scene/scene_stack_transition_spec.rb` holds it to. The
 # other 56 a second are the scenes built again as each switch lands.
+
+ticks 320
 
 allocation_budget objects_per_second: 90
 

@@ -4,7 +4,6 @@
 # comes close lands on it, and it carries the hero east. A walk to its east edge
 # and a hop as it turns land on the far bank. Then a hop back west, with the
 # raft far off, falls into the chasm, and the hero comes back on the west bank.
-# Run it with `--ticks 1020`.
 #
 # What the report should show:
 #
@@ -24,6 +23,8 @@
 # ticks were read off a traced run: the hero hops on tick 475 and lands on the
 # raft on 493, hops off on 742 and lands on the far bank on 772, and hops back
 # on 833 to land in the chasm on 863.
+
+ticks 1020
 
 idle 10
 hold controls::KEY_RIGHT, 36 # to the bank's edge

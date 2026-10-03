@@ -5,8 +5,8 @@
 # language; the draw-call section alone cannot show which lines were on screen
 # when:
 #
-#   LANG=en_US.UTF-8 ruby tools/drive_test_project.rb examples/intro/main.rb --ticks 1200 --texts
-#   LANG=de_DE.UTF-8 ruby tools/drive_test_project.rb examples/intro/main.rb --ticks 1200 --texts
+#   LANG=en_US.UTF-8 ruby tools/drive_test_project.rb examples/intro/main.rb --texts
+#   LANG=de_DE.UTF-8 ruby tools/drive_test_project.rb examples/intro/main.rb --texts
 #
 # What the report should show under "texts drawn", read off both runs:
 #
@@ -30,4 +30,4 @@
 
 idle 120
 press controls::KEY_RETURN # shows the rest of the first page at once
-idle 1080
+idle 1078

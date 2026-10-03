@@ -1,7 +1,7 @@
 # Input script for examples/quick_wheel, on a synthetic controller.
 #
 #   ruby tools/drive_test_project.rb examples/quick_wheel/main.rb --gamepad \
-#     --script tools/drive/examples/quick_wheel_pad.rb --ticks 121
+#     --script tools/drive/examples/quick_wheel_pad.rb
 #
 # Only `--gamepad` plays this: the real device path for the left shoulder and the
 # stick. The shoulder held, the stick pushed east, the stick let go three ticks
@@ -18,6 +18,8 @@
 # caption trails the shoulder's release (tick 37) by three. With `grace: 0.0` on
 # the wheel, 57 still says "nothing yet". **17 `line` calls at 40 and 61 at 121**:
 # the wheel draws only while the shoulder is held.
+
+ticks 121
 
 on controls.gamepad(0) do
   idle 20
