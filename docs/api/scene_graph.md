@@ -967,6 +967,8 @@ for it: a room is built once, and a node may arrive many times.
 A room is its own `scene`. Its nodes find its `TileWorld` and `CollisionWorld`
 first, and the world's `Rooms` beyond them, since `system` looks through each
 enclosing scene. So a door in a room reaches `system(Scene::Rooms)`.
+`Scene::Room.of(node)` is the room a node stands in: the nearest enclosing scene
+that is a `Room`, or nil outside every room.
 
 **A room built over a Tiled map finds its entrances through its `TileWorld`.**
 Its `_arrive` places the node where

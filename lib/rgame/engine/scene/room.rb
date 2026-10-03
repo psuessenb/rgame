@@ -45,6 +45,14 @@ module RGame
           @rgame_players = []
         end
 
+        # The room `node` stands in: the nearest enclosing scene that is a Room,
+        # the node itself if it is one, or nil outside every room.
+        def self.of(node)
+          around = node.scene
+          around = around.parent&.scene until around.nil? || around.is_a?(Room)
+          around
+        end
+
         # Places `node`, which a move brought to this room at `location`.
         # Empty here, so a room that does not place what arrives raises.
         def _arrive(node, location); end

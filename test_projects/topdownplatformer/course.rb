@@ -44,9 +44,8 @@ module TopDownPlatformer
     private
 
     def spawn(player)
-      point = @heroes[@players.primary]&.get_component(Components::Respawn)
-      start = @map.object_named('start')
-      hero = Hero.new(camera: player.camera, x: point ? point.point_x : start.x, y: point ? point.point_y : start.y)
+      point = @heroes[@players.primary]&.get_component(Components::Respawn)&.point || @map.object_named('start')
+      hero = Hero.new(camera: player.camera, x: point.x, y: point.y)
       hero.input_owner = player
       @heroes[player] = @actors.add_node(hero)
       add_node(Engine::PlayerLayer.new(player:)).add_node(Hud.new(hero:))

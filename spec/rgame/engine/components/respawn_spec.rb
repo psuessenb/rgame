@@ -8,6 +8,8 @@ RSpec.describe RGame::Engine::Components::Respawn do
 
   def dt = 1.0 / 60
 
+  def at(x, y) = described_class::Point.new(x:, y:)
+
   before do
     respawn
     world.add_node(node)
@@ -22,25 +24,25 @@ RSpec.describe RGame::Engine::Components::Respawn do
 
   describe 'the point' do
     it 'is where the node first stood, in world pixels' do
-      expect([respawn.point_x, respawn.point_y]).to eq([120, 80])
+      expect([respawn.point.x, respawn.point.y]).to eq([120, 80])
     end
 
     it 'stays when the node attaches again somewhere else' do
       root.add_node(node)
 
-      expect([respawn.point_x, respawn.point_y]).to eq([120, 80])
+      expect([respawn.point.x, respawn.point.y]).to eq([120, 80])
     end
 
     it 'moves with set_point' do
-      respawn.set_point(10.0, 12.0)
+      respawn.set_point(at(10.0, 12.0))
 
-      expect([respawn.point_x, respawn.point_y]).to eq([10.0, 12.0])
+      expect([respawn.point.x, respawn.point.y]).to eq([10.0, 12.0])
     end
 
     it 'goes anywhere with no TileWorld on the scene' do
-      respawn.set_point(-500.0, 9000.0)
+      respawn.set_point(at(-500.0, 9000.0))
 
-      expect([respawn.point_x, respawn.point_y]).to eq([-500.0, 9000.0])
+      expect([respawn.point.x, respawn.point.y]).to eq([-500.0, 9000.0])
     end
   end
 
@@ -63,7 +65,7 @@ RSpec.describe RGame::Engine::Components::Respawn do
     def stand(x, y, point: nil)
       spawned = RGame::Engine::Node2D.new(x:, y:)
       part = spawned.add_component(described_class.new)
-      part.set_point(*point) if point
+      part.set_point(at(*point)) if point
       scene.add_node(spawned)
       part
     end
@@ -71,7 +73,7 @@ RSpec.describe RGame::Engine::Components::Respawn do
     it 'takes the point a node first stands on, where that is ground' do
       part = stand(8.0, 24.0)
 
-      expect([part.point_x, part.point_y]).to eq([8.0, 24.0])
+      expect([part.point.x, part.point.y]).to eq([8.0, 24.0])
     end
 
     it 'raises at the first attach over a gap, naming the class and the point' do
@@ -86,15 +88,118 @@ RSpec.describe RGame::Engine::Components::Respawn do
     it 'keeps a point set before the first attach, and that attach checks it' do
       part = stand(40.0, 24.0, point: [8.0, 8.0])
 
-      expect([part.point_x, part.point_y]).to eq([8.0, 8.0])
+      expect([part.point.x, part.point.y]).to eq([8.0, 8.0])
       expect { stand(8.0, 8.0, point: [40.0, 24.0]) }.to raise_error(ArgumentError, /\(40.0, 24.0\)/)
     end
 
     it 'refuses set_point over a gap once attached, and keeps the point it had' do
       part = stand(8.0, 24.0)
 
-      expect { part.set_point(24.0, 24.0) }.to raise_error(ArgumentError, /over a gap/)
-      expect([part.point_x, part.point_y]).to eq([8.0, 24.0])
+      expect { part.set_point(at(24.0, 24.0)) }.to raise_error(ArgumentError, /over a gap/)
+      expect([part.point.x, part.point.y]).to eq([8.0, 24.0])
+    end
+  end
+
+  describe '#set_point' do
+    it 'refuses an object that is no point, naming what it lacks, and keeps the point it had' do
+      expect { respawn.set_point(Object.new) }
+        .to raise_error(TypeError, /does not answer room, place, check_ground/)
+      expect([respawn.point.x, respawn.point.y]).to eq([120, 80])
+    end
+
+    it "takes a game's own point, and emits nothing while its place says the node lands later" do
+      later = instance_double(described_class::Point, room: nil, place: false, check_ground: nil)
+      seen = []
+      respawn.on_respawned { seen << :respawned }
+      respawn.set_point(later).respawn
+
+      expect(later).to have_received(:place).with(node)
+      expect(seen).to be_empty
+    end
+  end
+
+  # Two rooms under one root, each its own scene, as Scene::Rooms runs them. Room
+  # :a's map is all ground, and :b's has gap cells at x 16 to 48, y 16 to 32.
+  describe 'in rooms' do
+    let(:rooms) do
+      top = RGame::Engine::Node2D.new
+      maps = { a: ['....', '....', '....'], b: ['....', '.~~.', '....'] }
+      built = maps.to_h do |name, rows|
+        room = RGame::Engine::Scene::Room.new
+        room.name = name
+        room.scene = room
+        room.add_component(RGame::Engine::Components::TileWorld.new(map: WalledTileMap.build(rows), tilemap_id: name))
+        [name, top.add_node(room)]
+      end
+      top.enter_tree
+      built
+    end
+
+    def hero_in(room, x: 24.0, y: 24.0, point: nil)
+      hero = RGame::Engine::Node2D.new(x:, y:)
+      part = hero.add_component(described_class.new)
+      part.set_point(point) if point
+      rooms.fetch(room).add_node(hero)
+      part
+    end
+
+    def walk(part, to:) = rooms.fetch(to).add_node(part.node)
+
+    it 'brings a node back in the room it stood in as the point was set' do
+      part = hero_in(:a)
+      part.set_point(at(8.0, 40.0))
+      part.node.x = 60.0
+      part.respawn
+
+      expect([part.node.world_x, part.node.world_y]).to eq([8.0, 40.0])
+    end
+
+    it 'checks nothing as the node attaches in another room, where the point would be over a gap' do
+      part = hero_in(:a)
+
+      expect { walk(part, to: :b) }.not_to raise_error
+    end
+
+    it 'checks a point set in the other room against that room, once it stands there' do
+      part = hero_in(:a)
+      walk(part, to: :b)
+
+      expect { part.set_point(at(24.0, 24.0)) }.to raise_error(ArgumentError, /over a gap/)
+    end
+
+    it 'raises at the respawn in another room, naming both rooms and saying what to set' do
+      part = hero_in(:a)
+      walk(part, to: :b)
+
+      expect { part.respawn }.to raise_error(
+        RuntimeError, /was set in room :a, and the node fell in room :b.*Set a point in room :b/
+      )
+    end
+
+    it 'takes the room of the first attach for a point set before it' do
+      part = hero_in(:a, x: 60.0, point: at(8.0, 8.0))
+      walk(part, to: :b)
+
+      expect { part.respawn }.to raise_error(RuntimeError, /was set in room :a/)
+    end
+
+    it 'takes the room of the next attach for a point set while the node is out of the tree' do
+      part = hero_in(:a)
+      rooms[:a].remove_node(part.node)
+      part.set_point(at(8.0, 8.0))
+      walk(part, to: :b)
+      part.respawn
+
+      expect([part.node.world_x, part.node.world_y]).to eq([8.0, 8.0])
+    end
+
+    it 'raises in a room for a point taken outside every room, whose room is none' do
+      outside = RGame::Engine::Node2D.new
+      part = outside.add_node(RGame::Engine::Node2D.new).add_component(described_class.new)
+      outside.enter_tree
+      walk(part, to: :a)
+
+      expect { part.respawn }.to raise_error(RuntimeError, /was set in no room, and the node fell in room :a/)
     end
   end
 

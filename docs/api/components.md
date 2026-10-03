@@ -401,8 +401,9 @@ add_component(RGame::Engine::Components::PlayerController.new)
 
 **A place a node comes back to after a fall, once it has touched it.** It
 listens to its own node's collider, as [`Collectable`](#collectable) does. On the
-step a collider on the `by` layer starts overlapping it, it moves that node's
-[`Respawn`](#respawn) point to its own node's world position.
+step a collider on the `by` layer starts overlapping it, it sets that node's
+[`Respawn`](#respawn) point to a `Respawn::Point` at its own node's world
+position.
 
 ```ruby
 flag.add_component(RGame::Engine::Components::BoxCollider.new(width: 16, height: 16, offset_x: -8,
@@ -1980,25 +1981,46 @@ hero.add_component(RGame::Engine::Components::Respawn.new).on_respawned { blink.
 ```
 
 - **Construct:** `Respawn.new`, which takes nothing.
-- **The point:** `point_x` and `point_y`, in world pixels. The first attach records
-  where the node stands. Later attaches, such as a door moving the node to another
-  room, keep the point. `set_point(x, y)` moves it and returns the `Respawn`, and a
-  [`Checkpoint`](#checkpoint) calls it.
+- **The point:** `point`, nil until the first attach. The first attach with no
+  point takes a `Respawn::Point` where the node stands. Later attaches, such as a
+  door moving the node to another room, keep the point. `set_point(point)` moves
+  it and returns the `Respawn`, and a [`Checkpoint`](#checkpoint) calls it.
 - **`respawn`** places the node on its point. A game may call it with no fall
   before it.
 - **Signal:** `on_respawned` fires once the node stands on its point.
 - **Lifecycle:** `_attach` checks the point, as below.
 
+**A point is an object that places the node.** `Respawn::Point.new(x:, y:)` is
+a point at world coordinates, and the engine's only one so far. A game may bring
+its own: `Respawn` calls a point by three names, and raises `TypeError` from
+`set_point` for an object that lacks any of them.
+
+| Method | Answers |
+|---|---|
+| `room` | the Symbol of the room the point is in, or nil for a point that has none, as a `Point` has |
+| `place(node)` | places the node, and answers true when it stands on the point now. `respawn` fires `on_respawned` only then |
+| `check_ground(world)` | raises `ArgumentError` when `world`, a `TileWorld`, has no ground under the point |
+
+**A point with no room belongs to the room the node stood in as it was set.**
+That is [`Scene::Room.of(node)`](scene_graph.md#a-room-places-what-arrives),
+or no room outside rooms. A point set while the node is out of the tree belongs
+to the room of its next attach. `respawn` raises for such a point while the node
+stands in another room, since the same coordinates are another place there. The
+message names both rooms. A game that sets a point as the node arrives in each
+room never meets it.
+
 **The point stands on ground.** With a [`TileWorld`](#tileworld) on the scene,
-each attach raises `ArgumentError` for a point whose cell is a gap, and so does
-`set_point` once attached. A gap under a [`Platform`](#platform) counts: the platform
-moves on, and a node brought back there would fall again as soon as it stood. A
-refused `set_point` keeps the point it had. A node that starts on a platform takes
-a point on ground before it is added, and its first attach checks that point
-instead:
+each attach in the point's room raises `ArgumentError` for a point whose cell is
+a gap. So does `set_point` once attached. A gap under a [`Platform`](#platform)
+counts: the platform moves on, and a node brought back there would fall again as
+soon as it stood. A refused `set_point` keeps the point it had. An attach in
+another room checks nothing, since that room's map says nothing about the
+point's. A node that starts on a platform takes a point on ground before it is
+added, and its first attach checks that point instead:
 
 ```ruby
-hero.add_component(RGame::Engine::Components::Respawn.new.set_point(96.0, 248.0))
+respawn = RGame::Engine::Components::Respawn
+hero.add_component(respawn.new.set_point(respawn::Point.new(x: 96.0, y: 248.0)))
 ```
 
 With no `TileWorld`, a `Respawn` checks nothing.
