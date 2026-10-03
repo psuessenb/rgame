@@ -1982,32 +1982,67 @@ hero.add_component(RGame::Engine::Components::Respawn.new).on_respawned { blink.
 
 - **Construct:** `Respawn.new`, which takes nothing.
 - **The point:** `point`, nil until the first attach. The first attach with no
-  point takes a `Respawn::Point` where the node stands. Later attaches, such as a
-  door moving the node to another room, keep the point. `set_point(point)` moves
+  point takes a `Respawn::Point` where the node stands. A move through
+  [`Scene::Rooms`](scene_graph.md#rooms-scenerooms) hands a
+  `Respawn` with no point a `Respawn::RoomPoint` instead, before the node's first
+  attach. Later attaches and later moves keep the point. `set_point(point)` moves
   it and returns the `Respawn`, and a [`Checkpoint`](#checkpoint) calls it.
-- **`respawn`** places the node on its point. A game may call it with no fall
-  before it.
-- **Signal:** `on_respawned` fires once the node stands on its point.
-- **Lifecycle:** `_attach` checks the point, as below.
+- **`respawn`** places the node on its point, or asks the rooms to move it there.
+  A game may call it with no fall before it.
+- **Signal:** `on_respawned` fires once the node stands on its point: at once in
+  the point's room, and from another room as the node attaches there.
+- **Lifecycle:** `_attach` checks the point, as below, and ends a respawn into
+  another room.
 
-**A point is an object that places the node.** `Respawn::Point.new(x:, y:)` is
-a point at world coordinates, and the engine's only one so far. A game may bring
-its own: `Respawn` calls a point by three names, and raises `TypeError` from
-`set_point` for an object that lacks any of them.
+**A point is an object that places the node.** The engine offers two kinds. A
+game may bring its own: `Respawn` calls a point by three names, and raises
+`TypeError` from `set_point` for an object that lacks any of them.
 
 | Method | Answers |
 |---|---|
 | `room` | the Symbol of the room the point is in, or nil for a point that has none, as a `Point` has |
-| `place(node)` | places the node, and answers true when it stands on the point now. `respawn` fires `on_respawned` only then |
+| `place(node)` | places the node, and answers true when it stands on the point now, or false when a move lands it later |
 | `check_ground(world)` | raises `ArgumentError` when `world`, a `TileWorld`, has no ground under the point |
+
+`Respawn::Point.new(x:, y:)` is a point at world coordinates. Its `place` sets
+the node's world position and answers true.
+
+**A point in a room is a location that room names.**
+`Respawn::RoomPoint.new(room:, location:)` takes the Symbol a room was defined
+under, and raises `TypeError` for anything else. `location` reaches the room's
+[`_arrive`](scene_graph.md#a-room-places-what-arrives), as a move's does.
+
+- **In the node's own room,** `place` calls the room's `_arrive` at once and
+  answers true. That is a warp without the cover, so `_arrive` runs with its
+  side effects. It raises as a move does when `_arrive` leaves the node outside
+  the room.
+- **From another room,** `place` calls `Rooms#move` with the rooms' transition
+  and answers false. The respawn then waits. The node's next attach in the
+  point's room ends the wait and fires `on_respawned`, after `_arrive` has
+  placed it. A move that lands the node in another room first ends the wait
+  with no signal.
+- **`check_ground`** looks the location up with
+  [`TileWorld#location`](#tileworld), so a location the room's map does not
+  name raises `KeyError`.
+
+A door leaves the point where it was set. A game that brings a node back to the
+entrance of the room it fell in sets a `Point` as each move lands, where
+`_arrive` placed it:
+
+```ruby
+rooms.on_arrived do |node, _room|
+  respawn = node.get_component(RGame::Engine::Components::Respawn)
+  respawn&.set_point(RGame::Engine::Components::Respawn::Point.new(x: node.world_x, y: node.world_y))
+end
+```
 
 **A point with no room belongs to the room the node stood in as it was set.**
 That is [`Scene::Room.of(node)`](scene_graph.md#a-room-places-what-arrives),
 or no room outside rooms. A point set while the node is out of the tree belongs
 to the room of its next attach. `respawn` raises for such a point while the node
 stands in another room, since the same coordinates are another place there. The
-message names both rooms. A game that sets a point as the node arrives in each
-room never meets it.
+message names both rooms and points to `RoomPoint`. A game that sets a point as
+the node arrives in each room never meets it.
 
 **The point stands on ground.** With a [`TileWorld`](#tileworld) on the scene,
 each attach in the point's room raises `ArgumentError` for a point whose cell is
@@ -2015,8 +2050,9 @@ a gap. So does `set_point` once attached. A gap under a [`Platform`](#platform)
 counts: the platform moves on, and a node brought back there would fall again as
 soon as it stood. A refused `set_point` keeps the point it had. An attach in
 another room checks nothing, since that room's map says nothing about the
-point's. A node that starts on a platform takes a point on ground before it is
-added, and its first attach checks that point instead:
+point's. A `RoomPoint` in another room is checked as the node attaches there. A
+node that starts on a platform takes a point on ground before it is added, and
+its first attach checks that point instead:
 
 ```ruby
 respawn = RGame::Engine::Components::Respawn
@@ -2025,11 +2061,12 @@ hero.add_component(respawn.new.set_point(respawn::Point.new(x: 96.0, y: 248.0)))
 
 With no `TileWorld`, a `Respawn` checks nothing.
 
-**The node comes back working.** Its controls answer from the tick it lands, and a
-[`CameraFollow`](#camerafollow) cuts to it. A game shows where it came back from
-`on_respawned`. A [`Blink`](#blink), as above, changes only how the node draws,
-and runs from the tick the node lands: the fall resumes the node before it calls
-`respawn`.
+**The node comes back working.** In its point's room, its controls answer from
+the tick it lands, and a [`CameraFollow`](#camerafollow) cuts to it. From another
+room, the move holds the node and its player's input until the cover has
+revealed, as a door does. A game shows where it came back from `on_respawned`. A
+[`Blink`](#blink), as above, changes only how the node draws, and runs from the
+tick the node lands: the fall resumes the node before it calls `respawn`.
 
 ### `ScreenWrap`
 

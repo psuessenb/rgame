@@ -38,6 +38,11 @@ module RGame
       # room a node stands in is a warp: `_arrive` places the node again and
       # nothing leaves the tree.
       #
+      # **A move hands a node's Components::Respawn its first point.** A
+      # Respawn with no point takes a Respawn::RoomPoint at the room and the
+      # location of the node's first landing, before `_arrive` attaches it. A
+      # later move and a warp leave the point where it is.
+      #
       # **A moving player reads no input anywhere**, as no scene does under a
       # stack's transition. A bag or a pause menu of theirs outside the rooms
       # reads nothing held until the reveal ends, and refuses a press begun
@@ -357,6 +362,7 @@ module RGame
           room = @rgame_by_name[move.name] || build(move.name)
           moving = move.node
           moving.parent&.remove_node(moving) unless inside?(moving, room)
+          moving.get_component(Components::Respawn)&.take_landing(move.name, move.location)
           room._arrive(moving, move.location)
           unless inside?(moving, room)
             raise "#{room.class}#_arrive left #{moving.class} outside the room. Add it to a node in the room"

@@ -172,7 +172,7 @@ RSpec.describe RGame::Engine::Components::Respawn do
       walk(part, to: :b)
 
       expect { part.respawn }.to raise_error(
-        RuntimeError, /was set in room :a, and the node fell in room :b.*Set a point in room :b/
+        RuntimeError, /was set in room :a, and the node fell in room :b.*Set a Respawn::RoomPoint.*a point in room :b/
       )
     end
 

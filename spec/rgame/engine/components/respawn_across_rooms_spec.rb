@@ -75,7 +75,6 @@ RSpec.describe 'Respawn across rooms' do # rubocop:disable RSpec/DescribeClass -
   end
 
   it 'brings a hero who falls in :b back at the gate in :a, where it first landed' do
-    pending 'a respawn point in a room'
     go(to: :a, location: 'gate')
     go(to: :b, location: 'door')
     seen.clear

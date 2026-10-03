@@ -23,7 +23,9 @@ module RGame
       # comes from another one, and the hook adds it to a node in this room. It
       # is still here when the move was a warp inside this room, and adding it
       # to its own parent again changes nothing. A node `_arrive` leaves outside
-      # the room raises.
+      # the room raises. A Components::Respawn::RoomPoint calls it too, to bring
+      # back a node that fell in this room. The node is still here then, as for a
+      # warp.
       #
       # A room is its own `scene`, so its systems are found first by the nodes
       # in it. A system it lacks is looked for on the world scene that holds the
