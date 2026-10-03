@@ -238,7 +238,7 @@ Every example gets one, at the **mirrored path**: `examples/menu_navigation/main
 is driven by `tools/drive/examples/menu_navigation.rb`.
 
 ```
-ruby tools/drive_test_project.rb examples/<name>/main.rb --ticks 240
+ruby tools/drive_test_project.rb examples/<name>/main.rb
 ```
 
 Booting is not driving. The report counts what the game asked for: scenes
@@ -256,6 +256,9 @@ assertion, and it is the part to get right:
 - **Assert on structure**, not exact counts — scenes entered, sounds fired, clip
   and translate counts, a number changing between two stretches of the run.
   Exact draw counts are comparable only with `--seed N`.
+- **Declare `ticks` when the game acts after the last input**, such as a move
+  landing or a fade ending: `ticks 900`. A run otherwise plays the whole script
+  and at least 240 ticks, so no header has to tell its reader a `--ticks`.
 - **Never activate Quit.** It closes the game, the run ends before its tick
   budget, and the report looks like a crash. Say so in the header.
 - **The harness gives each run a fresh `RGAME_SAVE_DIR`** and removes it
@@ -326,7 +329,7 @@ In order, because each step is cheaper than the next:
 ```
 bundle exec rubocop examples/<name>/main.rb <any lib file you touched>
 bundle exec rake spec            # the engine layer, headless
-ruby tools/drive_test_project.rb examples/<name>/main.rb --ticks 240
+ruby tools/drive_test_project.rb examples/<name>/main.rb
 ```
 
 Plus `rake spec:core` and `make test` if the example needed engine or C work.

@@ -587,13 +587,15 @@ plain boot of it reported "90 ticks, 90 frames" and looked healthy. Drive it
 instead:
 
 ```
-ruby tools/drive_test_project.rb examples/collision_tiles/main.rb --ticks 240
+ruby tools/drive_test_project.rb examples/collision_tiles/main.rb
 ```
 
 `tools/drive_test_project.rb` boots the project unmodified, feeds it a scripted
 input backend through the `input` member of `RGame::Game::Configuration`, stops
 on a tick budget, and reports draw calls, clips, sounds, scenes entered and
-ticks against frames.
+ticks against frames. The budget is the whole script and at least 240 ticks,
+unless the script declares `ticks` for what its game does after the last input.
+A `ticks` that would cut the script short raises, so no run stops early unasked.
 A script holds **one timeline per device**, so a two-player run is two `on`
 blocks playing at once, every track absolute from tick 0.
 
