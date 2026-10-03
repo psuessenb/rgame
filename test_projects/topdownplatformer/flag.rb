@@ -6,8 +6,9 @@ module TopDownPlatformer
   #
   # Its Checkpoint moves the Respawn point of the hero who touched it, then says so,
   # and the flag hands its name to that hero for their status line. The map builds
-  # it from a point and passes the point's name. A flag over a gap raises as the
-  # course loads.
+  # it from a point and passes the point's name, which is the checkpoint's location
+  # too, so the flag would serve a course of rooms as it is. A flag over a gap, or
+  # one the designer left unnamed, raises as the course loads.
   class Flag < Engine::Node2D
     TILES = 'tiles.json'
     SIZE = 16
@@ -19,7 +20,7 @@ module TopDownPlatformer
       super(**)
       add_component(Components::BoxCollider.new(width: SIZE, height: SIZE, offset_x: -SIZE / 2,
                                                 offset_y: -SIZE, layer: :checkpoint))
-      add_component(Components::Checkpoint.new(by: :hero)).on_reached do |other|
+      add_component(Components::Checkpoint.new(by: :hero, location: name)).on_reached do |other|
         @tile = BANNER
         other.node.reach(name)
       end
