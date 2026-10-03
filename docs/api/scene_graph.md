@@ -975,7 +975,8 @@ that is a `Room`, or nil outside every room.
 **A room built over a Tiled map finds its entrances through its `TileWorld`.**
 Its `_arrive` places the node where
 [`TileWorld#location`](components.md#tileworld) says, which answers for the
-map's named objects and for places a game names in code. The doors are the
+map's named objects and for places a game names in code, such as a
+[`Checkpoint`](components.md#checkpoint)'s location. The doors are the
 map's objects too. [A door from the map](tile_maps.md#a-door-from-the-map)
 is the code, and `examples/doors` walks a hero through a gate and two warp pads.
 

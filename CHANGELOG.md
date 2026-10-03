@@ -27,7 +27,9 @@ index, not the argument.
   See [docs/api/examples.md](docs/api/examples.md#smooth_art).
 - **Checkpoints.** `Components::Checkpoint` moves the respawn point of a node
   on its `by` layer to itself when that node's collider touches it, and emits
-  `on_reached`. It raises over a gap, and for a toucher with no `Respawn`. See
+  `on_reached`. Its `location:` names its place on the `TileWorld`, and in a
+  `Scene::Room` a touch hands a `Respawn::RoomPoint` there. It raises over a
+  gap, in a room with no location, and for a toucher with no `Respawn`. See
   [docs/api/components.md](docs/api/components.md#checkpoint).
 - **Moving platforms.** `Components::Platform` makes its node's box floor over
   the map's gaps, and `TileWorld#platform_under` names the one a point stands
