@@ -48,8 +48,8 @@
 #
 # **A fall costs nothing.** `Fall#on_fell` is where a game takes a life, and
 # this one takes none. **The floor stands still.** `examples/moving_platforms`
-# carries the hero across a chasm on a raft. **The spot never moves.** `Respawn#set_point` moves it,
-# which is what a checkpoint would call. **The pit's edges are drawn on one
+# carries the hero across a chasm on a raft. **The spot never moves.**
+# `examples/checkpoints` moves it with flags. **The pit's edges are drawn on one
 # side only.** Its north edge has a tile of its own, and the other three meet
 # the grass directly.
 

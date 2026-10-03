@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Authored for examples/checkpoints; edit it in Tiled. See README.md.
+     pits.tmx with three checkpoints. Its tile layers are pits.tmx's, cell for
+     cell, and spec/example_assets_spec.rb holds the two maps to that: an edit
+     to one is an edit to both. The three trenches run south at x = 12, 18
+     and 24 tiles into the chasm. `start`, in the `spawns` layer, is where the
+     hero stands first. `first`, `second` and `last` are points of class
+     `Flag` in the `actors` layer, on row 10 where the start stands: one
+     between each pair of trenches and one past the last. The hero walks in
+     `actors` too, and sorts against the flags. -->
+<map version="1.10" tiledversion="1.10.2" orientation="orthogonal" renderorder="right-down" width="40" height="30" tilewidth="16" tileheight="16" infinite="0" nextlayerid="6" nextobjectid="5">
+ <tileset firstgid="1" source="tileset.tsx"/>
+ <tileset firstgid="133" source="pits.tsx"/>
+ <layer id="1" name="ground" width="40" height="30">
+  <data encoding="base64" compression="zlib">eJzlV9EOgCAINPn/f+6pzTlRvEOi9cByanAch5mUUi5nq+S6vIDJikMW69ltxENVxjKYR3hEeM5onrmzPeIRZ1RftGaaPnb9rvR5ipOTGjzRM6hJk6uGKxPer9eB0VWPl+lXT1xf4p/lZIbZ42zLkuczj+iiTnJDc259WnxY9kj31Naj62rhPIt2WFyV4PmvZj2DLGMmXvR/2apfrX6ia9Jj9vxuR+TLnNmRNdjBomlo1VtoTp73PvQdBgN6D9jdj8Rp7yk30LAFOA==</data>
+ </layer>
+ <layer id="2" name="pits" width="40" height="30">
+  <data encoding="base64" compression="zlib">eJztzzEKACAMxdBeXs/tKrgoqVAlgb90eo34q550v1VLut9KH0sfSx9LH0sfSx9LH0sfS99aP1hLuu9s/rHi9OnT976vcgMi+b1D</data>
+ </layer>
+ <layer id="3" name="obstacles" width="40" height="30">
+  <data encoding="base64" compression="zlib">eJztzjENADAMwLBSKH+yA5Gnk2wpf3Zm9nhX+Wv8Nf4af42/xl/jr/HX+Gv8Nf4af42/5pe/yz3UvAkJ</data>
+ </layer>
+ <objectgroup id="4" name="spawns">
+  <object id="1" name="start" x="88" y="168">
+   <point/>
+  </object>
+ </objectgroup>
+ <objectgroup id="5" name="actors">
+  <object id="2" name="first" class="Flag" x="248" y="168">
+   <point/>
+  </object>
+  <object id="3" name="second" class="Flag" x="344" y="168">
+   <point/>
+  </object>
+  <object id="4" name="last" class="Flag" x="520" y="168">
+   <point/>
+  </object>
+ </objectgroup>
+</map>

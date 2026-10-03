@@ -124,6 +124,20 @@ counts, and a bar shows that coyote time running out. C turns it off.
 `TileMap#gap_tile?`, `Components::TileWorld`, `Components::CharacterBody`,
 `Components::FeetCollider`.
 
+### checkpoints
+
+Flags that move where a hero comes back after a fall. Three flags stand between
+the trenches of a map, and each is a point object of the class `Flag`, which the
+map builds. A hero who touches one raises its banner, and a fall after that
+brings them back to the flag rather than to the start. A line at the top names
+where they come back. The last flag touched wins, an earlier one walked back to
+included.
+
+**Uses:** `Components::Checkpoint`, `Components::Respawn`,
+`Components::CollisionWorld`, `TileMapLayer.mount` with a map-built node and its
+`name:`, `Components::Footing`, `Components::Fall`, `Components::Hop`,
+`Components::Shrink`, `Components::Blink`.
+
 ### moving_platforms
 
 A raft shuttling across a chasm, boarded with a timed hop. The raft stops 12 px

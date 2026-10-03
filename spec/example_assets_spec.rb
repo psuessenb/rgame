@@ -18,6 +18,17 @@ require 'json'
 RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the subject is shipped data, not a class
   let(:assets) { File.expand_path('../examples/assets', __dir__) }
 
+  def loaded(file) = RGame::Engine::TileMap.from_tiled(RGame::Engine::Tiled::Map.load(File.join(assets, file)))
+
+  # Every tile layer's name, visibility and cells, in the map's order.
+  def tile_layers(map)
+    layers = (0...map.layer_count).map { map.layer(it) }.select { it.kind == :tile }
+    layers.map do |layer|
+      cells = (0...map.height).flat_map { |row| (0...map.width).map { |col| map.tile(layer.index, col, row) } }
+      [layer.path, layer.visible?, layer.opacity, layer.properties.to_h, cells]
+    end
+  end
+
   describe 'hero.json' do
     subject(:animations) { RGame::Engine::AnimationSet.new(descriptor[:animations]) }
 
@@ -329,6 +340,31 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
     end
   end
 
+  # A Checkpoint raises as its map loads when it stands over a gap or has no
+  # name, so a flag a designer drags onto a trench fails only in a window. These
+  # hold the file to it first.
+  describe 'checkpoints.tmx' do
+    let(:map) { loaded('checkpoints.tmx') }
+    let(:flags) { map.objects.select { it.class_name == 'Flag' } }
+
+    it 'gives the map the tile layers of pits.tmx, cell for cell, so an edit to one is an edit to both' do
+      expect(tile_layers(map)).to eq(tile_layers(loaded('pits.tmx')))
+    end
+
+    it 'leaves pits.tmx with no class that builds, since examples/pits defines no Flag' do
+      expect(loaded('pits.tmx').objects.map(&:class_name).grep(/\A[[:upper:]]/)).to be_empty
+    end
+
+    it 'names three flags' do
+      expect(flags.map(&:name)).to contain_exactly('first', 'second', 'last')
+    end
+
+    it 'stands every flag on floor' do
+      over_gaps = flags.select { map.gap_tile?(map.col_at(it.origin_x), map.row_at(it.origin_y)) }
+      expect(over_gaps.map(&:name)).to be_empty
+    end
+  end
+
   # The raft never touches a bank, and a hop from either bank reaches it at the
   # end of its route: that gap is the whole point of examples/moving_platforms.
   describe 'platforms.tmx' do
@@ -412,17 +448,6 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
     # How far a feet box reaches from the point a node stands on: half a hero's
     # 12 px width, rounded up to half a tile.
     let(:reach) { 8 }
-
-    def loaded(file) = RGame::Engine::TileMap.from_tiled(RGame::Engine::Tiled::Map.load(File.join(assets, file)))
-
-    # Every tile layer's name, visibility and cells, in the map's order.
-    def tile_layers(map)
-      layers = (0...map.layer_count).map { map.layer(it) }.select { it.kind == :tile }
-      layers.map do |layer|
-        cells = (0...map.height).flat_map { |row| (0...map.width).map { |col| map.tile(layer.index, col, row) } }
-        [layer.path, layer.visible?, layer.opacity, layer.properties.to_h, cells]
-      end
-    end
 
     def all_of(class_names)
       maps.flat_map { |room, map| map.objects.select { class_names.include?(it.class_name) }.map { [room, it] } }

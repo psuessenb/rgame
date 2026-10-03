@@ -426,6 +426,8 @@ flag.add_component(RGame::Engine::Components::Checkpoint.new(by: :hero, location
   connects to it, then adds the location, as below. `_detach` ends that
   connection and removes the location, so a checkpoint taken out of the tree
   and added again fires once per touch.
+- **Example:** `examples/checkpoints` builds three flags from a map's point
+  objects, and a fall brings the hero back to the last one touched.
 
 **Its location is a place the `TileWorld` names.** A checkpoint the map builds
 passes its object's name, which a node class receives by naming
