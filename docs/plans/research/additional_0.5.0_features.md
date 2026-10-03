@@ -37,8 +37,10 @@ As it arrived:
 
 Two of the five have left this file. Facing-aware interaction has landed, as
 `Components::Facing` and the `:facing` targeting policy. The respawn point per
-room has a plan of its own, [respawn-rooms.md](../respawn-rooms.md), which took
-over this file's section on it.
+room was settled by a plan of its own, which took over this file's section on
+it. A door leaves the point where it was set, and `Respawn::RoomPoint` brings a
+node back into another room. The plan is in git, at
+`git show 848239b:docs/plans/respawn-rooms.md`.
 
 ## What was measured
 
@@ -214,9 +216,7 @@ Two of the three are in `docs/plans/possible-todos.md`. Remove each entry as
 its feature lands:
 
 - "Blend modes beyond `:add`": the multiply blend.
-- "Loose ends from top-down platforming": the pushed platform. The bullet
-  beside it, the respawn point in a room left behind, belongs to
-  [respawn-rooms.md](../respawn-rooms.md).
+- "Loose ends from top-down platforming": the pushed platform.
 
 Tinting a character has no entry there.
 "Per-layer parallax, offset and tint" under the Tiled loose ends is a different
