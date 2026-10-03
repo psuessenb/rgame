@@ -2240,6 +2240,23 @@ data to another, depends on a sibling's add order, or names a layer it may not n
   runtime only through [`OccupiesCell`](#occupiescell).
   The gaps are read the same way, into a second grid that `gap?` and `floor_at?`
   read. Platforms move, so `floor_at?` asks each of them every time.
+- **A room names its places here.** `location(name)` answers where a place is,
+  as a `TileWorld::Location` whose `x` and `y` are world pixels. The map answers
+  for each of its objects with the object's origin, `MapObject#origin_x` and
+  `#origin_y`, where a node built from it would stand. `add_location(name,
+  node)` names a place in code. Until `remove_location(name)`, that name
+  answers where the node stands at the time of asking. A room's `_arrive` so
+  finds a place drawn in Tiled and a place built in code the same way.
+  - `location` raises `KeyError` listing the names it knows for a name nobody
+    gave, and `ArgumentError` for a name two of the map's objects share. A name
+    is a String, as Tiled's are, and any other raises `TypeError`.
+  - `add_location` adds nothing for a node built from the map's object of that
+    name, since the map already answers for it. It raises `ArgumentError`,
+    naming both owners, for a name already added and for a name the map gives
+    another object.
+  - The names belong to this `TileWorld`, so a room built again starts with
+    none. The map stays as it was loaded, because the asset manager keeps one
+    copy of it for every visit.
 - **It does not resolve a step.** Tiles, other actors, the world's edge, or any
   combination may stop a mover, and only the mover knows which. The resolver
   therefore belongs to the mover, and the grid to this system.

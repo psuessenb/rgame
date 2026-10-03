@@ -104,6 +104,11 @@ index, not the argument.
   `WorldView` draws only into its players' views, and each player's camera
   takes their room's limits. See
   [docs/api/scene_graph.md](docs/api/scene_graph.md#rooms-scenerooms).
+- **A room finds a place by its name.** `Components::TileWorld#location(name)`
+  answers where a named place is, in world pixels: the origin of the map's
+  object of that name, or where a node stands that the game added with
+  `add_location`. `remove_location` forgets one. See
+  [docs/api/components.md](docs/api/components.md#tileworld).
 - **Cutscenes.** `RGame::Engine::Cutscene::Script.build` lists steps that run,
   wait, hold on a walk or a fade, talk, and wait for a press.
   `Components::Cutscene` runs one on a node and takes what it stops: the nodes

@@ -23,6 +23,89 @@ RSpec.describe RGame::Engine::Components::TileWorld do
     end
   end
 
+  describe 'named locations' do
+    subject(:world) { described_class.new(map:, tilemap_id: 'map/yard.tmx') }
+
+    let(:map) { WalledTileMap.build(['....', '....', '....'], objects: [['gate', 8, 40], ['sign', 32, 0, 16, 16]]) }
+
+    def at(name)
+      location = world.location(name)
+      [location.x, location.y]
+    end
+
+    it "answers a map object's origin: a point's own, and the bottom centre of a box" do
+      expect([at('gate'), at('sign')]).to eq([[8.0, 40.0], [40.0, 16.0]])
+    end
+
+    it 'answers where an added node stands in the world when asked, not where it stood when added' do
+      flag = RGame::Engine::Node2D.new(x: 20, y: 30)
+      RGame::Engine::Node2D.new.add_node(RGame::Engine::Node2D.new(x: 4, y: 2)).add_node(flag)
+      world.add_location('flag', flag)
+      flag.x = 50
+
+      expect(at('flag')).to eq([54.0, 32.0])
+    end
+
+    it 'adds nothing for a node built from the map object of that name, which the map answers for' do
+      world.add_location('sign', RGame::Engine::Node2D.new(map_object_id: 2))
+      standing = at('sign')
+      world.remove_location('sign')
+
+      expect([standing, at('sign')]).to eq([[40.0, 16.0], [40.0, 16.0]])
+    end
+
+    it 'refuses a name the map gives another object, naming the name and both owners' do
+      sign = RGame::Engine::Node2D.new(map_object_id: 2)
+
+      expect { world.add_location('gate', sign) }.to raise_error(
+        ArgumentError, "'gate' names object 1 of map/yard.tmx, so a RGame::Engine::Node2D cannot add it as a " \
+                       'location too. Give one of them another name'
+      )
+    end
+
+    it 'refuses a name added twice, naming the name and both nodes' do
+      world.add_location('flag', RGame::Engine::Node2D.new)
+
+      expect { world.add_location('flag', RGame::Engine::WorldView.new) }.to raise_error(
+        ArgumentError, "'flag' is already a location of map/yard.tmx, added for a RGame::Engine::Node2D, so a " \
+                       'RGame::Engine::WorldView cannot add it too. Give one of them another name'
+      )
+    end
+
+    it "raises KeyError for a name nobody gave, listing the map's names and the added ones" do
+      world.add_location('flag', RGame::Engine::Node2D.new)
+
+      expect { world.location('well') }.to raise_error(
+        KeyError, "no location named 'well' in map/yard.tmx (the map names gate, sign; added: flag)"
+      )
+    end
+
+    it "raises for a name two of the map's objects share, since either could be meant" do
+      twice = WalledTileMap.build(['..'], objects: [['gate', 0, 0], ['gate', 16, 0]])
+
+      expect { described_class.new(map: twice, tilemap_id: 'map/yard.tmx').location('gate') }
+        .to raise_error(ArgumentError, /2 objects are named 'gate' in this map \(ids 1, 2\)/)
+    end
+
+    it 'forgets a removed name, which may then be added again' do
+      world.add_location('flag', RGame::Engine::Node2D.new)
+      world.remove_location('flag')
+
+      expect { world.location('flag') }.to raise_error(KeyError)
+      expect { world.add_location('flag', RGame::Engine::Node2D.new) }.not_to raise_error
+    end
+
+    it 'knows no added name in a world built again over the same map, as a room built again has' do
+      world.add_location('flag', RGame::Engine::Node2D.new)
+
+      expect { described_class.new(map:, tilemap_id: 'map/yard.tmx').location('flag') }.to raise_error(KeyError)
+    end
+
+    it 'refuses a name that is not a String, which no Tiled object has' do
+      expect { world.location(:gate) }.to raise_error(TypeError, /a location's name is a String.*got :gate/)
+    end
+  end
+
   # It is a system, not a drawer — RGame::Engine::TileMapLayer draws the map,
   # inside the world band, so that it is drawn once per viewport like the rest
   # of the world. What is left here is what actors ask about.
