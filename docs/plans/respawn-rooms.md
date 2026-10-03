@@ -1,7 +1,7 @@
 # Respawn across rooms
 
-**Status:** planned at `cee120c`. Steps 0 to 3 are implemented. Step 4 is
-detailed, re-planned at `232b33f`. Step 5 is rough.
+**Status:** planned at `cee120c`. Steps 0 to 4 are implemented. Step 5 is
+rough, and gets re-planned before it is implemented.
 
 A node with a `Respawn` comes back to the room its point is in. In its own room
 it comes back at once, as today. From another room, the rooms move it there
@@ -931,6 +931,35 @@ nothing to the `TileWorld`, whose map names it already.
 **Verify.** `rake spec` and `rake spec:core`. The composed spec's checkpoint
 case passes. `topdownplatformer`, driven with `--seed 1 --texts` at 1654 ticks,
 reports the same as `main`.
+
+**Landed.** Two commits, one per sub-step, after the re-plan's own. They change
+8 files, with 252 lines in and 35 out. `rake spec` ran 4828 examples with 0
+failures in 38.0 s. The 11 new ones are 10 in `checkpoint_spec.rb` and the
+composed spec's checkpoint case, which passes. `rake spec:core` ran 555 with 0
+failures, and `rake drive:allocations` passed all 44 projects. Each of nine
+mutations of `Checkpoint` failed its specs, among them a touch in a room that
+hands a `Point`, and a detach that removes a location it never added.
+
+`topdownplatformer`, driven with `--seed 1 --texts` at 1654 ticks, gave reports
+identical to `main`'s, twice on each side, once the checkout's path in them was
+the same. Its heroes reached `first`, `second` and `last` at ticks 303, 799 and
+1618.
+
+Where it differed from the sketch:
+
+- **A checkpoint removes at detach only a location it added.** A second
+  checkpoint refused for a name stays in the tree, since the raise comes from
+  its attach. Its detach would otherwise remove the first one's place. A
+  mutation found it, and a case in `checkpoint_spec.rb` pins it. The test list
+  had no case for it.
+- **Rule 5 got a case too**, a checkpoint in a room with no `TileWorld`. The test
+  list named none.
+- **A `Flag` the designer leaves unnamed raises as the course loads**, from rule
+  1. All three of the course's flags are named, and the flag's comment says so.
+- **`scene_graph.md` names a checkpoint's location** among the places a game
+  names in code, beside `components.md` and the changelog.
+
+None of these changes step 5.
 
 ### 5. Fold the plan back, and delete it *(rough)*
 
