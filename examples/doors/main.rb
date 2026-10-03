@@ -14,7 +14,7 @@
 #     freed once nobody is left in it;
 #   - Scene::Room and its `_arrive` hook — placing whatever a move brings;
 #   - Scene::Fade — the cover and reveal every move runs;
-#   - TileMap#object_named — the entrance a door names, read off the map;
+#   - TileWorld#location — the entrance a door names, read off the map;
 #   - TileMapLayer.mount — a Door or a Warp built from each object of that
 #     class on the map, set up by the object's properties;
 #   - BoxCollider#on_hit — a door that moves the hero who touches it, and stays.
@@ -150,15 +150,15 @@ module DoorsExample
     end
 
     def _enter_tree
-      @map = root.context.assets.tilemap(@map_id).map
-      add_component(Components::TileWorld.new(map: @map, tilemap_id: @map_id))
+      map = root.context.assets.tilemap(@map_id).map
+      add_component(Components::TileWorld.new(map:, tilemap_id: @map_id))
       add_component(Components::CollisionWorld.new(cell_size: 32))
       @actors = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new))['actors']
     end
 
     # A hero arrives standing on the entrance the move named.
     def _arrive(node, location)
-      spot = @map.object_named(location)
+      spot = get_component(Components::TileWorld).location(location)
       node.x = spot.x
       node.y = spot.y
       @actors.add_node(node)

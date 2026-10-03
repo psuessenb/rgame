@@ -31,15 +31,15 @@ module Adventure
     CELL_SIZE = 64
 
     def _enter_tree
-      @map = root.context.assets.tilemap(MAP).map
-      add_component(Components::TileWorld.new(map: @map, tilemap_id: MAP))
+      map = root.context.assets.tilemap(MAP).map
+      add_component(Components::TileWorld.new(map:, tilemap_id: MAP))
       add_component(Components::CollisionWorld.new(cell_size: CELL_SIZE))
 
       @actors = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new))['actors']
     end
 
     def _arrive(hero, location)
-      spot = @map.object_named(location)
+      spot = get_component(Components::TileWorld).location(location)
       hero.x = spot.x + (Town::SPACING * hero.input_owner.id)
       hero.y = spot.y
       @actors.add_node(hero)

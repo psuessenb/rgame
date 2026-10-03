@@ -174,7 +174,7 @@ its properties name. The garden is built as the hero walks in and the town
 freed, since nobody is left in it. A pad moves the hero within the garden, which
 only places it again.
 
-**Uses:** `Scene::Rooms`, `Scene::Room`, `Scene::Fade`, `TileMap#object_named`,
+**Uses:** `Scene::Rooms`, `Scene::Room`, `Scene::Fade`, `TileWorld#location`,
 `Components::BoxCollider#on_hit`, `Components::TileWorld`,
 `TileMapLayer.mount` with map-built nodes, `Engine::Text`.
 

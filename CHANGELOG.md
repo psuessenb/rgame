@@ -104,6 +104,11 @@ index, not the argument.
   `WorldView` draws only into its players' views, and each player's camera
   takes their room's limits. See
   [docs/api/scene_graph.md](docs/api/scene_graph.md#rooms-scenerooms).
+- **A room finds a place by its name.** `Components::TileWorld#location(name)`
+  answers where a named place is, in world pixels: the origin of the map's
+  object of that name, or where a node stands that the game added with
+  `add_location`. `remove_location` forgets one. See
+  [docs/api/components.md](docs/api/components.md#tileworld).
 - **Cutscenes.** `RGame::Engine::Cutscene::Script.build` lists steps that run,
   wait, hold on a walk or a fade, talk, and wait for a press.
   `Components::Cutscene` runs one on a node and takes what it stops: the nodes
@@ -306,7 +311,8 @@ index, not the argument.
 - **A tile map says what its tiles, layers and objects are.** `TileMap` answers
   `orientation`, `tile_class`, `tile_properties`, `layer`, `layer_index`,
   `image_layers` and `objects`, which are `RGame::Engine::MapObject`s in the
-  game's coordinates. `object_named` finds the one object a designer named. An
+  game's coordinates. `object_named` finds the one object a designer named, and
+  `MapObject#origin_x` and `#origin_y` say where a node built from one stands. An
   object layer is a `TileMap::ObjectLayer`, which answers `y_sort?`. Custom
   properties are `RGame::Engine::Properties`, and a class property's value
   answers `class_name`. See

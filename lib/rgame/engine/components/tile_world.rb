@@ -38,6 +38,12 @@ module RGame
       # thing actors ask about collision and bounds — and a system that also
       # drew was always the odd part of it.
       #
+      # **It knows the room's named places.** #location answers where a name is:
+      # the origin of the map's object of that name, or where a node a game
+      # added with #add_location stands. A room's `_arrive` so finds a place
+      # drawn in Tiled and a place built in code the same way. The map stays as
+      # it was loaded, since the asset manager keeps one copy for every visit.
+      #
       # It owns the map's **animation clock**. Nothing below reads a wall clock;
       # see "`draw` renders state; time enters through `update`".
       # The elapsed seconds animated tiles run on are accumulated here and handed down at
@@ -45,6 +51,9 @@ module RGame
       # should look like.
       class TileWorld < Engine::Component
         include WorldBounds
+
+        # A place a room can name, in world pixels.
+        Location = Data.define(:x, :y)
 
         sealed_reader :tilemap_id, :elapsed
 
@@ -57,6 +66,7 @@ module RGame
           @rgame_tilemap_id = tilemap_id
           @rgame_elapsed = 0.0
           @rgame_platforms = []
+          @rgame_locations = {}
           @rgame_mounted = false
           Array(cameras).each { |camera| bound(camera) }
         end
@@ -101,6 +111,50 @@ module RGame
         # The map's objects, as `TileMap#objects` lists them: each a MapObject
         # naming the layer it sits in.
         def objects = @rgame_map.objects
+
+        # Where the place named `name` is, a Location in world pixels: the
+        # origin of the map's object of that name, or where the node added under
+        # it stands now. Raises KeyError listing the names it knows when none has
+        # it, ArgumentError when two of the map's objects share it, and TypeError
+        # for a name that is not a String, as Tiled's names are.
+        def location(name)
+          check_name(name)
+          if (node = @rgame_locations[name])
+            Location.new(x: node.world_x, y: node.world_y)
+          elsif @rgame_map.objects.any? { it.name == name }
+            object = @rgame_map.object_named(name)
+            Location.new(x: object.origin_x, y: object.origin_y)
+          else
+            raise KeyError.new("no location named '#{name}' in #{@rgame_tilemap_id} (#{known_locations})",
+                               receiver: self, key: name)
+          end
+        end
+
+        # Names the place `node` stands as `name`, until #remove_location. A
+        # node built from the map's object of that name adds nothing, since the
+        # map already answers for it. Raises ArgumentError for a name already
+        # added, and for a name the map gives an object other than `node`'s own.
+        def add_location(name, node)
+          check_name(name)
+          named = @rgame_map.objects.select { it.name == name }
+          others = named.reject { it.id == node.map_object_id }
+          unless others.empty?
+            raise ArgumentError, "'#{name}' names object #{others.map(&:id).join(', ')} of #{@rgame_tilemap_id}, so " \
+                                 "a #{node.class} cannot add it as a location too. Give one of them another name"
+          end
+          return unless named.empty?
+
+          if (owner = @rgame_locations[name])
+            raise ArgumentError, "'#{name}' is already a location of #{@rgame_tilemap_id}, added for a " \
+                                 "#{owner.class}, so a #{node.class} cannot add it too. Give one of them another name"
+          end
+
+          @rgame_locations[name] = node
+        end
+
+        # Forgets the place added as `name`. A name never added, such as one the
+        # map answers for, changes nothing.
+        def remove_location(name) = @rgame_locations.delete(name)
 
         # Records that TileMapLayer.mount has built this map's nodes. Raises
         # RuntimeError naming this world's node when it already has, since a
@@ -288,6 +342,19 @@ module RGame
         end
 
         private
+
+        def check_name(name)
+          return if name.is_a?(String)
+
+          raise TypeError, "a location's name is a String, as Tiled names an object; got #{name.inspect}"
+        end
+
+        def known_locations
+          mapped = @rgame_map.objects.map(&:name).reject(&:empty?).uniq
+          added = @rgame_locations.keys
+          "the map names #{mapped.empty? ? 'none' : mapped.join(', ')}; " \
+            "added: #{added.empty? ? 'none' : added.join(', ')}"
+        end
 
         def platform_covering(x, y)
           i = 0
