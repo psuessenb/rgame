@@ -1,7 +1,7 @@
 # Respawn across rooms
 
-**Status:** planned at `cee120c`. Steps 0 to 4 are implemented. Step 5 is
-rough, and gets re-planned before it is implemented.
+**Status:** planned at `cee120c`. Steps 0 to 4 are implemented, and step 5 is
+re-planned.
 
 A node with a `Respawn` comes back to the room its point is in. In its own room
 it comes back at once, as today. From another room, the rooms move it there
@@ -961,17 +961,82 @@ Where it differed from the sketch:
 
 None of these changes step 5.
 
-### 5. Fold the plan back, and delete it *(rough)*
+### 5. Fold the plan back, and delete it
 
-- `docs/api/components.md` (`Respawn`, `Checkpoint`, `Fall`),
-  `scene_graph.md` (`Rooms`, `Room`) and `tile_maps.md` say what the code does,
-  with nothing of this plan's history.
-- `possible-todos.md` loses "A respawn point in a room left behind".
-- Anything still true in "Traps" moves into the class comments it belongs to.
+**Why now.** Steps 0 to 4 shipped what the plan set out to build, each with its
+docs and its changelog entry. What remains is what the plan knows and no page
+or class comment says, and the plan itself.
+
+Re-planned at `848239b`, where:
+
+| | |
+|---|---|
+| `rake spec` | 4828 examples, 0 failures |
+| Links to this plan from outside it | 2, both in `research/additional_0.5.0_features.md` |
+| `possible-todos.md` entries this plan answers | 1, "A respawn point in a room left behind". Reading all 1034 lines found no other entry it made moot or wrong |
+| Traps still true and said nowhere else | 2 of 5: trap 2, that `_arrive` places a node before adding it, and trap 5, that a node attached outside the rooms keeps its `Point` |
+| Measured bugs the plan did not fix | 1, from step 3: a move that replaces a respawn's and lands the node in the point's room fires `on_respawned` where that move placed it |
+| Unreleased changelog entries this plan wrote or edited | 6, each matching the code: checkpoints, a fall and the way back, a respawn into another room, rooms, a room finding a place by its name, and `MapObject`'s origin in the `TileMap` entry |
+| "What proved wrong" bullets in #205 to #209 | 23 |
+
+Two things were decided with the user before this step was written:
+
+- **The bug is documented as how `Respawn` works.** Any landing in the point's
+  room ends a respawn that waits, and fires `on_respawned` where the node
+  landed. The node does stand in its point's room then. Nothing moves to
+  `possible-todos.md`.
+- **The one guard the learn-from-mistakes pass found gets a branch of its own**,
+  after this one. A drive script declares the ticks a run needs, and the tool
+  runs that many unless told otherwise.
+
+What goes with the plan:
+
+- **Trap 1.** `components.md` and `scene_graph.md` both say a respawn in the
+  node's own room runs `_arrive` with its side effects, and `Respawn`'s header
+  calls it a warp.
+- **Trap 3.** `TileWorld#location` answers a map object's origin, which
+  `components.md` defines as where a node built from it stands.
+- **Trap 4** is a fact about `adventure`'s code. The town's header says its
+  `_arrive` stands heroes, and only heroes move there.
+- **Open question 1**, a transition of its own for a respawn into another room.
+  It waits on a game that asks, which is no trigger `possible-todos.md` takes.
+- **"What this does not deliver."** None of its four has a trigger beyond a game
+  that wants it.
+
+#### 5a. What the plan still knows moves into the docs
+
+- `Scene::Room`'s header and `scene_graph.md`'s "A room places what arrives" say
+  that `_arrive` places a node before adding it. The add attaches the node's
+  components, and a `Respawn` that ends a respawn there fires `on_respawned`.
+- `Respawn`'s header and `components.md`'s `Respawn` say that a node attached
+  outside the rooms before its first move keeps the `Point` it took, and that
+  any landing in the point's room ends a respawn that waits.
+
+#### 5b. The plan goes
+
+- `possible-todos.md` loses "A respawn point in a room left behind", and its
+  section counts four loose ends.
+- `research/additional_0.5.0_features.md` points at this plan in git.
 - This file is deleted.
 
-**Verify.** `CHANGELOG.md`'s unreleased entries for `Respawn`, `Checkpoint` and
-`Rooms`, and a new one for `TileWorld#location`, match what shipped, by the
+**The learn-from-mistakes pass.** Of the 23 bullets, one passes the filter, as a
+guard. A plain drive runs 240 ticks, and 33 scripts name in their header the
+`--ticks` a run needs. Step 0's first comparison of `doors` against `main` ran
+240, walked through no door, and matched. The rest fail the filter:
+
+- **Raises the rules did not list** (#206, #208), such as a location that is
+  not a String. Each was added while building, and none cost anything.
+- **A case that needs another world went into a file of its own** (#207,
+  #208), twice for `respawn_spec.rb`'s file-level `before`. Both times the new
+  file was the right answer, found at once.
+- **`pending` and `RoomPoint`'s docs moved to an earlier sub-step** (#208). RSpec
+  and the coverage check each failed the commit that would have split them, so
+  the guards already exist.
+- **The rest are facts about one step's design**, such as `MapObject`'s origin
+  living in the reopened class, or two RuboCop naming cops disabled inline.
+
+**Verify.** `CHANGELOG.md`'s unreleased entries match the code, by the
 [update-changelog](../../.claude/skills/update-changelog/SKILL.md) skill.
-`rake spec` and `rake spec:core` pass, and `grep -rn "respawn-rooms" docs`
-finds nothing.
+`TileWorld` shipped in 0.4.0, so its entry adds to a released class and changes
+nothing in it. `rake spec` and `rake spec:core` pass, and
+`grep -rn "respawn-rooms" docs` finds only the research file's pointer into git.
