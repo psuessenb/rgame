@@ -9,8 +9,11 @@ module Adventure
   # `actors` layer, over every other, and draw there by where they stand. The
   # coins, the chest, the lever and the crate go there too, so they sort with the
   # heroes, and so do the sparkles every coin bursts as it is taken. The map
-  # builds the gate, a Door, in its `doors` layer under them, so a hero walks
-  # over it.
+  # builds the gate to the garden, a Door, in its `doors` layer under them, so a
+  # hero walks over it.
+  #
+  # The town builds the east gate, to the course, in that layer itself. Its map
+  # is `examples/doors`' too, and the rooms there define no course.
   #
   # It also mounts a CollisionWorld. The map alone stops a hero, and that needed
   # no broadphase — but a coin is a contact, a chest is a range query, a crate is a
@@ -51,7 +54,11 @@ module Adventure
 
     LEVER = [160, 96].freeze
 
-    CRATE = [440, 304].freeze
+    CRATE = [448, 312].freeze
+
+    # The bottom centre of the east gate, as a map gives a door's.
+    COURSE_GATE = [920, 160].freeze
+    GATE_SIZE = 16
 
     OPENING = Engine::Cutscene::Script.build do
       run { it.caption.text = 'Morning in the town' }
@@ -71,7 +78,11 @@ module Adventure
       add_component(Components::TileWorld.new(map: @map, tilemap_id: MAP))
       add_component(Components::CollisionWorld.new(cell_size: CELL_SIZE))
 
-      @actors = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new))['actors']
+      layers = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new))
+      @actors = layers['actors']
+      layers['doors'].add_node(Door.new(to: :course, entrance: 'start', name: 'course_gate',
+                                        x: COURSE_GATE.first, y: COURSE_GATE.last,
+                                        width: GATE_SIZE, height: GATE_SIZE))
 
       sparkles = @actors.add_node(Sparkles.new)
       COINS.each_with_index do |(x, y), index|

@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module TopDownPlatformer
+module Adventure
   # A raft of Tiny Town planks, centred on its node, that walks its route for good:
   # back and forth along a polyline, or round a polygon. Its box is the floor over
   # the chasm, and its PathFollow is what carries its riders. The map builds it

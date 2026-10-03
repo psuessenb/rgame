@@ -31,6 +31,9 @@ index, not the argument.
   `Scene::Room` a touch hands a `Respawn::RoomPoint` there. It raises over a
   gap, in a room with no location, and for a toucher with no `Respawn`. See
   [docs/api/components.md](docs/api/components.md#checkpoint).
+- **A checkpoints example.** `examples/checkpoints` places three flags on a
+  map with gaps, and a fall brings the hero back to the last one touched. See
+  [docs/api/examples.md](docs/api/examples.md#checkpoints).
 - **Moving platforms.** `Components::Platform` makes its node's box floor over
   the map's gaps, and `TileWorld#platform_under` names the one a point stands
   on. A node with a `Footing` boards the platform under it, and the mover that

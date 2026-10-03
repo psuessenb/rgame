@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module TopDownPlatformer
+module Adventure
   # The NPC: it wanders on the ring, and `blocked_by: :gaps` keeps it there. It
   # stands in a hero's way, and a hero in its way stops it. Its Footing is what
   # boards it onto the ring, so the ring carries it round.

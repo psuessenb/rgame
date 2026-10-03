@@ -36,10 +36,26 @@ module Adventure
   # reads `carried` and `worn` and calls `wear` and `take_off`. The hero draws
   # what it wears over its sprite, and names it in words above its head, as the
   # chest and the crate draw their state.
+  #
+  # ## Hops, falls and the way back
+  #
+  # It hops on `jump`, Space or the pad's A. Its Footing drops it into a gap, its
+  # Fall and Shrink take it out of play, and its Respawn brings it back, where a
+  # Blink shows it. Only the course has gaps, so only there does any of it show.
+  # Its Footing also boards it onto a raft, which carries it.
+  #
+  # It keeps two status lines for its player's Hud: how often it has fallen, and
+  # the place it comes back to. Each is built again as it changes, never while
+  # drawing. The course calls #reach as the hero arrives, and a Flag as the hero
+  # touches it.
   class Hero < Engine::Node2D
     SLOTS = %i[head].freeze
 
     SPEED = 80.0
+
+    # A hop from `examples/pits`: 40 px at walking speed.
+    HOP_PEAK = 18.0
+    HOP_DURATION = 0.5
 
     FEET_WIDTH  = 12
     FEET_HEIGHT = 6
@@ -59,10 +75,16 @@ module Adventure
                       width: FEET_WIDTH, height: FEET_HEIGHT, layer: :hero
                     ))
       add_component(Components::CharacterBody.new(
-                      speed: SPEED, blocked_by: %i[tiles crate], pushes: [:crate]
+                      speed: SPEED, blocked_by: %i[tiles crate npc], pushes: [:crate]
                     ))
       add_component(Components::Facing.new)
       add_component(Components::PlayerController.new)
+      add_component(Components::Hop.new(peak: HOP_PEAK, duration: HOP_DURATION))
+      add_component(Components::Footing.new)
+      add_component(Components::Fall.new).on_fell { fell }
+      add_component(Components::Shrink.new)
+      blink = add_component(Components::Blink.new)
+      add_component(Components::Respawn.new).on_respawned { blink.start(1.0) }
       add_component(Components::CameraFollow.new(
                       camera: camera, offset_y: CAMERA_OFFSET_Y
                     ))
@@ -71,12 +93,21 @@ module Adventure
       @carried = []
       @worn = {}
       @revision = 0
+      @falls = 0
+      @falls_line = 'Falls: 0'
+      @checkpoint_line = 'Checkpoint: none'
     end
 
     # `carried` is every Item held and not worn, in the order it came. `worn`
     # maps a slot to the Item it wears. `revision` counts the changes to either,
     # so a reader can tell whether what it last read is still true.
     attr_reader :carried, :worn, :revision
+
+    attr_reader :falls_line, :checkpoint_line
+
+    def reach(place)
+      @checkpoint_line = "Checkpoint: #{place}"
+    end
 
     def carry(item)
       @carried << item
@@ -102,6 +133,13 @@ module Adventure
 
       renderer.rect(-HAT_WIDTH / 2.0, -height, HAT_WIDTH, HAT_HEIGHT, z: 1, color: hat.color)
       renderer.text(hat.name, -width / 2.0, -height - 12)
+    end
+
+    private
+
+    def fell
+      @falls += 1
+      @falls_line = "Falls: #{@falls}"
     end
   end
 end

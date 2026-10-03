@@ -161,6 +161,19 @@ Written by a short Ruby script rather than in Tiled, as `puzzle.tmx` was, in the
 same base64 + zlib format over `tileset.tsx` and `pits.tsx`. Edit it in Tiled
 like the others.
 
+### `checkpoints.tmx` — ours
+
+`pits.tmx` with three checkpoints, for `examples/checkpoints`, which builds a
+`Flag` from each. `examples/pits` defines no `Flag`, so it would raise on one.
+The tile layers are `pits.tmx`'s, cell for cell, and
+`spec/example_assets_spec.rb` holds the two maps to that. Edit the tiles of
+both, or neither.
+
+The points `first`, `second` and `last` in the `actors` layer are of class
+`Flag`, on row 10 where `start` stands: one between each pair of trenches, and
+one past the last. The spec holds each to standing on floor. The hero walks in
+`actors` too, so it sorts against the flags.
+
 ### `platforms.tmx` — ours
 
 60x30 tiles = 960x480 pixels, for `examples/moving_platforms`: wider than the
@@ -185,7 +198,8 @@ like the others.
 A sprite-sheet descriptor over `tileset.png`: 16x16 frames and no animations,
 so `renderer.sprite('tiles.json', row, col, x, y)` draws any one Tiny Town tile.
 `examples/moving_platforms` draws its raft's planks from row 6, columns 0, 1
-and 3.
+and 3. `examples/checkpoints` draws a flag's post from row 6 and its banner
+from row 7, both in column 11.
 
 ### `coin.png` + `coin.json` — ours
 

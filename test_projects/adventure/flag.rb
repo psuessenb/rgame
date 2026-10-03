@@ -1,14 +1,15 @@
 # frozen_string_literal: true
 
-module TopDownPlatformer
+module Adventure
   # A checkpoint: a signpost until a hero reaches it, and a banner after. It stands
   # on its node's origin, where a hero who reached it comes back.
   #
   # Its Checkpoint moves the Respawn point of the hero who touched it, then says so,
   # and the flag hands its name to that hero for their status line. The map builds
   # it from a point and passes the point's name, which is the checkpoint's location
-  # too, so the flag would serve a course of rooms as it is. A flag over a gap, or
-  # one the designer left unnamed, raises as the course loads.
+  # too. The course is a room, so the point is a RoomPoint at that name, and a
+  # fall brings the hero back through the course's `_arrive`. A flag over a gap,
+  # or one the designer left unnamed, raises as the course loads.
   class Flag < Engine::Node2D
     TILES = 'tiles.json'
     SIZE = 16

@@ -7,8 +7,8 @@ runs on its own:
 ruby examples/walk/main.rb
 ```
 
-**An example answers "how do I do *X*".** The complete games under
-`test_projects/` answer that poorly. An example shows one concept in one file,
+**An example answers "how do I do *X*".** The complete game under
+`test_projects/` answers that poorly. An example shows one concept in one file,
 and its header comment explains the concept at length. This page is the index;
 the file is the long version.
 
@@ -123,6 +123,20 @@ counts, and a bar shows that coyote time running out. C turns it off.
 `Components::Respawn`, `Components::Blink`, `Components::Hop`, `Node2D#scale`,
 `TileMap#gap_tile?`, `Components::TileWorld`, `Components::CharacterBody`,
 `Components::FeetCollider`.
+
+### checkpoints
+
+Flags that move where a hero comes back after a fall. Three flags stand between
+the trenches of a map, and each is a point object of the class `Flag`, which the
+map builds. A hero who touches one raises its banner, and a fall after that
+brings them back to the flag rather than to the start. A line at the top names
+where they come back. The last flag touched wins, an earlier one walked back to
+included.
+
+**Uses:** `Components::Checkpoint`, `Components::Respawn`,
+`Components::CollisionWorld`, `TileMapLayer.mount` with a map-built node and its
+`name:`, `Components::Footing`, `Components::Fall`, `Components::Hop`,
+`Components::Shrink`, `Components::Blink`.
 
 ### moving_platforms
 

@@ -88,7 +88,7 @@ re-run reproduces the normal report byte for byte. So re-run a lone odd report
 before believing it. Take a baseline twice as well, because the capture you
 compare *against* can be the run that was wrong.
 
-Five more things a comparison needs; each has produced a false result:
+Four more things a comparison needs; each has produced a false result:
 
 - **A report cannot match across a change to draw order or to a node's origin.**
   It lists draws in call order and in each node's local coordinates, so either
@@ -101,8 +101,6 @@ Five more things a comparison needs; each has produced a false result:
   215 driven frames and no report. Compare frames instead: prepend `frame_end` to
   `RGame::Game` in a scratch file, save the back buffer with `RenderedFrame.grab`
   at a few ticks of every driven run, and do that at `main` and at the head.
-- **A worktree of `main` has no `media/`.** It is git-ignored, so the test projects
-  crash loading assets there. Symlink the checkout's `media/` into the worktree.
 - **A worktree has no compiled extensions either, and copied ones can be stale.**
   `lib/rgame/*.so` is git-ignored too, so the usual move is to copy the
   checkout's into the worktree. But `make clean` deletes both, and a later

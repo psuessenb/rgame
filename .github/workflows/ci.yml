@@ -239,8 +239,7 @@ jobs:
       # sees a whole game: a spec measures a class with the data it was given,
       # and a cop reads one method at a time. See tools/drive_allocations.rb.
       # One leg runs it, since the code that allocates is the same on every
-      # platform. The test projects that read the gitignored media/ are skipped
-      # here, and the output says so.
+      # platform.
       - name: Allocation budgets (driven projects)
         if: runner.os == 'Linux'
         continue-on-error: ${{ !matrix.ported }}

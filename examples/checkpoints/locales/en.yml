@@ -1,0 +1,14 @@
+# The English table: every string this example draws.
+en:
+  help:
+    walk: Arrows / WASD / gamepad to walk, Space / A to hop
+    flags: Touch a flag, and a fall brings you back to it
+  status:
+    back_at: "Comes back at: %{place}"
+  # One line for each place the hero comes back to: the start, and each Flag
+  # the map builds, under the name the map gives it.
+  places:
+    start: the start
+    first: the first flag
+    second: the second flag
+    last: the last flag

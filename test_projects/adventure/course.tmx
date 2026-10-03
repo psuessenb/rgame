@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Authored for test_projects/topdownplatformer; edit it in Tiled.
+<!-- Authored for test_projects/adventure's course; edit it in Tiled.
 
      100x30 tiles at 16px = 1600x480 pixels, a meadow walled with trees and
      crossed west to east along row 15, y 248. Every gap runs from row 1 to row
@@ -7,18 +7,19 @@
      tile wide in columns 16, 20 and 24, a chasm in columns 34 to 49 (x 544 to
      800), and one in columns 58 to 81 (x 928 to 1312).
 
-     The `platforms` layer lies under `actors`, where the heroes walk, so a
-     hero draws over the raft they ride and sorts against what stands in
-     `actors`. In `platforms`, `shuttle` is a polyline of class `Raft` that
-     its centre walks back and forth, stopping 12 px short of each bank, and
-     `ring` a polygon it walks round, never touching a bank. The ring's west
-     and east legs run 12 px from a bank. Each carries its size in its
-     deck_width and deck_height properties.
+     The `doors` layer holds `town_gate`, a Door back to the town's square. The
+     `platforms` layer lies over it and under `actors`, where the heroes walk,
+     so a hero draws over the raft they ride and sorts against what stands in
+     `actors`. In `platforms`, `shuttle` is a polyline of class `Raft` that its
+     centre walks back and forth, stopping 12 px short of each bank, and `ring`
+     a polygon it walks round, never touching a bank. The ring's west and east
+     legs run 12 px from a bank. Each carries its size in its deck_width and
+     deck_height properties.
 
-     In `actors`, `start` is where the first hero stands. `first`, `second`
-     and `last` are points of class `Flag`, `crate` of class `Crate` and
-     `walker` of class `Walker`, which rides the ring. -->
-<map version="1.10" tiledversion="1.10.2" orientation="orthogonal" renderorder="right-down" width="100" height="30" tilewidth="16" tileheight="16" infinite="0" nextlayerid="6" nextobjectid="9">
+     In `actors`, `start` is where a hero arrives. `first`, `second` and `last`
+     are points of class `Flag`, `crate` of class `Crate` and `walker` of class
+     `Walker`, which rides the ring. -->
+<map version="1.10" tiledversion="1.10.2" orientation="orthogonal" renderorder="right-down" width="100" height="30" tilewidth="16" tileheight="16" infinite="0" nextlayerid="7" nextobjectid="10">
  <tileset firstgid="1" source="../../examples/assets/tileset.tsx"/>
  <tileset firstgid="133" source="../../examples/assets/pits.tsx"/>
  <layer id="1" name="ground" width="100" height="30">
@@ -30,6 +31,14 @@
  <layer id="3" name="obstacles" width="100" height="30">
   <data encoding="base64" compression="zlib">eJzt2jERADAMA7FQCH+yBRAA/UG6M4JfvTOzlhoNerTo0aJHix4terTo0aJHix4terTo0aJHix4terTo0aJHix4terTo0aJHix4terTo0aJHix4terTo0aJHy+/fsN092DIRAQ==</data>
  </layer>
+ <objectgroup id="6" name="doors">
+  <object id="9" name="town_gate" class="Door" x="32" y="232" width="16" height="16">
+   <properties>
+    <property name="entrance" value="square"/>
+    <property name="to" value="town"/>
+   </properties>
+  </object>
+ </objectgroup>
  <objectgroup id="5" name="platforms">
   <object id="7" name="shuttle" class="Raft" x="588" y="248">
    <properties>

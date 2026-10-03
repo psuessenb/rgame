@@ -13,9 +13,17 @@ module Adventure
   # a push from a pull: "crate" until something moves it, then "east" or "west".
   #
   # Where it stands and which way it last moved are the fields of its
-  # Components::Facts, kept in the facts database under the key the room names.
-  # It reads them as it enters the tree, and writes them on each tick it has
-  # moved, so a room built anew puts the crate back where it was left.
+  # Components::Facts, kept in the facts database. The town builds its crate in
+  # code and names the key. The course's map builds one, and its key comes from
+  # the map object. A crate reads its fields as it enters the tree, and writes
+  # them on each tick it has moved, so a room built anew puts the crate back
+  # where it was left.
+  #
+  # It is centred on its node, so its centre is where it stands, and a fall
+  # shrinks it toward its middle. Pushed into a gap, it falls as a hero does,
+  # and comes back blinking where it first stood in that room. Its Footing has
+  # no coyote time, so it drops the tick its centre leaves the floor. The town
+  # has no gaps, so only the course's crate ever falls.
   class Crate < Engine::Node2D
     SIZE = 16
 
@@ -23,10 +31,17 @@ module Adventure
 
     LABELS = { still: 'crate', east: 'east', west: 'west' }.freeze
 
-    def initialize(key:, x:, y:)
-      super(x:, y:)
-      add_component(Components::BoxCollider.new(width: SIZE, height: SIZE, layer: :crate))
+    # @placeable
+    def initialize(key: nil, **)
+      super(**)
+      add_component(Components::BoxCollider.new(width: SIZE, height: SIZE, offset_x: -SIZE / 2,
+                                                offset_y: -SIZE / 2, layer: :crate))
       @pushable = add_component(Components::Pushable.new(blocked_by: %i[tiles crate hero]))
+      add_component(Components::Footing.new(coyote: 0))
+      add_component(Components::Fall.new)
+      add_component(Components::Shrink.new)
+      blink = add_component(Components::Blink.new)
+      add_component(Components::Respawn.new).on_respawned { blink.start(0.5) }
       @facts = add_component(Components::Facts.new(key:, x:, y:, way: 'still'))
     end
 
@@ -43,8 +58,8 @@ module Adventure
     end
 
     def _draw(renderer, _view)
-      renderer.rect(0, 0, SIZE, SIZE, color: COLOR)
-      renderer.text(LABELS.fetch(@way), 0, -12)
+      renderer.rect(-SIZE / 2, -SIZE / 2, SIZE, SIZE, color: COLOR)
+      renderer.text(LABELS.fetch(@way), -SIZE / 2, (-SIZE / 2) - 12)
     end
 
     private
