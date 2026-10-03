@@ -1,23 +1,25 @@
 # frozen_string_literal: true
 
 module Adventure
-  # The world the shell's stack holds while the game is played: the rooms, a hero
-  # and a bag for each player, and the listener that spawns them.
+  # The world the shell's stack holds while the game is played: the rooms, a hero,
+  # a bag and a Hud for each player, and the listener that spawns them.
   #
-  # ## Two players, two rooms
+  # ## Two players, three rooms
   #
   # Scene::Rooms runs every room a player stands in, and draws each into its own
   # players' regions. So the pad's hero can walk through the town's gate into the
   # garden while the keyboard's hero stays in the town, and each region shows its
   # own map. A door moves the hero who touched it. The garden's horn moves every
-  # hero in `heroes`, from whichever room.
+  # hero in `heroes`, from whichever room. The town's east gate leads to the
+  # course, where the heroes hop and fall.
   #
   # ## What lives here rather than in a room
   #
   # A room is built anew each time somebody walks into it, so anything that must
   # outlast a visit sits above the rooms. Each hero belongs to the world, and so
-  # does each bag, in a PlayerLayer of its player. A bag open while the other
-  # hero takes the gate stays open, and its hero stays paused until it closes.
+  # do each bag and each Hud, in a PlayerLayer of its player. A bag open while the
+  # other hero takes the gate stays open, and its hero stays paused until it
+  # closes.
   #
   # The first hero arrives under the opening fade. A player who joins later
   # arrives with no transition, in whichever room the primary player stands in,
@@ -30,7 +32,8 @@ module Adventure
   # to it. The claims change as a move is asked for, so the music crossfades to
   # the garden's song over the cover and the reveal of the first hero asked into
   # the garden, and back as the horn is sounded. With no song in the garden, the
-  # town's fades out when the town empties and in again when it fills.
+  # town's fades out when the town empties and in again when it fills. The course
+  # claims no song, so the town's fades out as its last hero leaves for it.
   #
   # The world listens to `Players#on_joined` for as long as it is in the tree,
   # and ends that as it leaves.
@@ -41,7 +44,7 @@ module Adventure
 
     MUSIC = 'music.ogg'
 
-    MAPS = [Town::MAP, Garden::MAP].freeze
+    MAPS = [Town::MAP, Garden::MAP, Course::MAP].freeze
 
     attr_reader :heroes
 
@@ -50,6 +53,7 @@ module Adventure
       @rooms = add_component(Engine::Scene::Rooms.new)
       @rooms.define(:town, music: MUSIC, priority: 1) { Town.new }
       @rooms.define(:garden, music: Garden::SONG, priority: 2) { Garden.new }
+      @rooms.define(:course) { Course.new }
       @rooms.transition = DOORS
       @heroes = []
     end
@@ -71,7 +75,9 @@ module Adventure
       hero = Hero.new(camera: player.camera)
       hero.input_owner = player
       @heroes << hero
-      add_node(Engine::PlayerLayer.new(player: player)).add_node(Bag.new(hero: hero, x: 8, y: 8))
+      layer = add_node(Engine::PlayerLayer.new(player: player))
+      layer.add_node(Bag.new(hero: hero, x: 8, y: 8))
+      layer.add_node(Hud.new(hero: hero))
       room = @rooms.room_of(@players.primary)
       @rooms.move(hero, to: room ? room.name : :town, location: 'start', transition: room ? nil : ARRIVAL)
     end

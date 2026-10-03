@@ -18,18 +18,23 @@ require_relative 'bag'
 require_relative 'caption'
 require_relative 'chest'
 require_relative 'coin'
+require_relative 'course'
 require_relative 'crate'
 require_relative 'debug_toggle'
 require_relative 'door'
+require_relative 'flag'
 require_relative 'garden'
 require_relative 'hero'
+require_relative 'hud'
 require_relative 'item'
 require_relative 'lever'
+require_relative 'raft'
 require_relative 'shell'
 require_relative 'sign'
 require_relative 'sparkles'
 require_relative 'storm'
 require_relative 'town'
+require_relative 'walker'
 require_relative 'warp'
 require_relative 'world'
 
@@ -54,6 +59,7 @@ module Adventure
           bag: { buttons: [Controls::KEY_I, Controls::PAD_START] },
           debug: { buttons: [Controls::KEY_F4, Controls::PAD_BACK] },
           interact: { buttons: [Controls::KEY_E, Controls::PAD_X], tap: 0.3 },
+          jump: { buttons: [Controls::KEY_SPACE, Controls::PAD_A] },
           search: { buttons: [Controls::KEY_E, Controls::PAD_X], hold: 0.6 },
           skip: { buttons: [Controls::KEY_TAB, Controls::PAD_Y], hold: 0.6 }
         )
