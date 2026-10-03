@@ -961,7 +961,10 @@ world.rooms[:town]                          # => nil — nobody stands in it, so
 **`Room#_arrive(node, location)` is the room's hook for placing a node.** The
 rooms call it as a move lands, after the room entered the tree. A node from
 another room arrives in no room, and `_arrive` adds it to a node in this one. A
-node `_arrive` leaves outside the room raises. The builder is the wrong place
+node `_arrive` leaves outside the room raises. Place the node before adding it,
+as `Town` above does. The add attaches the node's components, and a
+[`Respawn`](components.md#respawn) bringing the node back from another room
+fires `on_respawned` as it attaches. The builder is the wrong place
 for it: a room is built once, and a node may arrive many times. A
 [`Respawn::RoomPoint`](components.md#respawn) calls it too, for a node that
 fell in this room.

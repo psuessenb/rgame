@@ -27,6 +27,11 @@ module RGame
       # back a node that fell in this room. The node is still here then, as for a
       # warp.
       #
+      # **Place the node before adding it.** The add attaches the node's
+      # components. A Components::Respawn bringing the node back from another
+      # room fires `on_respawned` as it attaches, and a listener would otherwise
+      # find the node where it stood in the room it fell in.
+      #
       # A room is its own `scene`, so its systems are found first by the nodes
       # in it. A system it lacks is looked for on the world scene that holds the
       # rooms, and then on the root.

@@ -2011,12 +2011,14 @@ hero.add_component(RGame::Engine::Components::Respawn.new).on_respawned { blink.
   point takes a `Respawn::Point` where the node stands. A move through
   [`Scene::Rooms`](scene_graph.md#rooms-scenerooms) hands a
   `Respawn` with no point a `Respawn::RoomPoint` instead, before the node's first
-  attach. Later attaches and later moves keep the point. `set_point(point)` moves
-  it and returns the `Respawn`, and a [`Checkpoint`](#checkpoint) calls it.
+  attach. Later attaches and later moves keep the point. So a node that attached
+  outside the rooms before its first move keeps the `Point` it took there, and
+  its first fall in a room raises, as below. `set_point(point)` moves the point
+  and returns the `Respawn`, and a [`Checkpoint`](#checkpoint) calls it.
 - **`respawn`** places the node on its point, or asks the rooms to move it there.
   A game may call it with no fall before it.
-- **Signal:** `on_respawned` fires once the node stands on its point: at once in
-  the point's room, and from another room as the node attaches there.
+- **Signal:** `on_respawned` fires as the respawn ends: at once in the point's
+  room, and from another room as the node attaches there.
 - **Lifecycle:** `_attach` checks the point, as below, and ends a respawn into
   another room.
 
@@ -2044,9 +2046,10 @@ under, and raises `TypeError` for anything else. `location` reaches the room's
   the room.
 - **From another room,** `place` calls `Rooms#move` with the rooms' transition
   and answers false. The respawn then waits. The node's next attach in the
-  point's room ends the wait and fires `on_respawned`, after `_arrive` has
-  placed it. A move that lands the node in another room first ends the wait
-  with no signal.
+  point's room ends the wait and fires `on_respawned`, as `_arrive` adds the
+  node. A move that replaced the respawn's own ends it so too, wherever in that
+  room it placed the node. A move that lands the node in another room first
+  ends the wait with no signal.
 - **`check_ground`** looks the location up with
   [`TileWorld#location`](#tileworld), so a location the room's map does not
   name raises `KeyError`.
