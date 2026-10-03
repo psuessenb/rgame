@@ -37,7 +37,7 @@ The scene graph is `RGame::Engine`, the layer a game is written in:
 
 **The engine is a work in progress.** It opens a window, runs the loop, reads
 input, draws shapes, images and text, and plays sound. A scene graph with
-split-screen players runs on top. The games under `test_projects/` use exactly
+split-screen players runs on top. The game under `test_projects/` uses exactly
 what these pages document. The missing piece is a UI *toolkit*. [UI](ui.md)
 gives each player a region of the screen, menus with focus and activation, a
 column, row, grid or ring of equal-sized buttons, lists that scroll whole rows, and

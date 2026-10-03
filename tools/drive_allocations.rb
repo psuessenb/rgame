@@ -18,10 +18,7 @@ require 'rbconfig'
 # A driven run exercises everything wired together, with a real map.
 #
 # Several runs go at once, each on its own Xvfb display, since a run spends
-# most of its time waiting for its next tick. A test project reading the
-# gitignored `media/` is skipped in a checkout without it, and the output says
-# so: CI has no `media/`, so there it drives the examples and the test
-# projects that bring their own assets.
+# most of its time waiting for its next tick.
 module DriveAllocations
   ROOT = File.expand_path('..', __dir__)
   HARNESS = File.join(__dir__, 'drive_test_project.rb')
@@ -56,15 +53,9 @@ module DriveAllocations
 
   def drive(main, display)
     project = File.dirname(main)
-    return Run.new(project, :skipped, 'reads media/, which this checkout does not have', '') if needs_media?(main)
-
     output, status = Open3.capture2e({ 'RGAME_SPEC_DISPLAY' => ":#{display}" },
                                      RbConfig.ruby, HARNESS, main, '--allocations', chdir: ROOT)
     Run.new(project, status.success? ? :ok : :failed, summary(output), output)
-  end
-
-  def needs_media?(main)
-    File.read(File.join(ROOT, main)).include?("'../../media'") && !Dir.exist?(File.join(ROOT, 'media'))
   end
 
   def summary(output)

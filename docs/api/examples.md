@@ -7,8 +7,8 @@ runs on its own:
 ruby examples/walk/main.rb
 ```
 
-**An example answers "how do I do *X*".** The complete games under
-`test_projects/` answer that poorly. An example shows one concept in one file,
+**An example answers "how do I do *X*".** The complete game under
+`test_projects/` answers that poorly. An example shows one concept in one file,
 and its header comment explains the concept at length. This page is the index;
 the file is the long version.
 

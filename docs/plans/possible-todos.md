@@ -354,8 +354,8 @@ node class whose derived values stay right under the override.
 **What.** Move the note each example map opens with into a README beside it, so
 the maps can be edited in Tiled without losing anything.
 
-**What exists instead.** The six maps in `examples/assets/` and topdownplatformer's
-`course.tmx` each open with an XML comment, 6 to 19 lines long. It says what the
+**What exists instead.** The seven maps in `examples/assets/` and adventure's
+`course.tmx` each open with an XML comment, 7 to 21 lines long. It says what the
 map is for and why it is shaped that way: `town.tmx`'s says where the fence's one
 gap sits, and why there. Each comment also says to edit the map in Tiled, and so
 does `examples/assets/README.md`, four times. But Tiled writes a map anew when it
@@ -536,13 +536,16 @@ Three things the y-sort plan left open. The sort is in
 **What.** `ScreenWrap` and `DespawnOffscreen` derive their `margin` from how big
 the node is, rather than taking it by hand.
 
-**What exists instead.** Every caller sets `margin` to a radius or more itself.
-Asteroids' rock uses its largest tier's radius for all four tiers.
+**What exists instead.** Every caller sets `margin` itself, to a radius or
+more. `examples/velocity` wraps a 38×20 rectangle 40 px out, and
+`examples/pooling` despawns a 7 px mote 30 px out. Each node passes its width
+and height, and neither margin follows from them.
 
 **Why not now.** It needs a footprint the node itself answers, and there is
 none: `node.width` and `height` do not say where the box sits. A `Sprite` or an
 `AnimatedSprite` places it by its own `anchor:`, `:bottom` unless told
-otherwise, and the wrapped and despawned nodes in asteroids pass `:center`.
+otherwise, while the wrapped nodes in `examples/velocity` and
+`examples/collision` draw centred on their origin.
 
 **Trigger.** A caller whose hand-set margin is visibly wrong, or a second place
 that needs a node's footprint and has to pick a convention.
@@ -1005,8 +1008,8 @@ enemy through `Components::Targeting` would make it most of a twin-stick
 shooter.
 
 **What exists instead.** `ThrustController` has a spec and a section in
-`docs/api/components.md`, and only `test_projects/asteroids` builds one, which
-does not ship. Every example moves things in screen axes, so nothing flies.
+`docs/api/components.md`, and no example or test project builds one. Every
+example moves things in screen axes, so nothing flies.
 `Targeting` needs no example of its own: `components.md` aims a turret in an
 example the doc specs run, and `Grab` and `Interactor` are Targetings that
 `push_pull`, `collectables` and `quests_and_dialogue` build.
