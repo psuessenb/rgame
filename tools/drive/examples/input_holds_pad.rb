@@ -1,7 +1,7 @@
 # Input script for examples/input_holds, on a synthetic controller.
 #
 #   ruby tools/drive_test_project.rb examples/input_holds/main.rb --gamepad \
-#     --script tools/drive/examples/input_holds_pad.rb --ticks 240
+#     --script tools/drive/examples/input_holds_pad.rb
 #
 # The same four gestures as the keyboard script, through the real device path: A
 # held and then tapped, the left shoulder button alone, and both shoulder

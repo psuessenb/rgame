@@ -35,6 +35,8 @@
 # reading `ui_confirm` would be pressed by it too. See the input map note in the
 # example.
 
+ticks 320
+
 idle 10
 press controls::KEY_RETURN   # open
 idle 25

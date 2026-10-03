@@ -1,7 +1,7 @@
 # Input script for examples/equipment, on a synthetic controller.
 #
 #   ruby tools/drive_test_project.rb examples/equipment/main.rb --gamepad \
-#     --script tools/drive/examples/equipment_pad.rb --ticks 400 --texts
+#     --script tools/drive/examples/equipment_pad.rb --texts
 #
 # The keyboard script's walk on the d-pad, A and the shoulder buttons, through
 # the real device path: the right shoulder shows the bag and the left one Gear
@@ -9,6 +9,8 @@
 # reaches the game a tick after a key does: "Cloak" 100 from 47, "Tunic" from
 # 147 and "In the bag" from 168. At 400 "Worn" still reads 66, and "Nothing" 68
 # and "In the bag" 142, because the run ends a tick sooner after each change.
+
+ticks 400
 
 on controls.gamepad(0) do
   idle 20

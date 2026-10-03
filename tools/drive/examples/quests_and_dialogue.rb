@@ -5,7 +5,7 @@
 # over, buys the lantern, opens the log, and loads the save. A third talk
 # finds the quest as the save left it. Run it with --texts:
 #
-#   ruby tools/drive_test_project.rb examples/quests_and_dialogue/main.rb --ticks 1700 --texts
+#   ruby tools/drive_test_project.rb examples/quests_and_dialogue/main.rb --texts
 #
 # What the report should show under "texts drawn":
 #
@@ -38,6 +38,8 @@
 # builds its response menu anew: buttons, their signals and their labels'
 # lines. That is work done on an event, not every frame, so it keeps the
 # default share of ticks and asks for more objects a second.
+
+ticks 1700
 
 allocation_budget objects_per_second: 120
 

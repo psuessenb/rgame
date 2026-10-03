@@ -1,6 +1,6 @@
 # Input script for examples/push_pull.
 #
-#   ruby tools/drive_test_project.rb examples/push_pull/main.rb --ticks 180 --texts
+#   ruby tools/drive_test_project.rb examples/push_pull/main.rb --texts
 #
 # Walks right into the upper-left crate and pushes it, then holds Left Shift and
 # walks back, pulling it, then lets go and walks on alone.
@@ -15,6 +15,8 @@
 #
 # The push itself shows only in the translates, and running the example is the
 # way to see it; the specs under spec/rgame/engine/components/ pin the numbers.
+
+ticks 180
 
 idle 5
 hold controls::KEY_RIGHT, 80                          # into the crate at (200, 150), and on

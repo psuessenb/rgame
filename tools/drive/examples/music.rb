@@ -32,6 +32,8 @@
 # is per frame: the volume line renders again for each of its six changes, the
 # blip loads on its first press, and each new call fills its call cache once.
 
+ticks 600
+
 idle 10
 press controls::KEY_RETURN # fade in over a second
 idle 80

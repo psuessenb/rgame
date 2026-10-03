@@ -35,4 +35,4 @@ idle 5
 hold controls::KEY_LEFT, 22     # the one it spilled to the left
 hold controls::KEY_UP, 30
 hold controls::KEY_RIGHT, 25    # and the one above it
-idle 20
+idle 19

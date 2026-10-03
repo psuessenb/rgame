@@ -1,6 +1,6 @@
 # Input script for examples/skill_bar.
 #
-#   ruby tools/drive_test_project.rb examples/skill_bar/main.rb --ticks 180
+#   ruby tools/drive_test_project.rb examples/skill_bar/main.rb
 #
 # Step right twice to the Torch and use it with Enter; use the Watering can with
 # 5; press Enter again; hold 2 for twenty ticks; step left twice to the Wand and
@@ -43,6 +43,8 @@
 # at 60 Hz. The 26 extra outlines above are the same count seen from outside.
 #
 # Nothing here needs a seed.
+
+ticks 180
 
 idle 20
 press controls::KEY_RIGHT

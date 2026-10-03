@@ -10,7 +10,7 @@
 # after (ActionTrigger's 0.12 s cooldown at 60 ticks a second), so a hold of
 # `8n + 1` ticks moves it n + 1 tiles. The holds below are sized by that.
 #
-# What the report should show, at `--ticks 630`:
+# What the report should show:
 #
 #   - **the last `text` reading `"no route there; arriv..."`**, which is the
 #     acceptance test in one line. The status label is the last text drawn each
@@ -45,6 +45,8 @@
 #
 # Nothing here needs a seed: there is no RNG, the map is a file, and the timestep
 # is fixed.
+
+ticks 630
 
 idle 10
 hold [controls::KEY_DOWN, controls::KEY_LEFT], 113 # 15 tiles south-west

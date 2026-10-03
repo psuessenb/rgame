@@ -1,7 +1,7 @@
 # Input script for examples/skill_bar, on a synthetic controller.
 #
 #   ruby tools/drive_test_project.rb examples/skill_bar/main.rb --gamepad \
-#     --script tools/drive/examples/skill_bar_pad.rb --ticks 60
+#     --script tools/drive/examples/skill_bar_pad.rb
 #
 # The d-pad steps along the bar and A uses the focused tool, through the real
 # device path: right three times to the Hammer and A, then left to the Torch and
@@ -13,6 +13,8 @@
 #     --ticks 29  →  1 × sound, last("Used: Hammer")
 #     --ticks 60  →  2 × sound, last("Used: Torch")
 
+ticks 60
+
 on controls.gamepad(0) do
   idle 20
   press controls::PAD_DPAD_RIGHT
@@ -22,5 +24,5 @@ on controls.gamepad(0) do
   idle 10
   press controls::PAD_DPAD_LEFT
   press controls::PAD_A
-  idle 20
+  idle 18
 end

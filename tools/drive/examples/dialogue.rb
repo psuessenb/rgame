@@ -4,7 +4,7 @@
 # leaves, and begins a second dialogue. Run it with --texts; the draw calls
 # alone cannot show which line was on screen when:
 #
-#   ruby tools/drive_test_project.rb examples/dialogue/main.rb --ticks 1100 --texts
+#   ruby tools/drive_test_project.rb examples/dialogue/main.rb --texts
 #
 # What the report should show under "texts drawn":
 #
@@ -26,6 +26,8 @@
 #
 # The Down presses wait for the hub's question to finish typing. Before that
 # the box shows only the ▼ marker, and a Down has nothing to move to.
+
+ticks 1100
 
 idle 20
 press controls::KEY_RETURN # begin

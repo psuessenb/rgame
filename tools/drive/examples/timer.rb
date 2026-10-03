@@ -2,9 +2,9 @@
 #
 # Sets off the one-shot twice, well apart, and otherwise leaves the scene alone —
 # because the subject of this example is what happens when nobody presses
-# anything. Run it long: the race needs more than one lap to be worth reading.
+# anything. It runs long: the race needs more than one lap to be worth reading.
 #
-#   ruby tools/drive_test_project.rb examples/timer/main.rb --ticks 700
+#   ruby tools/drive_test_project.rb examples/timer/main.rb
 #
 # What the report should show:
 #
@@ -33,6 +33,8 @@
 #
 # Nothing here needs a seed: there is no RNG, and a fixed timestep makes the race
 # reproducible tick for tick.
+
+ticks 700
 
 idle 60
 press controls::KEY_SPACE  # one-shot, while the first lap is still running

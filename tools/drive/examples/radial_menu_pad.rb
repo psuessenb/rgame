@@ -1,7 +1,7 @@
 # Input script for examples/radial_menu, on a synthetic controller.
 #
 #   ruby tools/drive_test_project.rb examples/radial_menu/main.rb --gamepad \
-#     --script tools/drive/examples/radial_menu_pad.rb --ticks 112
+#     --script tools/drive/examples/radial_menu_pad.rb
 #
 # Only `--gamepad` plays this: it runs the whole real path — SDL, the C input
 # snapshot, ActionMapper's per-axis dead zone — which is what an analog
@@ -22,6 +22,8 @@
 # The south-west point spans the tip to −106.1 on x and 106.1 on y: a raw ±0.8
 # on both axes is longer than 1 after rescaling, and the pointer is clamped to
 # the ring.
+
+ticks 112
 
 on controls.gamepad(0) do
   idle 20

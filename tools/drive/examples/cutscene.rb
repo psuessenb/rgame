@@ -1,7 +1,7 @@
 # Input script for examples/cutscene, watched to the end. Run it for its whole
 # length:
 #
-#   ruby tools/drive_test_project.rb examples/cutscene/main.rb --texts --ticks 720
+#   ruby tools/drive_test_project.rb examples/cutscene/main.rb --texts
 #
 # The pad joins, so the screen splits. Player one presses E, and the cutscene
 # runs: half a second, the crier's walk to the square, two lines of news, and a
@@ -27,6 +27,8 @@
 # cutscene suspends and solos: about 470 objects in one second, and none on any
 # other tick. `spec/rgame/engine/components/cutscene_allocation_spec.rb` holds a
 # running cutscene to nothing a tick.
+
+ticks 720
 
 allocation_budget objects_per_second: 80
 

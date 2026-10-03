@@ -1,6 +1,6 @@
 # Input script for examples/input_holds.
 #
-#   ruby tools/drive_test_project.rb examples/input_holds/main.rb --ticks 240
+#   ruby tools/drive_test_project.rb examples/input_holds/main.rb
 #
 # One button, held long and then tapped, and a chord over a button that already
 # has a plain action: E for a second, E for a sixth of one, L for half a second,

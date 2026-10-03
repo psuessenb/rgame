@@ -2,7 +2,7 @@
 # beside cutscene.rb and compare:
 #
 #   ruby tools/drive_test_project.rb examples/cutscene/main.rb \
-#     --script tools/drive/examples/cutscene_skip.rb --texts --ticks 720
+#     --script tools/drive/examples/cutscene_skip.rb --texts
 #
 # The pad joins and player one presses E, as in the watched run. Half a second
 # into the walk, player one holds Tab for three quarters of a second, past the
@@ -20,6 +20,8 @@
 #   - **the last `tilemap` call reading `("town.tmx", 1, 104.0, 88.7, 640,
 #     240)`**, the watched run's. Both heroes walk as far, and the crier stands
 #     at the square, (456, 232), in both runs.
+
+ticks 720
 
 on controls::KEYBOARD do
   idle 60

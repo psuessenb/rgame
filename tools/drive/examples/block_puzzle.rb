@@ -1,6 +1,6 @@
 # Input script for examples/block_puzzle.
 #
-#   ruby tools/drive_test_project.rb examples/block_puzzle/main.rb --ticks 625 --texts
+#   ruby tools/drive_test_project.rb examples/block_puzzle/main.rb --texts
 #
 # Solves the room: six pushes right take the first block home, and the second
 # block is pushed right twice, refused by the wall of trees, and pushed down

@@ -3,7 +3,7 @@
 # A walk south into the chasm, a fall and a respawn. Then a hop across the first
 # trench, and at the second a walk off the edge with a hop four ticks after the
 # step off: coyote time carries it across. Then C turns coyote time off, and the
-# same late hop at the third trench comes too late. Run it with `--ticks 650`.
+# same late hop at the third trench comes too late.
 #
 # What the report should show:
 #
@@ -28,6 +28,8 @@
 # Nothing here needs a seed: the map is a file and the timestep is fixed. The
 # ticks were read off a traced run: the hero steps off the second trench on
 # tick 389 and hops on 393, and steps off the third on tick 474.
+
+ticks 650
 
 idle 10
 hold controls::KEY_DOWN, 140 # into the chasm; falls, and comes back blinking

@@ -1,8 +1,8 @@
 # Input script for test_projects/adventure, where the engine's features meet in
-# one game. Run it with a seed and enough ticks for both tracks:
+# one game. Run it with a seed:
 #
 #   ruby tools/drive_test_project.rb test_projects/adventure/main.rb \
-#     --seed 4242 --texts --ticks 1640
+#     --seed 4242 --texts
 #
 # The keyboard holds Tab from tick 40, through the opening cutscene. The skip
 # lands at 76, not 40: the first hero's input is suspended until its arrival
@@ -29,6 +29,8 @@
 #     while the keyboard's region draws the town;
 #   - **the garden's song only where `media/music/garden.ogg` exists**, fading
 #     in over the town's music, and the town's back as the heroes return.
+
+ticks 1640
 
 allocation_budget objects_per_second: 90
 

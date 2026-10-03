@@ -1,7 +1,7 @@
 # Input script for examples/inventory, on a synthetic controller.
 #
 #   ruby tools/drive_test_project.rb examples/inventory/main.rb --gamepad \
-#     --script tools/drive/examples/inventory_pad.rb --ticks 400 --texts
+#     --script tools/drive/examples/inventory_pad.rb --texts
 #
 # The keyboard script's walk on the d-pad, A and the shoulder buttons, through
 # the real device path: the right shoulder shows the key items and the left one
@@ -10,6 +10,8 @@
 # "Cellar key" 22 from 206, and at 400 still 2 × sound, 4448 × image, 400 ticks
 # against 400 frames. The triangles read 550, one fewer, because the run ends a
 # tick sooner after the scroll.
+
+ticks 400
 
 on controls.gamepad(0) do
   idle 20

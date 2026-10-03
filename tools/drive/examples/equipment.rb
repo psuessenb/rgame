@@ -1,6 +1,6 @@
 # Input script for examples/equipment.
 #
-#   ruby tools/drive_test_project.rb examples/equipment/main.rb --ticks 400 --texts
+#   ruby tools/drive_test_project.rb examples/equipment/main.rb --texts
 #
 # The character starts in the straw hat and the boots, with nothing on the body.
 # Step down to Body, cross right into the clothes and wear the Cloak, then look
@@ -33,6 +33,8 @@
 # Also, at 400: 400 ticks against 400 frames, no scene entered, one clip per
 # frame, no audio, and 191 `sprite` calls, one per Gear frame. Nothing here is
 # random, so no seed is needed.
+
+ticks 400
 
 idle 20
 press controls::KEY_DOWN
