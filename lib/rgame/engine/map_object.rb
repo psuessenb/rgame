@@ -9,6 +9,7 @@ module RGame
     # included, and `rotation` turns the object clockwise, in degrees, about
     # that corner. `points` are the corners of a polygon or polyline in the
     # same coordinates, before `rotation`, and empty for any other shape.
+    # `origin_x` and `origin_y` say where a node built from the object stands.
     #
     # `tile` is the map's own id for a tile object, or `nil` for a shape, and
     # `orientation` says how that tile is turned. A tile object with no class of
@@ -22,6 +23,30 @@ module RGame
                             :tile, :orientation, :visible, :shape, :points, :properties) do
       # False when the designer hid the object in Tiled.
       def visible? = visible
+    end
+
+    class MapObject
+      UNBOXED = %i[point polygon polyline].freeze
+      private_constant :UNBOXED
+
+      # Where a node built from this object stands, in pixels: the object's own
+      # `(x, y)` for a point, a polygon or a polyline, and the bottom centre of
+      # its box, turned by `rotation`, for any other shape.
+      def origin_x
+        return x if UNBOXED.include?(shape)
+
+        x + (width / 2.0 * Math.cos(radians)) - (height * Math.sin(radians))
+      end
+
+      def origin_y
+        return y if UNBOXED.include?(shape)
+
+        y + (width / 2.0 * Math.sin(radians)) + (height * Math.cos(radians))
+      end
+
+      private
+
+      def radians = rotation * Math::PI / 180.0
     end
   end
 end

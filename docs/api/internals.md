@@ -407,10 +407,11 @@ property is refused like any other value. A required keyword no property sets
 raises `ArgumentError`. A tile object's properties include its tile's, so the
 class tags those too.
 
-**The node stands at the bottom centre of the object's box**, turned with it.
-`angle` is the object's rotation in radians, and `width` and `height` are its
-size. A point object's node stands on its point, and a polygon's or polyline's
-on its own `(x, y)`.
+**The node stands on its object's origin**, `MapObject#origin_x` and
+`#origin_y`: the bottom centre of the object's box, turned with it. A point
+object's node stands on its point, and a polygon's or polyline's on its own
+`(x, y)`. `angle` is the object's rotation in radians, and `width` and `height`
+are its size.
 
 **The builder hands the node values, and keeps the object.** Every node gets
 its object's id as `map_object_id`, which is `nil` on a node built in code.

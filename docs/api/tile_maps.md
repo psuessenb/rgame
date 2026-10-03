@@ -339,6 +339,7 @@ over them by name.
 | `id`, `name`, `class_name` | as set in Tiled; a tile object with no class has its tile's |
 | `layer` | the index of the layer it sits in |
 | `x`, `y`, `width`, `height`, `rotation` | its box, as above |
+| `origin_x`, `origin_y` | where a node built from it stands: the bottom centre of its box, turned with it, or the own `(x, y)` of a point, a polygon or a polyline |
 | `shape` | `:rectangle`, `:ellipse`, `:capsule`, `:point`, `:polygon`, `:polyline` or `:text` |
 | `points` | a polygon's or polyline's corners, in the same coordinates, before `rotation` |
 | `tile`, `orientation` | a tile object's tile id and how it is turned; `nil` and the identity for a shape. [`Components::MapTile`](components.md#maptile) draws that tile |
@@ -401,10 +402,11 @@ An object of the class `Chest` with the property `contents: key` builds a
   table of types and the rest of the rules, and
   [Tiled's custom types](#tileds-custom-types) turns the tags into members a
   designer fills in.
-- **The node stands at the bottom centre of the object's box**, turned with it.
-  `angle` is the object's rotation, and `width` and `height` are its size. A
-  point object's node stands on its point, and a polygon's or polyline's on its
-  own corner.
+- **The node stands on its object's origin**, `MapObject#origin_x` and
+  `#origin_y`: the bottom centre of the object's box, turned with it. A point
+  object's node stands on its point, and a polygon's or polyline's on its own
+  corner. `angle` is the object's rotation, and `width` and `height` are its
+  size.
 - **A class receives `route:` and `name:` by naming them.** A class whose
   `initialize` names `route:` gets a polyline's or a polygon's route, as
   `Path.from_object` builds it. One that names `name:` gets the object's name,

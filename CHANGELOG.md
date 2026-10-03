@@ -306,7 +306,8 @@ index, not the argument.
 - **A tile map says what its tiles, layers and objects are.** `TileMap` answers
   `orientation`, `tile_class`, `tile_properties`, `layer`, `layer_index`,
   `image_layers` and `objects`, which are `RGame::Engine::MapObject`s in the
-  game's coordinates. `object_named` finds the one object a designer named. An
+  game's coordinates. `object_named` finds the one object a designer named, and
+  `MapObject#origin_x` and `#origin_y` say where a node built from one stands. An
   object layer is a `TileMap::ObjectLayer`, which answers `y_sort?`. Custom
   properties are `RGame::Engine::Properties`, and a class property's value
   answers `class_name`. See

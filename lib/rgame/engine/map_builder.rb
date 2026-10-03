@@ -31,10 +31,11 @@ module RGame
     # the designer gave none. A class that names neither gets neither, since
     # Node2D takes neither.
     #
-    # **The node stands at the bottom centre of the object's box**, turned with
-    # it. A point object's node stands on its point, and a polygon's or
-    # polyline's on its own `(x, y)`. `angle` is the object's rotation in
-    # radians, and `width` and `height` are its size.
+    # **The node stands on its object's origin**, MapObject#origin_x and
+    # #origin_y: the bottom centre of the object's box, turned with it. A point
+    # object's node stands on its point, and a polygon's or polyline's on its
+    # own `(x, y)`. `angle` is the object's rotation in radians, and `width` and
+    # `height` are its size.
     #
     # Each refusal names the tilemap id, the object and its class. A class that
     # names no constant raises NameError. A constant that is no Node2D class,
@@ -45,7 +46,6 @@ module RGame
     # @api private
     class MapBuilder
       BUILDS = /\A[[:upper:]]/
-      UNBOXED = %i[point polygon polyline].freeze
       ROUTED = %i[polygon polyline].freeze
       NAMED = %i[key keyreq].freeze
 
@@ -54,7 +54,7 @@ module RGame
 
       # What a class gets from its object when its initialize names it.
       ASKED = %i[route name].freeze
-      private_constant :BUILDS, :UNBOXED, :ROUTED, :NAMED, :PLACED, :ASKED
+      private_constant :BUILDS, :ROUTED, :NAMED, :PLACED, :ASKED
 
       # What stops any map building `node_class`, in words, or `nil` when a map
       # can. A map passes only keywords: the object's box and id to every
@@ -126,21 +126,8 @@ module RGame
       end
 
       def placement(object)
-        angle = object.rotation * Math::PI / 180.0
-        { x: origin_x(object, angle), y: origin_y(object, angle), angle:, width: object.width,
+        { x: object.origin_x, y: object.origin_y, angle: object.rotation * Math::PI / 180.0, width: object.width,
           height: object.height }
-      end
-
-      def origin_x(object, angle)
-        return object.x if UNBOXED.include?(object.shape)
-
-        object.x + (object.width / 2.0 * Math.cos(angle)) - (object.height * Math.sin(angle))
-      end
-
-      def origin_y(object, angle)
-        return object.y if UNBOXED.include?(object.shape)
-
-        object.y + (object.width / 2.0 * Math.sin(angle)) + (object.height * Math.cos(angle))
       end
 
       def settings(object, node_class)
