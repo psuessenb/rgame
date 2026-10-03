@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 # What every respawn point the engine offers promises to the Respawn holding it,
-# stated once and run against each: Respawn::Point, and the points that follow.
+# stated once and run against each: Respawn::Point and Respawn::RoomPoint.
 #
 # A Respawn calls a point by three method names and never asks its class, so a
 # game may bring its own. The engine's points keep the contract here rather than
@@ -15,24 +15,19 @@
 #
 # `point_at` returns a point at one of the two places the group's map names:
 # `'ground'`, at (8, 8), and `'gap'`, at (24, 24), over a gap cell. The group
-# builds the rest: a Scene::Room named `:yard` holding a TileWorld over that map,
-# `respawn_world`, and a node standing in the room at (100, 100),
-# `respawn_node`. The names are prefixed so they cannot shadow the host's own.
+# builds the rest: a MappedRoom named `:yard`, which places an arrival at the
+# location its TileWorld names, the TileWorld itself, `respawn_world`, and a
+# node standing in the room at (100, 100), `respawn_node`. The names are
+# prefixed so they cannot shadow the host's own.
 RSpec.shared_examples 'a respawn point' do
-  let(:respawn_world) do
-    RGame::Engine::Components::TileWorld.new(
-      map: WalledTileMap.build(['....', '.~~.', '....'], objects: [['ground', 8, 8], ['gap', 24, 24]]),
-      tilemap_id: 'map/yard.tmx'
-    )
-  end
-
   let(:respawn_room) do
-    RGame::Engine::Scene::Room.new.tap do |room|
+    MappedRoom.new(['....', '.~~.', '....'], objects: [['ground', 8, 8], ['gap', 24, 24]]).tap do |room|
       room.name = :yard
       room.scene = room
-      room.add_component(respawn_world)
     end
   end
+
+  let(:respawn_world) { respawn_room.world }
 
   let(:respawn_node) { respawn_room.add_node(RGame::Engine::Node2D.new(x: 100.0, y: 100.0)) }
 

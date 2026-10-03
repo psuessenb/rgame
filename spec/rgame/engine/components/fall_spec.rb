@@ -169,6 +169,19 @@ RSpec.describe RGame::Engine::Components::Fall do
       expect([log.first(3), log.last(4)]).to eq([[:fell, :start, log[2]], [1.0, :finish, :respawned, :finished]])
     end
 
+    it 'fires on_finished as the fall ends, before a respawn that lands later' do
+      later = instance_double(parts::Respawn::Point, room: nil, place: false, check_ground: nil)
+      log = []
+      node = faller(parts::Respawn.new.set_point(later))
+      fall(node).on_finished { log << :finished }
+      node.get_component(parts::Respawn).on_respawned { log << :respawned }
+      fall(node).start
+      to_the_end(node)
+
+      expect(later).to have_received(:place).with(node)
+      expect([log, node.suspended?]).to eq([[:finished], false])
+    end
+
     it 'fires on_finished after the node is marked free' do
       node = faller
       freed = nil

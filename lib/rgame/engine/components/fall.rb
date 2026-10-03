@@ -34,8 +34,8 @@ module RGame
         # Fired as the fall starts, which is where a game takes a life.
         signal :fell
 
-        # Fired once the fall has ended: the node stands on its respawn point, or
-        # is freed.
+        # Fired once the fall has ended: the node is handed to its Respawn, or
+        # marked free. A respawn into another room lands after this.
         signal :finished
 
         # Seconds the fall takes, from its start to the respawn.

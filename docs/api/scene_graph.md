@@ -962,7 +962,9 @@ world.rooms[:town]                          # => nil — nobody stands in it, so
 rooms call it as a move lands, after the room entered the tree. A node from
 another room arrives in no room, and `_arrive` adds it to a node in this one. A
 node `_arrive` leaves outside the room raises. The builder is the wrong place
-for it: a room is built once, and a node may arrive many times.
+for it: a room is built once, and a node may arrive many times. A
+[`Respawn::RoomPoint`](components.md#respawn) calls it too, for a node that
+fell in this room.
 
 A room is its own `scene`. Its nodes find its `TileWorld` and `CollisionWorld`
 first, and the world's `Rooms` beyond them, since `system` looks through each
@@ -993,6 +995,15 @@ before its first lands replaces the first.
 again, and nothing leaves the tree. `Node2D#add_node` leaves a node that is
 already its child where it is, so an `_arrive` that adds the node works for
 both. A warp pad and a door are one call.
+
+**A move hands a node's [`Respawn`](components.md#respawn) its first point.**
+As a move lands a node whose `Respawn` has no point, the `Respawn` takes a
+`Respawn::RoomPoint` at that room and location, before `_arrive` attaches the
+node. A later move or a warp leaves the point where it is. So a node that falls
+comes back where its point was set, in whichever room that is. A respawn into
+another room is a move, as a door's is. A respawn in the node's own room calls
+`_arrive` as a warp does, without the cover, so an `_arrive` with side effects
+runs them then too.
 
 **Each node is [suspended](#pausing-a-subtree) from the request until its
 player's reveal ends**, and resumes then. With no transition it resumes as the

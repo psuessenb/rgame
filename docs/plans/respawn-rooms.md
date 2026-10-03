@@ -1,7 +1,7 @@
 # Respawn across rooms
 
-**Status:** planned at `cee120c`. Steps 0 to 2 are implemented. Step 3 is
-detailed. Steps 4 and 5 are rough, and get re-planned once step 3 lands.
+**Status:** planned at `cee120c`. Steps 0 to 3 are implemented. Steps 4 and 5
+are rough, and step 4 gets re-planned before it is implemented.
 
 A node with a `Respawn` comes back to the room its point is in. In its own room
 it comes back at once, as today. From another room, the rooms move it there
@@ -776,6 +776,65 @@ unreleased `Respawn` entry follows.
 **Verify.** The composed spec passes without `pending`, and `rake spec` and
 `rake spec:core` pass. Driving `doors` and `adventure` with `--seed 1 --texts`
 prints the same strings as before the step: their heroes carry no `Respawn`.
+
+**Landed.** Three commits, one per sub-step, change 14 files, with 514 lines in
+and 64 out. `rake spec` ran 4817 examples with 0 failures in 37.7 s. The 20 new
+ones are 2 in the composed spec, 14 in `respawn/room_point_spec.rb` (5 of them
+the shared group's run for `RoomPoint`), 3 in `rooms_spec.rb` and 1 in
+`fall_spec.rb`. `rake spec:core` ran 555 with 0 failures, and its coverage check
+found `RoomPoint` documented. `rake drive:allocations` passed all 44 projects.
+Each of eight mutations failed the specs, among them a landing elsewhere that
+ends no wait, `take_landing` called after `_arrive`, and a `RoomPoint` that
+moves the node from its own room.
+
+The composed spec passes without `pending`. The five games that move between
+rooms or respawn, driven at their scripts' tick counts, gave reports identical
+to `main`'s, twice on each side, once the checkout's path in each report was the
+same:
+
+| Run | Ticks | Against `main` |
+|---|---|---|
+| `examples/doors`, `--seed 1 --texts` | 900 | identical |
+| `test_projects/adventure`, `--seed 4242 --texts` | 1640 | identical |
+| `examples/pits`, `--seed 1 --texts` | 650 | identical, with 590 hero sprites |
+| `examples/moving_platforms`, `--seed 1 --texts` | 1020 | identical |
+| `test_projects/topdownplatformer`, `--seed 1 --texts` | 1654 | identical |
+
+Where it differed from the sketch:
+
+- **`pending` came out in 3b, not 3c.** 3b made the composed example pass, and
+  RSpec fails a pending example that passes, so 3b's commit would have been red.
+- **`RoomPoint` was documented in 3b.** The coverage check fails on an
+  undocumented public name. 3c kept `scene_graph.md`, `Fall`'s `on_finished`
+  wording and the changelog.
+- **A `RoomPoint`'s rules run from `respawn/room_point_spec.rb`**, not from
+  `respawn_spec.rb`. They need a world with `Scene::Rooms`, and
+  `respawn_spec.rb`'s file-level `before` builds a tree of its own. The file
+  runs the shared group for `RoomPoint` too.
+- **A support room, `MappedRoom`, places arrivals through `TileWorld#location`.**
+  The composed spec, the `RoomPoint` spec and the shared group all build on it.
+  The group's room had been a bare `Scene::Room`, whose `_arrive` places nothing.
+- **A replacing move into the point's own room counts as the respawn's
+  landing.** `Respawn` learns a landing's room and location, not whose move it
+  was. So rule 5 holds for a replacing move into any other room, and a
+  replacing move into the point's room fires `on_respawned` where that move
+  placed the node.
+- **`RoomPoint.new` raises `TypeError` for a room that is not a Symbol.** The
+  rules did not list it. A String would otherwise reach `Rooms#move` at the
+  respawn, and raise `KeyError` only then.
+- **`check_ground` raises `KeyError` for a location the room's map does not
+  name**, at `set_point` or at the attach in the point's room. The sketch named
+  only `ArgumentError`.
+- **The raise at a respawn from another room names `Respawn::RoomPoint`**, as
+  step 2's note said it would.
+- **The composed spec has a second example**, a fall in the room the hero first
+  landed in. It passed under 3a with a `Point` and under 3b with a `RoomPoint`,
+  so the instant respawn in a node's own room is pinned across the change.
+- **Verify drove `pits`, `moving_platforms` and `topdownplatformer` too**, since
+  `Respawn` changed under them. `adventure` ran at seed 4242, as at steps 0
+  and 1.
+
+None of these changes step 4's sketch.
 
 ### 4. A checkpoint's location *(rough)*
 

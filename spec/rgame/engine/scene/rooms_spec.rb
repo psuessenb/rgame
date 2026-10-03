@@ -260,6 +260,38 @@ RSpec.describe RGame::Engine::Scene::Rooms do
     end
   end
 
+  describe 'a node with a Respawn' do
+    let(:respawn) { hero.add_component(RGame::Engine::Components::Respawn.new) }
+
+    def room_point(room, location) = RGame::Engine::Components::Respawn::RoomPoint.new(room:, location:)
+
+    it 'hands it a RoomPoint at the room and location of its first landing, before _arrive attaches it' do
+      respawn
+      rooms.move(hero, to: :town, location: 'gate')
+      sweep
+      expect(respawn.point).to eq(room_point(:town, 'gate'))
+    end
+
+    it 'keeps that point through a later landing, and through a warp' do
+      respawn
+      rooms.move(hero, to: :town, location: 'gate')
+      sweep
+      rooms.move(hero, to: :garden, location: 'well')
+      sweep
+      rooms.move(hero, to: :garden, location: 'gate')
+      sweep
+      expect(respawn.point).to eq(room_point(:town, 'gate'))
+    end
+
+    it 'keeps a point the Respawn already has' do
+      point = RGame::Engine::Components::Respawn::Point.new(x: 1.0, y: 2.0)
+      respawn.set_point(point)
+      rooms.move(hero, to: :town, location: 'gate')
+      sweep
+      expect(respawn.point).to be(point)
+    end
+  end
+
   # The caller that uses both: rooms, and the map and collision systems each
   # room mounts. The garden's column 18 is solid, its left edge at x = 288.
   describe 'two players in two rooms, each with a map' do

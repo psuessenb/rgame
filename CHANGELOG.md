@@ -56,9 +56,14 @@ index, not the argument.
   respawn point and emits `on_respawned`, and a node without one is freed. A
   point is an object that places the node: `Respawn::Point` stands it at world
   coordinates, and a game may bring its own. A respawn point stands on ground:
-  `Respawn` raises for one over a gap, and for a point taken in one room and
+  `Respawn` raises for one over a gap, and for coordinates taken in one room and
   used from another. See
   [docs/api/components.md](docs/api/components.md#fall).
+- **A respawn into another room.** `Respawn::RoomPoint` names a room of
+  `Scene::Rooms` and a location in it. From another room, it moves the node
+  there as a door does, and `on_respawned` fires as the node arrives. A move
+  hands a `Respawn` with no point a `RoomPoint` where the node first lands. See
+  [docs/api/components.md](docs/api/components.md#respawn).
 - **What a fall looks like.** A `Components::FallLook` on the falling node shows
   the fall from how far through it is. `Components::Shrink` shrinks the node
   into the gap and gives back the scale it found. A node with no look holds
