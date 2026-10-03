@@ -96,7 +96,7 @@ module Adventure
     end
 
     def _arrive(hero, location)
-      spot = @map.object_named(location)
+      spot = get_component(Components::TileWorld).location(location)
       hero.x = spot.x + (SPACING * hero.input_owner.id)
       hero.y = spot.y
       @actors.add_node(hero)

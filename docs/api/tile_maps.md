@@ -456,14 +456,14 @@ doors:
 # A Scene::Room of a world whose Scene::Rooms defines :town and :garden.
 class Grounds < RGame::Engine::Scene::Room
   def _enter_tree
-    @map = root.context.assets.tilemap(@map_id).map
-    add_component(RGame::Engine::Components::TileWorld.new(map: @map, tilemap_id: @map_id))
+    map = root.context.assets.tilemap(@map_id).map
+    add_component(RGame::Engine::Components::TileWorld.new(map:, tilemap_id: @map_id))
     add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: 32))
     @actors = RGame::Engine::TileMapLayer.mount(add_node(RGame::Engine::WorldView.new))['actors']
   end
 
   def _arrive(node, location)
-    spot = @map.object_named(location)
+    spot = get_component(RGame::Engine::Components::TileWorld).location(location)
     node.x = spot.x
     node.y = spot.y
     @actors.add_node(node)

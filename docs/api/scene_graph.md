@@ -968,9 +968,11 @@ A room is its own `scene`. Its nodes find its `TileWorld` and `CollisionWorld`
 first, and the world's `Rooms` beyond them, since `system` looks through each
 enclosing scene. So a door in a room reaches `system(Scene::Rooms)`.
 
-**A room built over a Tiled map finds its entrances on the map.** Its `_arrive`
-places the node on the object `TileMap#object_named` finds, and the doors are
-the map's objects too. [A door from the map](tile_maps.md#a-door-from-the-map)
+**A room built over a Tiled map finds its entrances through its `TileWorld`.**
+Its `_arrive` places the node where
+[`TileWorld#location`](components.md#tileworld) says, which answers for the
+map's named objects and for places a game names in code. The doors are the
+map's objects too. [A door from the map](tile_maps.md#a-door-from-the-map)
 is the code, and `examples/doors` walks a hero through a gate and two warp pads.
 
 **A room is built anew each time it starts running.** A room left and entered
