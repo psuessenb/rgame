@@ -1,7 +1,7 @@
 # Respawn across rooms
 
-**Status:** planned at `cee120c`. Step 0 is implemented. Steps 1 to 3 are
-detailed. Steps 4 and 5 are rough, and get re-planned once step 3 lands.
+**Status:** planned at `cee120c`. Steps 0 and 1 are implemented. Steps 2 and 3
+are detailed. Steps 4 and 5 are rough, and get re-planned once step 3 lands.
 
 A node with a `Respawn` comes back to the room its point is in. In its own room
 it comes back at once, as today. From another room, the rooms move it there
@@ -530,6 +530,45 @@ says the same in prose. `SpecRoom` keeps its table.
 which needs the three new `TileWorld` methods documented. Driving `doors` and
 `adventure` with `--seed 1 --texts` prints the same strings as before the step,
 since every entrance is a point.
+
+**Landed.** Three commits, one per sub-step, change 15 files, with 303 lines in
+and 50 out. `rake spec` ran 4779 examples with 0 failures in 36.5 s: the 16 new
+ones are 6 in `map_object_spec.rb` and 10 in `tile_world_spec.rb`. `rake
+spec:core` ran 555 with 0 failures, and its coverage check found every new name
+documented. `rake drive:allocations` passed all 44 projects. Each of six
+mutations of the location code failed `tile_world_spec.rb`, among them reading
+an added node's local position and adding a map-built node after all.
+
+Both room games, driven at the tick counts their scripts name, gave the same
+reports as `main`:
+
+| Run | Scenes | Against `main` |
+|---|---|---|
+| `examples/doors`, `--seed 1 --texts --ticks 900` | 3 builds, 5 moves, 2 frees | byte-identical |
+| `test_projects/adventure`, `--seed 4242 --texts --ticks 1640` | 3 builds, 7 moves, 2 frees | identical once the music file's path is the same |
+
+Where it differed from the sketch:
+
+- **A location's name must be a String, and any other raises `TypeError`.** The
+  rules did not list it. `to:` takes a Symbol, so `location: :gate_in` is an
+  easy slip, and the `KeyError` would have listed `gate_in` among the names it
+  knows.
+- **`remove_location` of a name never added changes nothing**, as `unbridge`
+  does. The sketch left it unsaid. Step 4's checkpoint built from the map adds
+  nothing, so it can remove its name at detach without knowing that.
+- **`MapObject`'s origin lives in the reopened class, not in the
+  `Data.define` block.** A constant named in the block resolves in
+  `RGame::Engine`, so `UNBOXED` sits beside the methods that read it.
+- **The changelog changed now, not at step 5.** The unreleased `TileMap` entry
+  names `MapObject#origin_x` and `#origin_y`, and a new entry covers
+  `TileWorld#location`. Step 5 still checks both.
+- **`doors` and the garden keep the map in a local**, since `_arrive` was its
+  other reader. The town keeps `@map`, because `look_at_square` and its camera
+  still read `object_named('start')`. Those places are not arrivals, so they
+  stay on the map.
+- **The adventure's report names the music file by its full path**, so a
+  `main` worktree and the checkout differ there and nowhere else. One `doors`
+  baseline drew 899 frames of 900 under load, and a third capture settled it.
 
 ### 2. `Respawn` takes a point
 
