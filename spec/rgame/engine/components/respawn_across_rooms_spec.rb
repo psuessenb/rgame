@@ -6,7 +6,8 @@
 # meet.
 #
 # Room :a has gap cells at x 32 to 64, y 32 to 48, and its gate at (24, 24) is
-# on ground. Room :b has gap cells at x 16 to 48, y 16 to 32, under where :a's
+# on ground. A checkpoint the room builds in code stands at (56, 24), and names
+# its place 'flag'. Room :b has gap cells at x 16 to 48, y 16 to 32, under where :a's
 # gate would be, and its door at (56, 24) is on ground just right of them. A
 # tick is a 60th of a second, and a move fades for a quarter of a second each
 # way.
@@ -19,7 +20,7 @@ RSpec.describe 'Respawn across rooms' do # rubocop:disable RSpec/DescribeClass -
   end
   let(:hero) do
     RGame::Engine::Node2D.new(input_owner: player).tap do |node|
-      node.add_component(parts::FeetCollider.new(width: 12, height: 6))
+      node.add_component(parts::FeetCollider.new(width: 12, height: 6, layer: :hero))
       node.add_component(parts::CharacterBody.new(speed: 60, blocked_by: [:tiles]))
       node.add_component(parts::Footing.new(coyote: 0))
       node.add_component(parts::Fall.new(duration: 0.25))
@@ -53,6 +54,13 @@ RSpec.describe 'Respawn across rooms' do # rubocop:disable RSpec/DescribeClass -
     tick_until { !rooms.pending? && !rooms.transitioning? }
   end
 
+  def checkpoint_at(x, y)
+    RGame::Engine::Node2D.new(x:, y:).tap do |node|
+      node.add_component(parts::BoxCollider.new(width: 16, height: 16, offset_x: -8, offset_y: -16, layer: :flag))
+      node.add_component(parts::Checkpoint.new(by: :hero, location: 'flag'))
+    end
+  end
+
   # Walks the hero left from the door into :b's gap. It stops walking as it
   # falls, so it stands still wherever it comes back.
   def walk_into_the_gap
@@ -63,7 +71,9 @@ RSpec.describe 'Respawn across rooms' do # rubocop:disable RSpec/DescribeClass -
   end
 
   before do
-    rooms.define(:a) { MappedRoom.new(['....', '....', '..~~'], objects: [['gate', 24, 24]]) }
+    rooms.define(:a) do
+      MappedRoom.new(['....', '....', '..~~'], objects: [['gate', 24, 24]]).tap { it.add_node(checkpoint_at(56, 24)) }
+    end
     rooms.define(:b) { MappedRoom.new(['....', '.~~.', '....'], objects: [['door', 56, 24]]) }
     rooms.transition = RGame::Engine::Scene::Fade.new(cover: 0.25, reveal: 0.25)
     root.enter_tree
@@ -85,6 +95,25 @@ RSpec.describe 'Respawn across rooms' do # rubocop:disable RSpec/DescribeClass -
     expect([room_of(hero), hero.world_x, hero.world_y, rooms.room_of(player)&.name, rooms[:b]])
       .to eq([:a, 24.0, 24.0, :a, nil])
     expect(seen).to eq([:fell, :finished, [:respawned, :a, 24.0, 24.0], %i[arrived a]])
+  end
+
+  it 'brings a hero who touched a checkpoint in :a and fell in :b back at the checkpoint, in :a built anew' do
+    go(to: :a, location: 'gate')
+    body = hero.get_component(parts::CharacterBody)
+    body.set_intent(1, 0)
+    tick_until { hero.get_component(parts::Respawn).point.location == 'flag' }
+    body.set_intent(0, 0)
+    first_a = rooms[:a]
+    go(to: :b, location: 'door')
+    a_while_away = rooms[:a]
+    seen.clear
+    walk_into_the_gap
+    tick_until { !hero.get_component(parts::Fall).falling? }
+    tick_until { !rooms.pending? && !rooms.transitioning? }
+
+    expect([room_of(hero), hero.world_x, hero.world_y, a_while_away, rooms[:a].equal?(first_a)])
+      .to eq([:a, 56.0, 24.0, nil, false])
+    expect(seen).to eq([:fell, :finished, [:respawned, :a, 56.0, 24.0], %i[arrived a]])
   end
 
   it 'brings a hero who falls in the room it first landed in back at once, under no cover' do

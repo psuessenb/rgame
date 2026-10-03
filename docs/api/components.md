@@ -402,24 +402,48 @@ add_component(RGame::Engine::Components::PlayerController.new)
 **A place a node comes back to after a fall, once it has touched it.** It
 listens to its own node's collider, as [`Collectable`](#collectable) does. On the
 step a collider on the `by` layer starts overlapping it, it sets that node's
-[`Respawn`](#respawn) point to a `Respawn::Point` at its own node's world
-position.
+[`Respawn`](#respawn) point to itself. In a
+[room](scene_graph.md#rooms-scenerooms), that is a `Respawn::RoomPoint` at the
+room and its location. Elsewhere, it is a `Respawn::Point` at its own node's
+world position.
 
 ```ruby
 flag.add_component(RGame::Engine::Components::BoxCollider.new(width: 16, height: 16, offset_x: -8,
                                                               offset_y: -16, layer: :checkpoint))
-flag.add_component(RGame::Engine::Components::Checkpoint.new(by: :hero))
+flag.add_component(RGame::Engine::Components::Checkpoint.new(by: :hero, location: 'bridge'))
     .on_reached { |_other| @raised = true }
 ```
 
-- **Construct:** `Checkpoint.new(by:)`. `by` is the layer whose colliders reach
-  it, readable as `by`; every other layer is ignored.
+- **Construct:** `Checkpoint.new(by:, location: nil)`. `by` is the layer whose
+  colliders reach it, readable as `by`; every other layer is ignored.
+  `location` names the place it stands, readable as `location`. Anything but
+  nil or a String raises `TypeError`, and `''` raises `ArgumentError`, since a
+  map gives that name to every object left unnamed.
 - **Signal:** `on_reached(other)` fires with the collider that touched it, once
   its node's `Respawn` has the new point. `on_hit` is an edge, so a node standing
   on a checkpoint reaches it once.
 - **Lifecycle:** `_attach` needs a [`Collider`](#collider) on the same node and
-  connects to it. `_detach` ends that connection, so a checkpoint taken out of the
-  tree and added again fires once per touch.
+  connects to it, then adds the location, as below. `_detach` ends that
+  connection and removes the location, so a checkpoint taken out of the tree
+  and added again fires once per touch.
+
+**Its location is a place the `TileWorld` names.** A checkpoint the map builds
+passes its object's name, which a node class receives by naming
+[`name:`](tile_maps.md#building-nodes-from-objects) in its `initialize`. The
+map's [`TileWorld#location`](#tileworld) answers for that name already. A
+checkpoint built in code adds its location with `TileWorld#add_location` while
+attached. Either way, a room whose `_arrive` looks places up there finds it as
+it finds an entrance. A name that the map gives another object, or that another
+node added, raises `ArgumentError` at the attach. With no `TileWorld` on the
+scene, a checkpoint adds nothing, and its room's `_arrive` knows the location
+itself.
+
+**A checkpoint in a room needs a location.** One with none raises
+`ArgumentError` at the attach, naming its node's class and the room. A node that
+touched it and fell in another room comes back here: the rooms build this room
+again if nobody stands in it, and its `_arrive` places the node at the
+location. Outside rooms, `location` names the place all the same, and a touch
+hands a `Respawn::Point`.
 
 **A touch moves only the toucher's point.** Two heroes each come back at the last
 checkpoint they touched, an earlier one touched again included.
