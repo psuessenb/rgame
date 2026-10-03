@@ -1,7 +1,7 @@
 # Respawn across rooms
 
-**Status:** planned at `cee120c`. Steps 0 to 3 are implemented. Steps 4 and 5
-are rough, and step 4 gets re-planned before it is implemented.
+**Status:** planned at `cee120c`. Steps 0 to 3 are implemented. Step 4 is
+detailed, re-planned at `232b33f`. Step 5 is rough.
 
 A node with a `Respawn` comes back to the room its point is in. In its own room
 it comes back at once, as today. From another room, the rooms move it there
@@ -317,7 +317,7 @@ A checkpoint takes `location:`. In a room, a touch hands the toucher's `Respawn`
 `RoomPoint.new(room: Room.of(node).name, location:)`. Elsewhere it hands a `Point`
 at its node, as today. A checkpoint built in code registers its location with
 the `TileWorld`. One built from the map passes its object's name, which the map
-already answers. This is step 4, and stays rough.
+already answers. This is step 4.
 
 ## Traps
 
@@ -349,9 +349,9 @@ already answers. This is step 4, and stays rough.
    for coming back than for walking through a door. It waits on a game that
    asks, and the answer would be a `transition:` on `RoomPoint`. It blocks
    nothing.
-2. **Whether `spec/example_assets_spec.rb` checks checkpoint locations**, as it
-   checks every door's entrance. It waits on step 4, and on a map with
-   checkpoints in a room.
+2. ~~**Whether `spec/example_assets_spec.rb` checks checkpoint locations**, as it
+   checks every door's entrance.~~ **Settled: it does not.** See
+   [step 4](#4-a-checkpoint-names-its-location).
 
 ## What this does not deliver
 
@@ -836,19 +836,101 @@ Where it differed from the sketch:
 
 None of these changes step 4's sketch.
 
-### 4. A checkpoint's location *(rough)*
+### 4. A checkpoint names its location
 
-`Checkpoint.new(by:, location: nil)`. In a room, a touch hands the toucher a
-`RoomPoint` at its room and location, and a checkpoint in a room without a
-location raises at attach. One built in code registers its location with the
-`TileWorld` (step 1b), and removes it as it detaches. `Flag` passes its name as
-its location. The composed spec gains the checkpoint case: touch one in `:a`,
-walk into `:b`, fall, and come back at the checkpoint in `:a`.
+**Why now.** Step 3's `RoomPoint` brings a node back to a location a room names,
+and a `Checkpoint` still hands its toucher coordinates. So a hero who touches a
+checkpoint in room `:a` and falls in `:b` raises at the respawn (decision 7).
+This step makes a checkpoint in a room hand a `RoomPoint`. It also gives the
+checkpoint a name its room can find: its map object's, or one it adds to the
+`TileWorld` (decision 6).
 
-To settle when this is re-planned:
+Re-planned at `232b33f`, where:
 
-- What a `location:` means outside rooms: ignored, or refused.
-- Whether `example_assets_spec.rb` checks checkpoint locations (open question 2).
+| | |
+|---|---|
+| `Checkpoint.new` | 1 game (`topdownplatformer/flag.rb:22`), 1 class comment, 1 doc example. `checkpoint_spec.rb` has 10 examples |
+| Checkpoints in a room, in any project, map or spec | 0 |
+| The course's `Flag` objects | 3, named `first`, `second` and `last` |
+| A map object with no name | reaches a `name:` keyword as `''` (`map_builder.rb:147`) |
+| `TileWorld#add_location` for a node's own map object | adds nothing and raises nothing (step 1b, rule 3) |
+| `rake spec` | 4817 examples, 0 failures |
+
+```ruby
+class Checkpoint < Engine::Component
+  # The name of the place it stands, or nil.
+  sealed_reader :location
+
+  # `by` is the layer whose colliders reach it. `location` names the place it
+  # stands: its map object's name, or a name of its own that it adds to the
+  # scene's TileWorld while attached. A checkpoint in a room needs one. Raises
+  # TypeError for a location that is not a String, and ArgumentError for an
+  # empty one.
+  def initialize(by:, location: nil)
+end
+```
+
+The rough step left two questions, settled here:
+
+- **A `location:` outside rooms names the place there too.** The checkpoint adds
+  it to the `TileWorld` as it would in a room, and a touch hands a `Point`, as
+  today. One `Flag` class then serves a game with rooms and one without, and a
+  flag the map builds passes its name in either. Refusing a location outside
+  rooms would make a node class ask whether its game has rooms. Ignoring it would
+  keep a name nothing checks, so a clash would show only once the game grew
+  rooms.
+- **`example_assets_spec.rb` checks no checkpoint locations** (open question 2).
+  A door's entrance names an object on another map, so only a check across maps
+  catches a wrong one. A checkpoint's location names its own object, or a place
+  it adds itself, and its attach raises for a clash. No example map puts a
+  checkpoint in a room either.
+
+Rules:
+
+1. `Checkpoint.new` raises `TypeError` for a location that is neither nil nor a
+   String, and `ArgumentError` for `''`, the name a map gives an unnamed object.
+2. With a `TileWorld` on the scene, the attach adds the location for its node,
+   and the detach removes it. A node built from the map's object of that name
+   adds nothing. A name that another object or another added place has raises at
+   attach, as `TileWorld#add_location` does.
+3. In a room, a checkpoint with no location raises at attach, naming its node's
+   class and the room.
+4. In a room, a touch hands the toucher's `Respawn` a `RoomPoint` at the
+   checkpoint's room and location. Outside rooms, a touch hands a `Point` at the
+   checkpoint's node, with a location or without.
+5. In a room with no `TileWorld`, the checkpoint adds nothing. That room's
+   `_arrive` knows the location itself, as it knows an entrance.
+
+#### 4a. `Checkpoint` takes `location:`
+
+The rules above, with the class comment, `components.md`'s `Checkpoint` and the
+changelog's unreleased `Checkpoint` entry.
+
+**Tests.** `checkpoint_spec.rb`, a case for each rule:
+
+- the two refusals at `new`;
+- the location added at attach, and gone after the detach;
+- a clash with another of the map's objects;
+- a node built from the map's object of that name;
+- the raise in a room, for a checkpoint with no location;
+- a `RoomPoint` from a touch in a room, and a `Point` from one outside rooms
+  with a location.
+
+The composed spec gains the case step 3 left: a hero touches a checkpoint built
+in code in `:a`, walks through the door into `:b`, falls, and comes back at the
+checkpoint. The rooms free `:a` and build it again in between, so the location
+is added again before `_arrive` reads it. `MappedRoom` mounts a
+`CollisionWorld`, so the checkpoint's collider meets the hero's.
+
+#### 4b. `Flag` passes its name as its location
+
+`topdownplatformer/flag.rb` builds `Checkpoint.new(by: :hero, location: name)`.
+The course has no rooms, so a touch still hands a `Point`. Each flag adds
+nothing to the `TileWorld`, whose map names it already.
+
+**Verify.** `rake spec` and `rake spec:core`. The composed spec's checkpoint
+case passes. `topdownplatformer`, driven with `--seed 1 --texts` at 1654 ticks,
+reports the same as `main`.
 
 ### 5. Fold the plan back, and delete it *(rough)*
 
