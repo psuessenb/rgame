@@ -67,6 +67,37 @@ RSpec.describe 'a generated project' do # rubocop:disable RSpec/DescribeClass --
     expect(output).to include('no offenses detected')
   end
 
+  # The README says `ruby main.rb`, with no `bundle exec`, so main.rb has to
+  # load the bundle itself. Otherwise Ruby loads the newest rgame installed, of
+  # whatever version, or fails to find one. The real game.rb opens a window, so
+  # a stand-in reports which rgame main.rb reached.
+  #
+  # This suite runs under `bundle exec`, which loads Bundler into every Ruby it
+  # starts: through RUBYOPT, and through BUNDLER_SETUP, which RubyGems requires
+  # itself. So the example unsets both and checks that Ruby starts without
+  # Bundler, or main.rb would pass whatever it requires.
+  it 'loads the rgame its bundle names when run with plain ruby' do
+    File.write(File.join(project, 'game.rb'), <<~RUBY)
+      # frozen_string_literal: true
+
+      require 'rgame/version'
+
+      module Tictactoe
+        class Game
+          def start = puts($LOADED_FEATURES.find { it.end_with?('/rgame/version.rb') })
+        end
+      end
+    RUBY
+    env = { 'BUNDLE_GEMFILE' => File.join(repo, 'Gemfile'), 'RUBYOPT' => nil, 'RUBYLIB' => nil, 'BUNDLER_SETUP' => nil }
+
+    bundler, = Open3.capture2e(env, RbConfig.ruby, '-e', 'print defined?(Bundler).inspect', chdir: project)
+    output, status = Open3.capture2e(env, RbConfig.ruby, 'main.rb', chdir: project)
+
+    expect(bundler).to eq('nil'), "Ruby loaded Bundler before main.rb could:\n#{bundler}"
+    expect(status).to be_success, "main.rb failed:\n#{output}"
+    expect(output).to include(File.join(repo, 'lib', 'rgame', 'version.rb'))
+  end
+
   # The Game/ cops reach a generated project through the gem, not through this
   # repository's config. So this runs each against a node that breaks it, from
   # the generated .rubocop.yml alone.

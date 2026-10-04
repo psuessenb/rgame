@@ -5,7 +5,12 @@
 # Deliberately nothing but a boot. Everything the game *is* lives in game.rb and
 # nodes/, which is what lets the spec suite load the interesting half without
 # also starting a window.
+#
+# bundler/setup makes `ruby main.rb` load the rgame the Gemfile names, with no
+# `bundle exec`. Without it, Ruby loads the newest rgame installed, which may be
+# a different version or none at all.
 
+require 'bundler/setup'
 require_relative 'game'
 
 <%= game_module %>::Game.new.start
