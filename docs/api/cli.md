@@ -132,7 +132,9 @@ module Tictactoe
 end
 ```
 
-`main.rb` starts it with `Tictactoe::Game.new.start`.
+`main.rb` starts it with `Tictactoe::Game.new.start`. It requires
+`bundler/setup` first, so `ruby main.rb` loads the rgame the `Gemfile` names,
+with no `bundle exec`.
 
 `CONFIGURATION` holds every setting but the root and the caption; see
 [`Configuration`](game.md#configuration--what-a-game-sets-at-startup). Add

@@ -731,6 +731,11 @@ index, not the argument.
 
 ### Fixed
 
+- **`ruby main.rb` runs the rgame the `Gemfile` names.** A project made by
+  `rgame new` loaded the newest rgame installed instead, and failed with a
+  `NameError` when that was an older version. Its `main.rb` now requires
+  `bundler/setup`. A project made earlier gets the fix from adding that line to
+  the top of its `main.rb`. See [docs/api/cli.md](docs/api/cli.md).
 - **A window collected on another thread no longer freezes the process on
   Windows.** When a thread other than the one that opened a window ran the
   collection that freed its `RGame::Core::App`, both threads waited on each
